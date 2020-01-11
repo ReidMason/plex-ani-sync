@@ -17,6 +17,7 @@ config = Config()
 # logger.warning('Debug')  # Orange
 
 def start_sync():
+    logger.debug("Sync started!")
     plex_connection = PlexConnection(config.server_url, config.server_token)
     plex_anime = plex_connection.get_anime(config.libraries[0])
 
