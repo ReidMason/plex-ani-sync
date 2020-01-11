@@ -55,7 +55,7 @@ class Mapping:
 
     # ---- Handling anime-offline-database file
     def load_anime_offline_database(self):
-        self.update_mapping_xml()
+        self.update_anime_offline_database()
         return utils.load_json('data/anime-offline-database.json').get('data')
 
     def update_anime_offline_database(self):
