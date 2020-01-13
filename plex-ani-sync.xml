@@ -30,10 +30,6 @@
             <Value>Plex server url</Value>
         </Variable>
         <Variable>
-            <Name>anilist_username</Name>
-            <Value>Anilist username</Value>
-        </Variable>
-        <Variable>
             <Name>sync_time</Name>
             <Value>19:00</Value>
         </Variable>

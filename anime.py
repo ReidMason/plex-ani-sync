@@ -14,7 +14,7 @@ coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s',
 class Anime:
     config = Config()
     mapping = Mapping()
-    anilist = Anilist(config.anilist_access_token, config.anilist_username)
+    anilist = Anilist(config.anilist_access_token)
 
     def __init__(self, title: str, tvdb_id: str, season_number: str, watched_episodes: int):
         self.title = title

@@ -16,6 +16,12 @@ logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
 
 
 class PlexConnection(PlexServer):
+    class PlexServerUnreachable(Exception):
+        pass
+
+    class InvalidPlexToken(Exception):
+        pass
+
     def __init__(self, server_url: str, server_token: str) -> None:
         """ Connects to plex server with the given url and token.
         :param server_url: The url to the target plex server.

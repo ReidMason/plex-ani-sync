@@ -1,6 +1,8 @@
 import logging
 
 import coloredlogs
+from plexapi.exceptions import BadRequest
+from requests.exceptions import ConnectionError
 
 from anilist import Anilist
 from plexConnection import PlexConnection
@@ -18,7 +20,13 @@ config = Config()
 
 def start_sync():
     logger.debug("Sync started!")
-    plex_connection = PlexConnection(config.server_url, config.server_token)
+    try:
+        plex_connection = PlexConnection(config.server_url, config.server_token)
+    except ConnectionError:
+        raise PlexConnection.PlexServerUnreachable(f"Unable to reach Plex server at {config.server_url}")
+    except BadRequest:
+        raise PlexConnection.InvalidPlexToken(f"Invalid Plex token provided.")
+
     plex_anime = plex_connection.get_anime(config.libraries[0])
 
     # Check anime that are out of sync with anilist
@@ -29,7 +37,7 @@ def start_sync():
 
     # Go through the list and mark any shows that have all their episodes watched as completed
     logger.debug("Fixing leftover completed shows")
-    anilist = Anilist(config.anilist_access_token, config.anilist_username)
+    anilist = Anilist(config.anilist_access_token)
     for id, data in anilist.user_list.items():
         if data.get('progress') == data.get('media').get('episodes') and data.get('status') != 'COMPLETED':
             anilist.update_series(id, data.get('progress'), 'COMPLETED')
