@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s', logger = logger)
 
 
-def do_sync():
+def do_sync(retry: bool = True):
     try:
         from syncHandler import start_sync
         start_sync()
@@ -25,6 +25,13 @@ def do_sync():
     except Anilist.InvalidToken and PlexConnection.InvalidPlexToken as e:
         logger.error(e)
         sys.exit()
+
+    # Catch random errors to prevent the docker container stopping
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        if retry:
+            logger.info("Retrying now")
+            do_sync(retry = False)
 
 
 if __name__ == '__main__':

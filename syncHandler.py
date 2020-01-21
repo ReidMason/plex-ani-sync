@@ -19,7 +19,7 @@ config = Config()
 # logger.warning('Debug')  # Orange
 
 def start_sync():
-    logger.debug("Sync started!")
+    logger.debug("\nSync started!")
     try:
         plex_connection = PlexConnection(config.server_url, config.server_token)
     except ConnectionError:
@@ -42,4 +42,4 @@ def start_sync():
         if data.get('progress') == data.get('media').get('episodes') and data.get('status') != 'COMPLETED':
             anilist.update_series(id, data.get('progress'), 'COMPLETED')
 
-    logger.debug("Sync complete!")
+    logger.debug("Sync complete!\n")
