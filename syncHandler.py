@@ -14,12 +14,8 @@ coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s',
 config = Config()
 
 
-# logger.debug('Debug')  # Green
-# logger.info('Debug')  # Red
-# logger.warning('Debug')  # Orange
-
 def start_sync():
-    logger.debug("\nSync started!")
+    logger.debug("Sync started!")
     try:
         plex_connection = PlexConnection(config.server_url, config.server_token)
     except ConnectionError:

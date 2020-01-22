@@ -12,7 +12,12 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s', logger = logger)
 
 
-def do_sync(retry: bool = True):
+def do_sync(retry: bool = True) -> None:
+    """ Handles the execution of the main syncing function.
+
+    :param retry: Whether or not to retry the sync if it fails.
+    :return: None
+    """
     try:
         from syncHandler import start_sync
         start_sync()
@@ -35,10 +40,13 @@ def do_sync(retry: bool = True):
 
 
 if __name__ == '__main__':
+    # Schedule the sync to run at the specified time
     sync_time = os.environ.get('sync_time')
     schedule.every().day.at(sync_time).do(lambda: do_sync())
+    # Run the sync initially when the program starts
     do_sync()
 
+    # Keep waiting for the time when the sync should occur
     while True:
         schedule.run_pending()
         time.sleep(60)

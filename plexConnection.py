@@ -1,8 +1,7 @@
 import logging
-from typing import Optional, List
+from typing import List
 
 import coloredlogs
-from plexapi.settings import Setting
 from plexapi.video import Show as plexapiShow
 from plexapi.server import PlexServer
 
@@ -24,8 +23,10 @@ class PlexConnection(PlexServer):
 
     def __init__(self, server_url: str, server_token: str) -> None:
         """ Connects to plex server with the given url and token.
+
         :param server_url: The url to the target plex server.
         :param server_token: The token for the target server.
+        :return: None
         """
         logger.warning("Connecting to plex server")
         super().__init__(server_url, server_token)
@@ -33,6 +34,7 @@ class PlexConnection(PlexServer):
 
     def get_shows(self, library: str) -> List[plexapiShow]:
         """ Gets all the shows in a given library.
+
         :param library: The name of the target library.
         :return: A list of Show objects from the target library.
         """
@@ -44,7 +46,12 @@ class PlexConnection(PlexServer):
 
         return self.library.section(library).all()
 
-    def get_anime(self, library: str):
+    def get_anime(self, library: str) -> List[Anime]:
+        """ Loads all the shows and seasons in a library into a list of anime objects.
+
+        :param library: The Plex library to look through.
+        :return: A list of Anime objects representing the shows in the targeted library.
+        """
         anime = []
         for show in self.get_shows(library):
             tvdb_id = show.guid.rsplit('/')[-1].split('?')[0]
