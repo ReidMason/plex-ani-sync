@@ -550,3 +550,4 @@ dmypy.json
 .pyre/
 data/
 .idea/
+.vscode/
