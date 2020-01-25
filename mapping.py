@@ -13,77 +13,77 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s', logger = logger)
 
 
+def load_tvdb_id_to_anidb_id_xml() -> et.Element:
+    """ Get an up to date version of the mapping from tvdb to anidb.
+
+    :return: The up to date tvdb to anidb mapping file.
+    """
+    download_url = 'https://raw.githubusercontent.com/ScudLee/anime-lists/master/anime-list-full.xml'
+    filepath = 'data/tvdbid_to_anidbid.xml'
+    # self.update_mapping_xml()
+    update_mapping_file(filepath, download_url)
+    return et.parse(filepath).getroot()
+
+
+def load_anime_offline_database() -> dict:
+    """ Get an up to date version of the mapping anime offline database mapping file.
+
+    :return: The up to date anime offline database mapping file.
+    """
+    download_url = 'https://raw.githubusercontent.com/manami-project/anime-offline-database/master/anime-offline-database.json'
+    filepath = 'data/anime-offline-database.json'
+    update_mapping_file(filepath, download_url)
+    # self.update_anime_offline_database()
+    return utils.load_json(filepath).get('data')
+
+
+def update_mapping_file(filepath: str, download_url: str) -> None:
+    """ Re-download a mapping file if it is in need of being updated.
+
+    :param filepath: The file path to the mapping file.
+    :param download_url: The download url for the mapping file.
+    :return: None
+    """
+    logger.info("Updating mapping file")
+    if not os.path.exists(filepath):
+        download_mapping_file(filepath, download_url)
+
+    file_age = time.time() - os.path.getctime(filepath)
+    # Replace if the old file is 7 days old
+    if file_age >= 603_800:
+        download_mapping_file(filepath, download_url)
+
+
+def download_mapping_file(filepath: str, download_url: str) -> None:
+    """ Download a mapping file to a specified filepath.
+
+    :param filepath: The file path to save the downloaded mapping file.
+    :param download_url: The download url for the mapping file.
+    :return: None
+    """
+    logger.info("Downloading new mapping file")
+    if os.path.exists(filepath):
+        os.remove(filepath)
+
+    urllib.request.urlretrieve(download_url, filepath)
+
+
+def load_tvdb_id_to_anilist_id() -> dict:
+    """ Get the tvdb to anilist mapping file.
+
+    :return: The tvdb to anilist mapping file
+    """
+    logger.debug("Loading tvdb_id to anilist_id")
+    return utils.load_json('data/tvdbid_to_anilistid.json')
+
+
 class Mapping:
     """ A class that handles mapping show ids from different sources so that we can convert between the two. """
 
-    def __init__(self):
-        """ Load the mapping files for use.  """
-
-        self.xml_tvdb_id_to_anidb_id = self.load_tvdb_id_to_anidb_id_xml()
-        self.tvdb_id_to_anilist_id = self.load_tvdb_id_to_anilist_id()
-        self.anime_offline_database = self.load_anime_offline_database()
-
-        # Clear mapping errors
-        self.save_mapping_errors({})
-
-    def load_tvdb_id_to_anidb_id_xml(self) -> et.Element:
-        """ Get an up to date version of the mapping from tvdb to anidb.
-
-        :return: The up to date tvdb to anidb mapping file.
-        """
-        download_url = 'https://raw.githubusercontent.com/ScudLee/anime-lists/master/anime-list-full.xml'
-        filepath = 'data/tvdbid_to_anidbid.xml'
-        # self.update_mapping_xml()
-        self.update_mapping_file(filepath, download_url)
-        return et.parse(filepath).getroot()
-
-    def load_anime_offline_database(self) -> dict:
-        """ Get an up to date version of the mapping anime offline database mapping file.
-
-        :return: The up to date anime offline database mapping file.
-        """
-        download_url = 'https://raw.githubusercontent.com/manami-project/anime-offline-database/master/anime-offline-database.json'
-        filepath = 'data/anime-offline-database.json'
-        self.update_mapping_file(filepath, download_url)
-        # self.update_anime_offline_database()
-        return utils.load_json(filepath).get('data')
-
-    def update_mapping_file(self, filepath: str, download_url: str) -> None:
-        """ Re-download a mapping file if it is in need of being updated.
-
-        :param filepath: The file path to the mapping file.
-        :param download_url: The download url for the mapping file.
-        :return: None
-        """
-        logger.info("Updating mapping file")
-        if not os.path.exists(filepath):
-            self.download_mapping_file(filepath, download_url)
-
-        file_age = time.time() - os.path.getctime(filepath)
-        # Replace if the old file is 7 days old
-        if file_age >= 603_800:
-            self.download_mapping_file(filepath, download_url)
-
-    def download_mapping_file(self, filepath: str, download_url: str) -> None:
-        """ Download a mapping file to a specified filepath.
-
-        :param filepath: The file path to save the downloaded mapping file.
-        :param download_url: The download url for the mapping file.
-        :return: None
-        """
-        logger.info("Downloading new mapping file")
-        if os.path.exists(filepath):
-            os.remove(filepath)
-
-        urllib.request.urlretrieve(download_url, filepath)
-
-    def load_tvdb_id_to_anilist_id(self) -> dict:
-        """ Get the tvdb to anilist mapping file.
-
-        :return: The tvdb to anilist mapping file
-        """
-        logger.debug("Loading tvdb_id to anilist_id")
-        return utils.load_json('data/tvdbid_to_anilistid.json')
+    # Load the mapping files for use.s
+    xml_tvdb_id_to_anidb_id = load_tvdb_id_to_anidb_id_xml()
+    tvdb_id_to_anilist_id = load_tvdb_id_to_anilist_id()
+    anime_offline_database = load_anime_offline_database()
 
     def save_tvdb_id_to_anilist_id(self):
         """ Save the tvdbid to anilist mapping file. """
