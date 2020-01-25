@@ -5,6 +5,7 @@ from plexapi.exceptions import BadRequest
 from requests.exceptions import ConnectionError
 
 from anilist import Anilist
+from mapping import Mapping
 from plexConnection import PlexConnection
 from config import Config
 
@@ -16,6 +17,9 @@ config = Config()
 
 def start_sync():
     logger.debug("Sync started!")
+    # Clear mapping errors
+    Mapping().save_mapping_errors({})
+
     try:
         plex_connection = PlexConnection(config.server_url, config.server_token)
     except ConnectionError:
