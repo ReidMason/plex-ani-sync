@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import List, Optional
 
 import requests
-from config import ANILIST_API_BASE_URL
 
 import utils
+from config import ANILIST_API_BASE_URL
 
 logger = utils.create_logger(__name__)
 
@@ -187,5 +187,4 @@ class Anilist:
         }
 
         # If there were no errors so the update was successful
-        # return self.send_graphql_request(query, variables).get('errors') is None
-        return True
+        return self.send_graphql_request(query, variables).get('errors') is None
