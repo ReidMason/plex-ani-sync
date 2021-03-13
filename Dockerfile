@@ -1,13 +1,9 @@
-FROM python:3.8
+FROM python:slim-buster
 
-# Set the working directory to /app
-WORKDIR /app
-
-# Copy the current directory contents into the container at /app
 ADD . /app
 
-# Install the dependencies
-RUN pip install -r requirements.txt
+WORKDIR /app
 
-# Run the program with unbuffered argument
-CMD ["python3", "-u", "main.py"]
+RUN pip3 install -r requirements.txt
+
+CMD ["python3", "main.py"]
