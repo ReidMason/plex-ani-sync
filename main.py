@@ -2,6 +2,7 @@ import time
 
 import schedule
 
+import utils
 from config import TIME_TO_RUN
 from sync_runner import Syncher
 
