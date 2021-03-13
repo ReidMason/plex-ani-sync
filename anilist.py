@@ -1,115 +1,75 @@
 import json
-import logging
 import time
-from dataclasses import dataclass
-from pprint import pprint
-from typing import Optional, Union
+from datetime import datetime
+from typing import List, Optional
 
-import coloredlogs
 import requests
+from config import ANILIST_API_BASE_URL
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level = 'DEBUG', fmt = '%(asctime)s [%(name)s] %(message)s', logger = logger)
+import utils
+
+logger = utils.create_logger(__name__)
 
 
-@dataclass
+class AnilistAnime:
+    def __init__(self, anilist_json: dict):
+        media_json = anilist_json.get('media')
+
+        self.title_romaji: str = media_json.get('title').get('romaji')
+        self.title: str = media_json.get('title').get('english') or self.title_romaji
+        self.id: str = str(media_json.get('id'))
+        # When the total episodes aren't known it gives None so convert that to a 0
+        self.total_episodes: int = media_json.get('episodes') or 0
+        self.episodes_watched: int = anilist_json.get('progress')
+        self.status: str = anilist_json.get('status')
+        self._last_updated: int = anilist_json.get('updatedAt')
+
+    def get_last_updated(self) -> int:
+        return self._last_updated
+
+    @property
+    def last_updated(self) -> datetime:
+        if self._last_updated is not None:
+            return datetime.utcfromtimestamp(self._last_updated)
+
+    @property
+    def days_since_last_update(self) -> int:
+        if self.last_updated is None:
+            return 0
+        return abs((self.last_updated - datetime.now()).days)
+
+    def __repr__(self):
+        return f"Title: {self.title}\n" \
+               f"Id: {self.id}\n" \
+               f"Total episodes: {self.total_episodes}\n" \
+               f"Episodes watched: {self.episodes_watched}\n" \
+               f"Status: {self.status}\n" \
+               f"Last updated: {self.last_updated}\n"
+
+
 class Anilist:
-    """ This is an interface for Anilist. All of the requests sent to the Anilist api are send from here and as such it
-    obtains data from Anilist such as the username and users list.
+    _username: str = None
+    _animelist: Optional[List[AnilistAnime]] = None
 
-    access_token: The access token to use for the Anilist api.
-    """
-    access_token: str
+    def __init__(self, anilist_token: str):
+        self.token = anilist_token
 
-    class InvalidToken(Exception):
-        """ A custom error for when the Anilist token is invalid. """
-        pass
+    @property
+    def username(self):
+        if self._username is None:
+            self._username = self.get_username()
 
-    def __post_init__(self) -> None:
-        """ Creates the username and user_list properties for this class to save from sending requests every time this
-        data is required by the module.
+        return self._username
 
-        :return: None
-        """
-        self.username = self.get_username()
-        self.user_list = self.fetch_user_list()
+    @property
+    def anime_list(self):
+        if self._animelist is None:
+            self._animelist = self.get_animelist()
 
-    def get_anime(self, anilist_id: str) -> Optional[dict]:
-        """ Gets an anime from the users list with a matching anilist id.
+        return self._animelist
 
-        :param anilist_id: The id to use to search the users list.
-        :return: The data for the requested anime or None if the anime isn't in the list.
-        """
-        return self.user_list.get(anilist_id)
-
-    def send_query(self, query: str, variables: dict) -> Union[dict, list]:
-        """ Sends a query request to the Anilist api. This is a wrapper for adding the heading and parsing the response
-        when sending requests.
-
-        :param query: The actual query to be sent to Anilist using the GraphQl syntax.
-        :param variables: Variables to be used in the query conforming to GraphQl syntax.
-        :return: The response from the Anilist api in a python readable format.
-        """
-        url = 'https://graphql.anilist.co'
-
-        headers = {
-            'Authorization': 'Bearer ' + self.access_token,
-            'Accept'       : 'application/json',
-            'Content-Type' : 'application/json'
-        }
-
-        r = requests.post(
-            url, headers = headers, json = {
-                'query': query, 'variables': variables})
-
-        content = json.loads(r.content.decode('utf-8'))
-
-        # Check for invalid token errors
-        errors = content.get('errors')
-        if errors is not None and errors[0].get('message') == "Invalid token":
-            raise Anilist.InvalidToken("Provided Anilist token is invalid.")
-
-        return content
-
-    def update_series(self, anilist_id: str, progress: int, status: str) -> bool:
-        """ Updates a series on Anilist. This can be used to change the progress or status of a show on Anilist.
-
-        :param anilist_id: The id of the show that needs to be updated.
-        :param progress: The current number of watched episodes.
-        :param status: The current status be it "completed", "watching" or "plan to watch".
-        :return: Whether or not the update was successful.
-        """
-        logger.warning(f"Updating {anilist_id} to {status}")
-
-        query = '''
-            mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int) {
-                SaveMediaListEntry (mediaId: $mediaId, status: $status, progress: $progress) {
-                    id
-                    status,
-                    progress
-                }
-            }
-            '''
-
-        variables = {
-            'mediaId' : anilist_id,
-            'status'  : status,
-            'progress': progress
-        }
-
-        # If there were no errors so the update was successful
-        return self.send_query(query, variables).get('errors') is None
-
-    def fetch_user_list(self) -> dict:
-        """ Gets the users list from Anilist and formats it into a dictionary so that all the shows are accessible by
-        their ids as keys.
-
-        This will only use default lists such as 'CURRENT', 'PLANNING', 'COMPLETED', 'DROPPED', 'PAUSED', 'REPEATING'.
-
-        :return: A dictionary containing all the shows on the users list.
-        """
-        logger.warning("Fetching users lists from anilist")
-
+    def get_animelist(self):
+        logger.info("Requesting anime list from Anilist")
         query = '''
             query ($username: String) {
             MediaListCollection(userName: $username, type: ANIME) {
@@ -121,6 +81,7 @@ class Anilist:
                     id
                     progress
                     status
+                    updatedAt
                     media{
                         id
                         type
@@ -141,17 +102,19 @@ class Anilist:
         variables = {
             'username': self.username
         }
+        all_lists = self.send_graphql_request(query, variables).get('data').get('MediaListCollection').get('lists')
+        tracked_lists = [x for x in all_lists if not x.get('isCustomList')]
+        animelist = self.animelist_json_to_objects(tracked_lists)
+        return animelist
 
-        anime_list = {}
-        all_lists = self.send_query(query, variables).get('data').get('MediaListCollection').get('lists')
-        for anilist_list in all_lists:
-            # Only look at these lists as there may be many other types of lists
-            if anilist_list.get('status') in ['CURRENT', 'PLANNING', 'COMPLETED', 'DROPPED', 'PAUSED', 'REPEATING']:
-                for anime in anilist_list.get('entries'):
-                    anime_list[str(anime.get('media').get('id'))] = anime
+    @staticmethod
+    def animelist_json_to_objects(lists_json: List[dict]) -> List[AnilistAnime]:
+        animelist = []
+        for anilist_list in lists_json:
+            anime_in_list = anilist_list.get('entries')
+            animelist.extend([AnilistAnime(x) for x in anime_in_list])
 
-        time.sleep(1)
-        return anime_list
+        return animelist
 
     def get_username(self) -> str:
         """ Gets the username of the user that owns the token that is currently associated with this instance of the
@@ -159,12 +122,70 @@ class Anilist:
 
         :return: The users username.
         """
+        logger.info("Requesting username from Anilist")
         query = '''
-                    query {
-                        Viewer {
-                            name
-                        }
+                query {
+                    Viewer {
+                        name
                     }
-                    '''
+                }
+                '''
+        response = self.send_graphql_request(query, {})
+        return response.get('data').get('Viewer').get('name')
 
-        return self.send_query(query, {}).get('data').get('Viewer').get('name')
+    def send_graphql_request(self, query: str, variables: dict) -> dict:
+        headers = {
+            'Authorization': 'Bearer ' + self.token,
+            'Accept'       : 'application/json',
+            'Content-Type' : 'application/json'
+        }
+
+        r = requests.post(
+            ANILIST_API_BASE_URL,
+            headers = headers,
+            json = {
+                'query'    : query,
+                'variables': variables
+            })
+
+        # Sleep to avoid rate limiting
+        time.sleep(1)
+
+        return json.loads(r.content.decode('utf-8'))
+
+    def get_anime_from_anilistid(self, anilistid: str):
+        # Try and get anime from the list
+        return next((x for x in self.anime_list if x.id == anilistid), None)
+
+    def reset_anime_list(self):
+        self._animelist = None
+
+    def update_anime(self, anilist_id: str, progress: int, status: str) -> bool:
+        """ Updates a series on Anilist. This can be used to change the progress or status of a show on Anilist.
+
+        :param anilist_id: The id of the show that needs to be updated.
+        :param progress: The current number of watched episodes.
+        :param status: The current status be it "completed", "watching" or "plan to watch".
+        :return: Whether or not the update was successful.
+        """
+        logger.info(f"Updating {anilist_id} to {status} episodes watched {progress}")
+
+        query = '''
+            mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int) {
+                SaveMediaListEntry (mediaId: $mediaId, status: $status, progress: $progress) {
+                    id
+                    status,
+                    progress
+                }
+            }
+            '''
+
+        variables = {
+            'mediaId' : anilist_id,
+            'status'  : status,
+            'progress': progress
+        }
+
+        # If there were no errors so the update was successful
+        # return self.send_graphql_request(query, variables).get('errors') is None
+        return True
