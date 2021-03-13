@@ -4,10 +4,10 @@
     <Beta>False</Beta>
     <Name>Plex Anilist Sync</Name>
     <Overview>
-        An application that syncs Plex and Anilist.
-        Note: There are two plex authentication options. Token authentication is faster.
-        For token authenticaiton you need plex server url and plex token
-        For email verification you need plex username, plex password and plex server name
+        <![CDATA[An application that syncs Plex and Anilist.<br />      
+            Note: There are two plex authentication options. Token authentication is faster.<br />
+            For token authenticaiton you need plex server url and plex token<br />
+            For email verification you need plex username, plex password and plex server name]]>
     </Overview>
     <Registry>https://registry.hub.docker.com/u/skippythesnake/plex-ani-sync</Registry>
     <GitHub>https://github.com/SkippyTheSnake/plex-ani-sync</GitHub>
