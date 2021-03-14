@@ -62,8 +62,8 @@ class Syncher:
 
         plex_anime = copy.deepcopy(plex_animes.pop(0))
 
-        # If there's only one there's nothing to combine
-        if len(plex_animes) == 1:
+        # If there was only one anime so there's nothing to combine
+        if len(plex_animes) == 0:
             return plex_anime
 
         for anime in plex_animes:
