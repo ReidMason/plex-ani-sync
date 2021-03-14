@@ -45,4 +45,4 @@ class SeasonMapping:
     def all_seasons(self) -> List[str]:
         seasons = [self.plex_season_number]
         seasons.extend(self.plex_additional_seasons)
-        return seasons
+        return [str(x) for x in seasons]
