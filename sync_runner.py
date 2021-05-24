@@ -47,9 +47,9 @@ class Syncher:
 
         if anilist_anime is not None and plex_anime.episodes_watched >= anilist_anime.total_episodes > 0:
             return "COMPLETED"
-        elif status_not_planning and same_plex_watched_episodes and days_since_last_update > self.user.dropped_days_threshold:
+        elif status_not_planning and same_plex_watched_episodes and days_since_last_update >= self.user.dropped_days_threshold:
             return "DROPPED"
-        elif status_not_planning and same_plex_watched_episodes and days_since_last_update > self.user.paused_days_threshold:
+        elif status_not_planning and same_plex_watched_episodes and days_since_last_update >= self.user.paused_days_threshold:
             return "PAUSED"
         elif plex_anime.episodes_watched == 0:
             return "PLANNING"
@@ -130,7 +130,7 @@ class Syncher:
             return
 
         # If the season mapping is none then we need to set it according to the anilist status
-        if season_mapping.last_updated_is_none:
+        if not season_mapping.last_updated_is_none:
             if anilist_anime.status == "DROPPED":
                 season_mapping.unix_last_updated = time.time() - (86400 * self.user.dropped_days_threshold)
             elif anilist_anime.status == "PAUSED":
@@ -152,15 +152,22 @@ class Syncher:
         episodes_watched_mismatch = episodes_watched != anilist_anime.episodes_watched
         more_episodes_watched = episodes_watched > anilist_anime.episodes_watched
         watch_status_change = watch_status != anilist_anime.status
+
+        # Don't replace dropped shows with paused
+        if anilist_anime.status == 'DROPPED' and watch_status == 'PAUSED':
+            return
+
         # Check if an update on anilist is needed
-        if more_episodes_watched or (watch_status_change and episodes_watched_mismatch):
+        if more_episodes_watched or watch_status_change or episodes_watched_mismatch:
             print(
                 f"Updating {anilist_anime.title} - {season_mapping.plex_season_number} \n"
                 f"  Watch status: {anilist_anime.status} -> {watch_status}\n"
                 f"  Episodes watched: {anilist_anime.episodes_watched} -> {episodes_watched}\n")
 
-            season_mapping.unix_last_updated = time.time()
-            self.mapper.save_mapping()
+            # Don't change the update time if the watch status is being set to dropped or paused
+            if watch_status not in ["DROPPED", "PAUSED"]:
+                season_mapping.unix_last_updated = time.time()
+                self.mapper.save_mapping()
 
             self.anilist.update_anime(season_mapping.anilistid, episodes_watched, watch_status)
 
