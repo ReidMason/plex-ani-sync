@@ -150,6 +150,7 @@ class Syncher:
             episodes_watched = min(plex_anime.episodes_watched, anilist_anime.total_episodes)
 
         episodes_watched_mismatch = episodes_watched != anilist_anime.episodes_watched
+        anilist_not_ahead = episodes_watched > anilist_anime.episodes_watched
         more_episodes_watched = episodes_watched > anilist_anime.episodes_watched
         watch_status_change = watch_status != anilist_anime.status
 
@@ -158,7 +159,7 @@ class Syncher:
             return
 
         # Check if an update on anilist is needed
-        if more_episodes_watched or watch_status_change or episodes_watched_mismatch:
+        if (more_episodes_watched or watch_status_change or episodes_watched_mismatch) and anilist_not_ahead:
             print(
                 f"Updating {anilist_anime.title} - {season_mapping.plex_season_number} \n"
                 f"  Watch status: {anilist_anime.status} -> {watch_status}\n"
