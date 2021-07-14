@@ -150,7 +150,7 @@ class Syncher:
             episodes_watched = min(plex_anime.episodes_watched, anilist_anime.total_episodes)
 
         episodes_watched_mismatch = episodes_watched != anilist_anime.episodes_watched
-        anilist_not_ahead = episodes_watched > anilist_anime.episodes_watched
+        anilist_not_ahead = episodes_watched >= anilist_anime.episodes_watched
         more_episodes_watched = episodes_watched > anilist_anime.episodes_watched
         watch_status_change = watch_status != anilist_anime.status
 
