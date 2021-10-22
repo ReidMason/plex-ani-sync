@@ -2,3 +2,8 @@
 venv
 data
 __pycache__
+.vscode
+config.json
+server/static
+server/data
+failed_tvdb_id_mappings.json

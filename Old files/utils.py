@@ -14,7 +14,7 @@ def create_logger(name: str) -> logging.Logger:
 
 
 def load_json(filepath: str) -> dict:
-    if (not os.path.exists(filepath)):
+    if not os.path.exists(filepath):
         save_json({}, filepath)
 
     with open(filepath, 'r', encoding = 'utf-8') as f:
