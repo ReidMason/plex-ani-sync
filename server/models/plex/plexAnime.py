@@ -10,12 +10,11 @@ logger = utils.create_logger(__name__)
 class PlexAnime:
     def __init__(self, plex_season: Season, tvdb_id: Optional[int] = None, release_year: Optional[int] = None):
         self.title: str = plex_season.parentTitle
-        logger.info(f"Processing: {self.title}")
-        self.tvdb_id: Optional[int] = tvdb_id
-        self.release_year: Optional[int] = release_year
         self.season_number: str = str(plex_season.seasonNumber)
-        self.display_name: str = f'{plex_season.parentTitle} - Season {self.season_number}'
-        self.release_year = plex_season.year
+        self.tvdb_id: Optional[int] = tvdb_id
+        self.display_name: str = f'{plex_season.parentTitle} - Season {self.season_number} ({self.tvdb_id})'
+        logger.info(f"Processing: {self.display_name}")
+        self.release_year: Optional[int] = release_year
 
         self.plex_season: Season = plex_season
         self._episodes: int = None

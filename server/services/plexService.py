@@ -128,10 +128,11 @@ class PlexService:
     def get_anime_in_library(self, library) -> List[PlexAnime]:
         plex_id_to_tvdb_id = PlexIdToTvdbId()
 
-        anime_in_library = []
         library_media = self.get_media_in_library(library)
         for anime in library_media:
             tvdb_id = extract_tvdb_id_from_guid(plex_id_to_tvdb_id, anime)
+            # if tvdb_id != "313435":
+            #     continue
             anime_seasons = self.get_all_seasons_for_anime(anime)
             yield [PlexAnime(x, tvdb_id, anime.year) for x in anime_seasons]
             # anime_in_library.extend(PlexAnime(x, tvdb_id) for x in self.get_all_seasons_for_anime(anime))

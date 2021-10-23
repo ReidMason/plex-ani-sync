@@ -1,7 +1,21 @@
-from typing import List
 from datetime import datetime
 
 disallowed_formats = ["MANGA", "NOVEL", "MUSIC", "ONE_SHOT"]
+
+
+def matching_format(format1: str, format2: str) -> bool:
+    if format1 == format2:
+        return True
+
+    tv_formats = ["TV_SHORT", "TV"]
+    if format1 in tv_formats and format2 in tv_formats:
+        return True
+
+    ova_formats = ["OVA", "ONA"]
+    if format1 in ova_formats and format2 in ova_formats:
+        return True
+
+    return False
 
 
 class Anime:
@@ -13,8 +27,8 @@ class Anime:
         self.format: str = anime_data.get('format')
         self.episodes: int = anime_data.get('episodes')
 
-        self.end_date: datetime = self.extract_date(anime_data.get('startDate'))
-        self.start_date: datetime = self.extract_date(anime_data.get('endDate'))
+        self.end_date: datetime = self.extract_date(anime_data.get('endDate'))
+        self.start_date: datetime = self.extract_date(anime_data.get('startDate'))
 
         self.sequel: Anime = None
         self.prequel: Anime = None
@@ -32,26 +46,28 @@ class Anime:
         for edge, node in zip(relation_edges or [], relation_nodes or []):
             relation_type = edge.get('relationType')
             media_format = node.get('format')
-            if relation_type == "SEQUEL" and media_format not in disallowed_formats and self.supposed_sequel is None:
+
+            sequel_start_date = self.extract_date(node.get('startDate'))
+            prequel_end_date = self.extract_date(node.get('endDate'))
+
+            valid_end_date = prequel_end_date is not None and self.start_date is not None
+            valid_start_date = sequel_start_date is not None and self.end_date is not None
+
+            if relation_type == "SEQUEL" and media_format not in disallowed_formats and self.supposed_sequel is None and (sequel_start_date > self.end_date if valid_start_date else True):
                 self.supposed_sequel = Anime(node)
-            elif relation_type == "PREQUEL" and media_format not in disallowed_formats and self.supposed_prequel is None:
+            elif relation_type == "PREQUEL" and media_format not in disallowed_formats and self.supposed_prequel is None and (prequel_end_date < self.start_date if valid_end_date else True):
                 self.supposed_prequel = Anime(node)
 
-            # We don't want anime that is a different type to this anime
-            if media_format != self.format:
+            # We don't want anime that is a different type to this anime with exceptions
+            sequels = [x for x in relation_nodes if x.get('relationType') == "SEQUEL"]
+            if not matching_format(media_format, self.format):
                 continue
 
-            start_date = self.extract_date(node.get('startDate'))
-            end_date = self.extract_date(node.get('endDate'))
-
-            valid_end_date = end_date is not None and self.start_date is not None
-            valid_start_date = start_date is not None and self.end_date is not None
-
-            # It can't be a sequel unless the start date was before this current animes end date
-            if self.sequel is None and relation_type == "SEQUEL" and (end_date < self.start_date if valid_end_date else True):
+            # It can't be a sequel unless the start date was after this current animes end date
+            if self.sequel is None and relation_type == "SEQUEL" and (sequel_start_date > self.end_date if valid_start_date else True):
                 self.sequel = Anime(node)
             # It can't be a prequel unless the end date was before this current animes start date
-            elif self.prequel is None and relation_type == "PREQUEL" and (start_date > self.end_date if valid_start_date else True):
+            elif self.prequel is None and relation_type == "PREQUEL" and (prequel_end_date < self.start_date if valid_end_date else True):
                 self.prequel = Anime(node)
 
             # Sequel and prequel have been filled we can stop looking for them
@@ -59,6 +75,9 @@ class Anime:
                 break
 
     def extract_date(self, date_from_request: dict) -> datetime:
+        if date_from_request is None:
+            return None
+
         day = date_from_request.get('day')
         month = date_from_request.get('month')
         year = date_from_request.get('year')

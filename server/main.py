@@ -9,8 +9,6 @@ from fileManager import load_json, save_json
 
 anilist_service = AnilistService(ANILIST_TOKEN)
 
-anilist_service.search_for_anime("Sword art online")
-
 mapping_service = MappingService()
 
 plex_service = PlexService(PLEX_SERVER_URL)
@@ -29,8 +27,8 @@ def process_anime_series(series: List[PlexAnime]):
 
         mapping = mapping_service.find_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
         if mapping is None:
-            mapping_service.find_new_anilist_mapping(anime.tvdb_id)
-        mapping = mapping_service.find_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
+            mapping_service.find_new_anilist_mapping(anime)
+            mapping = mapping_service.find_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
 
         # Mapping could not be found
         if mapping is None:

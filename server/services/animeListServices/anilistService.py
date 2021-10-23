@@ -52,6 +52,8 @@ class AnilistUser:
 
 
 class AnilistService(IAnimeListService):
+    cached_anime_with_seasons: List[Anime] = []
+
     def __init__(self, token: str):
         self.base_url = 'https://graphql.anilist.co/'
         self._user_id = None
@@ -248,6 +250,37 @@ class AnilistService(IAnimeListService):
 
         return response.get('errors') is None
 
+    def search_for_anime(self, anime_name: str):
+        query = '''
+            query ($anime_name: String) {
+                Page(perPage: 5) {
+                    media(search: $anime_name, type: ANIME) {
+                        id
+                        title {
+                            romaji
+                            english
+                        }
+                        startDate {
+                            year
+                            month
+                            day
+                        }
+                    }
+                }
+            }
+        '''
+
+        logger.info(f"Searching for anime {anime_name}")
+
+        variables = {'anime_name': anime_name}
+        response = self.send_graphql_request(query, variables)
+
+        if response is not None:
+            search_results = response.get('data').get('Page').get('media')
+            return [Anime(x) for x in search_results]
+
+        return None
+
     def get_anime_prequels(self, anime_id: int, anime: Anime = None) -> Anime:
         if anime is None:
             anime = self.get_anime(anime_id)
@@ -263,10 +296,10 @@ class AnilistService(IAnimeListService):
             # We need to keep going through the prequels until there aren't any more
             supposed_prequel = self.get_anime(anime.supposed_prequel.id)
             iterations = 0
-            while supposed_prequel is not None and supposed_prequel.supposed_prequel is not None and iterations < 5:
+            while supposed_prequel is not None and supposed_prequel.supposed_prequel is not None and iterations < 10:
                 iterations += 1
-                if supposed_prequel.supposed_prequel.format == anime.format:
-                    anime.prequel = self.get_anime_prequels(supposed_prequel.supposed_prequel.id)
+                if supposed_prequel.format == anime.format:
+                    anime.prequel = self.get_anime_prequels(supposed_prequel.id)
                     break
 
                 supposed_prequel = self.get_anime(supposed_prequel.supposed_prequel.id)
@@ -278,32 +311,6 @@ class AnilistService(IAnimeListService):
             anime.prequel.sequel = anime
 
         return anime
-
-    def search_for_anime(self, anime_name: str, release_year: Optional[int] = None):
-        query = '''
-            query ($anime_name: String) {
-                Page(perPage: 5) {
-                    media(search: $anime_name, type: ANIME) {
-                        id
-                        title {
-                            romaji
-                            english
-                        }
-                    }
-                }
-            }
-        '''
-
-        logger.info(f"Searching for anime {anime_name}")
-
-        variables = {'anime_name': anime_name}
-        response = self.send_graphql_request(query, variables)
-
-        if response is not None:
-            anime_data = response.get('data').get('Media')
-            return Anime(anime_data)
-
-        return None
 
     def get_anime_sequels(self, anime_id: int, anime: Anime = None) -> Anime:
         if anime is None:
@@ -320,10 +327,14 @@ class AnilistService(IAnimeListService):
             # We need to keep going through the sequels until there aren't any more
             supposed_sequel = self.get_anime(anime.supposed_sequel.id)
             iterations = 0
-            while supposed_sequel is not None and supposed_sequel.supposed_sequel is not None and iterations < 5:
+            while supposed_sequel is not None and iterations < 10:
                 iterations += 1
-                if supposed_sequel.supposed_sequel.format == anime.format:
-                    anime.sequel = self.get_anime_sequels(supposed_sequel.supposed_sequel.id)
+                if supposed_sequel.format == anime.format:
+                    anime.sequel = self.get_anime_sequels(supposed_sequel.id)
+                    break
+
+                # When the show no longer has any sequels we can stop
+                if supposed_sequel.supposed_sequel is None:
                     break
 
                 supposed_sequel = self.get_anime(supposed_sequel.supposed_sequel.id)
@@ -338,18 +349,24 @@ class AnilistService(IAnimeListService):
 
     def get_anime_with_seasons(self, anime_id: int) -> Anime:
         """ Tries to get all seasons on an anime """
+        anime = self.get_cached_anime_with_seasons(anime_id)
+        if anime is not None:
+            return anime
+
         anime = self.get_anime_sequels(anime_id)
         anime = self.get_anime_prequels(anime_id, anime)
 
-        # if anime.prequel is not None and anime.prequel.title is None:
-        #     anime.prequel = self.get_anime_prequels(anime.prequel.id)
-        #     anime.prequel.sequel = anime
-
-        # if (anime.sequel is not None and anime.sequel.title is None) or anime.supposed_sequel is not None:
-        #     anime.sequel = self.get_anime_sequels((anime.sequel or anime.supposed_sequel).id)
-        #     anime.sequel.prequel = anime
+        self.cached_anime_with_seasons.append(anime)
 
         return anime
+
+    def get_cached_anime_with_seasons(self, anilist_id: int) -> Optional[Anime]:
+        for anime in self.cached_anime_with_seasons:
+            for season in anime.all_seasons:
+                if season.id == anilist_id:
+                    return season
+
+        return None
 
     def get_anime(self, anime_id: int) -> Optional[Anime]:
         query = '''

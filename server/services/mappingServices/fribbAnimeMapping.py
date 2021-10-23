@@ -54,6 +54,10 @@ class FribbAnimeMapping:
         ensure_required_directories_exist()
         logger.info("Downloading new fribbs mapping")
 
+        # Delete the file if it already exists
+        if os.path.exists(self.anime_list_mapping_path):
+            os.remove(self.anime_list_mapping_path)
+
         url = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
         urllib.request.urlretrieve(url, self.anime_list_mapping_path)
 
