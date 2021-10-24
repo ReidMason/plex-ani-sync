@@ -130,6 +130,7 @@ class MappingService:
             self.save_mapping()
 
     def save_mapping(self):
-        data = [x.serialize() for x in self.mappings] if self.mappings is not None else []
+        sorted_mappings = sorted(self.mappings, key=lambda x: (int(x.tvdb_id), int(x.season_number)))
+        data = [x.serialize() for x in sorted_mappings] if sorted_mappings is not None else []
 
         save_json(self.anime_list_mapping_path, data)

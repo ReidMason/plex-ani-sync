@@ -29,8 +29,8 @@ class AnilistAuth:
     def get_token(self) -> Optional[AnilistTokenResponse]:
         payload = {
             'grant_type': 'authorization_code',
-            'client_id': '***REMOVED***',
-            'client_secret': '***REMOVED***',
+            'client_id': '',
+            'client_secret': '',
             'redirect_uri': '',
             'code': self.authorization_code,
         }

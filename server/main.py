@@ -19,18 +19,19 @@ all_anime = plex_service.get_all_anime()
 failed_tvdb_id_mappings = load_json("failed_tvdb_id_mappings.json", [])
 
 
-def process_anime_series(series: List[PlexAnime]):
+def create_mapping_for_anime_series(series: List[PlexAnime]):
     for anime in series:
         # Skip specials seasons
         if anime.season_number == "0" or any([x.get("tvdb_id") == anime.tvdb_id and x.get("season_number") == anime.season_number for x in failed_tvdb_id_mappings]):
             continue
 
+        # Try and ge the mapping if not create it
         mapping = mapping_service.find_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
         if mapping is None:
             mapping_service.find_new_anilist_mapping(anime)
             mapping = mapping_service.find_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
 
-        # Mapping could not be found
+        # Mapping could not be found or created
         if mapping is None:
             failed_tvdb_id_mappings.append({
                 "title": anime.title,
@@ -43,4 +44,4 @@ def process_anime_series(series: List[PlexAnime]):
 
 
 for series in all_anime:
-    process_anime_series(series)
+    create_mapping_for_anime_series(series)
