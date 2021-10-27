@@ -12,7 +12,7 @@ from models.animeList.animeList import AnimeList
 from models.animeList.animeListAnime import AnimeListAnime
 from models.twoWayMapping import TwoWayMapping
 
-logger = utils.create_logger(__name__)
+logger = utils.create_logger("AnilistService")
 
 watch_status_mapping: TwoWayMapping = TwoWayMapping()
 watch_status_mapping["completed"] = 1
@@ -131,10 +131,10 @@ class AnilistService(IAnimeListService):
                         status
                         season
                         episodes
-                    title {
-                        romaji
-                        english
-                    }
+                        title {
+                            romaji
+                            english
+                        }
                     }
                 }
                 }
@@ -216,7 +216,7 @@ class AnilistService(IAnimeListService):
             name=viewer.get('name')
         )
 
-    def update_anime(self, anime_id: str, watched_episodes: int, status: int) -> bool:
+    def update_anime(self, anime_id: str, watched_episodes: int, status: int, title: str = None) -> bool:
         """ Updates a series on Anilist. This can be used to change the progress or status of a show on Anilist.
 
         :param anime_id: The id of the show that needs to be updated.
@@ -224,7 +224,8 @@ class AnilistService(IAnimeListService):
         :param status: The current status number.
         :return: Whether or not the update was successful.
         """
-        logger.info(f"Updating {anime_id} to {status} episodes watched {watched_episodes}")
+        logger.info(
+            f'Updating "{title or anime_id}" to "{watch_status_mapping[status]}" Episodes watched: {watched_episodes}')
 
         query = '''
             mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int) {
@@ -375,6 +376,7 @@ class AnilistService(IAnimeListService):
                     id
                     format
                     episodes
+                    synonyms
                     endDate {
                         year
                         month

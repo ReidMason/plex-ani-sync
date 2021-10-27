@@ -3,16 +3,20 @@ from datetime import datetime
 disallowed_formats = ["MANGA", "NOVEL", "MUSIC", "ONE_SHOT"]
 
 
-def matching_format(format1: str, format2: str) -> bool:
-    if format1 == format2:
+def matching_format(current_format: str, relatives_format: str) -> bool:
+    if current_format == relatives_format:
         return True
 
     tv_formats = ["TV_SHORT", "TV"]
-    if format1 in tv_formats and format2 in tv_formats:
+    if current_format in tv_formats and relatives_format in tv_formats:
         return True
 
     ova_formats = ["OVA", "ONA"]
-    if format1 in ova_formats and format2 in ova_formats:
+    if current_format in ova_formats and relatives_format in ova_formats:
+        return True
+
+    # Allow an ova to match a sequel as a tv show
+    if current_format in ova_formats and relatives_format in tv_formats:
         return True
 
     return False
@@ -26,6 +30,7 @@ class Anime:
         self.id: int = anime_data.get('id')
         self.format: str = anime_data.get('format')
         self.episodes: int = anime_data.get('episodes')
+        self.synonyms: str = anime_data.get('synonyms')
 
         self.end_date: datetime = self.extract_date(anime_data.get('endDate'))
         self.start_date: datetime = self.extract_date(anime_data.get('startDate'))
@@ -59,8 +64,7 @@ class Anime:
                 self.supposed_prequel = Anime(node)
 
             # We don't want anime that is a different type to this anime with exceptions
-            sequels = [x for x in relation_nodes if x.get('relationType') == "SEQUEL"]
-            if not matching_format(media_format, self.format):
+            if not matching_format(self.format, media_format):
                 continue
 
             # It can't be a sequel unless the start date was after this current animes end date

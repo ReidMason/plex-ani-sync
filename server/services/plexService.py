@@ -13,7 +13,7 @@ from services.mappingServices.plexIdToTvdbId import PlexIdToTvdbId
 import utils
 from models.configuration import Configuration
 
-logger = utils.create_logger(__name__)
+logger = utils.create_logger("PlexService")
 
 
 def extract_tvdb_id_from_guid_field(plex_show: Show):

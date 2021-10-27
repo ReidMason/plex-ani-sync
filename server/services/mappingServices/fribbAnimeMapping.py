@@ -7,7 +7,7 @@ from fileManager import ensure_required_directories_exist, load_json
 from models.mapping.fribbsAnilistMapping import FribbsMapping
 import utils
 
-logger = utils.create_logger(__name__)
+logger = utils.create_logger("FribbAnimeMapping")
 
 
 class FribbAnimeMapping:

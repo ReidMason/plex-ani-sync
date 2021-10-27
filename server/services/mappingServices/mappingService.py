@@ -10,7 +10,7 @@ from fileManager import save_json, load_json
 from models.mapping.tvdbToAnilistMapping import TvdbToAnilistMapping
 import utils
 
-logger = utils.create_logger(__name__)
+logger = utils.create_logger("MappingService")
 
 
 class MappingService:
@@ -26,7 +26,7 @@ class MappingService:
 
         # First see if there is an entry for another season of the show that we can use as a reference
         logger.debug(f"Checking if there's another season entry for {anime.display_name}")
-        mappings_with_tvdb_id = self.find_mappings_with_tvdb_id(anime.tvdb_id)
+        mappings_with_tvdb_id = self.get_mappings_with_tvdb_id(anime.tvdb_id)
         if len(mappings_with_tvdb_id) > 0:
             similar_anilist_id = mappings_with_tvdb_id[0].anilist_id
             new_mapping_added = self.create_anilist_season_mapping(anime, similar_anilist_id)
@@ -72,29 +72,78 @@ class MappingService:
         if len(all_seasons) < int(anime.season_number):
             return False
 
-        season = all_seasons[int(anime.season_number) - 1]
-        new_mapping_added = self.add_new_mapping(anime, season)
+        target_season_index = None
+        season = None
+        # Try and match the season using the exact name
+        for index, list_season in enumerate(all_seasons):
+            # Find the season with the matching title
+            # We are going to use that as the starting season instead of the actual first season
+            if list_season.title == anime.title:
+                target_season_index = index + int(anime.season_number) - 1
+                season = all_seasons[target_season_index]
+                break
 
-        # Try and match the season using the name
-        if not new_mapping_added:
-            for index, season in enumerate(all_seasons):
-                # Find the season with the matching title
-                # We are going to use that as the starting season instead of the actual first season
-                if season.title == anime.title:
-                    season = all_seasons[index + int(anime.season_number) - 1]
-                    return self.add_new_mapping(anime, season)
+        # Try and match the season using synonyms for the name
+        if season is None:
+            for index, list_season in enumerate(all_seasons):
+                # Find a season with a matching synonym
+                # We are going to use that as the starting season isntead of the actual first season
+                if anime.title in list_season.synonyms:
+                    target_season_index = index + int(anime.season_number) - 1
+                    season = all_seasons[target_season_index]
+                    break
 
-        return new_mapping_added
+        # If we couldn't find the season using those methods then we can just use the first season in the series
+        if season is None:
+            target_season_index = int(anime.season_number) - 1
+            season = all_seasons[target_season_index]
+
+        # Now we can check for plex series spanning a few anilist seasons
+        # We count the total episodes adding one season at a time
+        # If we match the number of episodes in Plex we know the Plex season consists of multiple anilist seasons
+        # We only want to check this if the matched season doesn't already have the exact right number of episodes
+        if season.episodes != anime.episodes:
+            seasons_after = all_seasons[target_season_index + 1:]
+            seasons = [season]
+            for season_after in seasons_after:
+                seasons.append(season_after)
+                episode_total = sum([x.episodes for x in seasons])
+                if episode_total >= len(anime.episodes):
+                    break
+
+            # If we have more than one item in the seasons list the Plex season consists of multiple anilist seasons
+            if len(seasons) > 1 and sum([x.episodes for x in seasons]) == len(anime.episodes):
+                episode_start = 1
+                new_mapping_added = False
+                for index, season in enumerate(seasons):
+                    successful = self.add_new_mapping(anime, season, episode_start)
+                    if successful:
+                        new_mapping_added = True
+                    episode_start += season.episodes
+                return new_mapping_added
+            else:
+                return self.add_new_mapping(anime, season)
+
+        return self.add_new_mapping(anime, season)
 
     def get_anilist_ids_from_fribbs_mapping(self, tvdb_id: int):
         return sorted(self.fribb_anime_mapping.get_anilist_ids(tvdb_id))
 
-    def add_new_mapping(self, plex_anime: PlexAnime, anime: Anime) -> bool:
+    def add_new_mapping(self, plex_anime: PlexAnime, anime: Anime, episode_start: int = None) -> bool:
         existing_mapping = self.find_mapping_by_anilist_id(anime.id)
         if existing_mapping is not None:
-            return False
+            anilist_id_match = str(existing_mapping.anilist_id) == str(anime.id)
+            season_match = str(existing_mapping.season_number) == str(plex_anime.season_number)
+            if anilist_id_match and season_match:
+                return False
 
         mapping = TvdbToAnilistMapping(plex_anime.tvdb_id, anime.id, plex_anime.season_number, plex_anime.title)
+
+        # This is for custom range mappings
+        if episode_start is not None:
+            mapping.season_length = anime.episodes
+            mapping.episode_start = episode_start
+
         self.mappings.append(mapping)
         self.save_mapping()
         return True
@@ -102,10 +151,10 @@ class MappingService:
     def find_mapping_by_anilist_id(self, anilist_id: int):
         return next((x for x in self.mappings if x.anilist_id == anilist_id), None)
 
-    def find_mapping_by_tvdb_id(self, tvdb_id: int, season_number: str):
-        return next((x for x in self.mappings if str(x.tvdb_id) == str(tvdb_id) and str(x.season_number) == str(season_number)), None)
+    def get_mapping_by_tvdb_id(self, tvdb_id: int, season_number: str) -> List[TvdbToAnilistMapping]:
+        return [x for x in self.mappings if x.tvdb_id == tvdb_id and str(x.season_number) == str(season_number)]
 
-    def find_mappings_with_tvdb_id(self, tvdb_id: int):
+    def get_mappings_with_tvdb_id(self, tvdb_id: int):
         return [x for x in self.mappings if x.tvdb_id == tvdb_id]
 
     def check_for_new_fribbs_mappings(self) -> None:
@@ -130,7 +179,8 @@ class MappingService:
             self.save_mapping()
 
     def save_mapping(self):
-        sorted_mappings = sorted(self.mappings, key=lambda x: (int(x.tvdb_id), int(x.season_number)))
+        sorted_mappings = sorted(self.mappings, key=lambda x: (
+            int(x.tvdb_id), int(x.season_number if x.season_number != "*" else 0)))
         data = [x.serialize() for x in sorted_mappings] if sorted_mappings is not None else []
 
         save_json(self.anime_list_mapping_path, data)
