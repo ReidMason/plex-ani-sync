@@ -1,17 +1,19 @@
 import pytest
 import os
-from config import MAPPING_PATH
+from config import Config
 from services.mappingServices.mappingService import FribbAnimeMapping
 import shutil
 import time
+
+config = Config()
 
 
 class TestDownloadFribbAnimeListMapping:
     @pytest.fixture(autouse=True)
     def wrapper(self):
         # Cleanup any existing directories
-        if os.path.exists(MAPPING_PATH):
-            shutil.rmtree(MAPPING_PATH)
+        if os.path.exists(config._MAPPING_PATH):
+            shutil.rmtree(config._MAPPING_PATH)
         yield
 
     @pytest.fixture(scope="class")
@@ -35,8 +37,8 @@ class TestFribbMappingFileDownloadRequired:
     @pytest.fixture(autouse=True)
     def wrapper(self):
         # Cleanup any existing directories
-        if os.path.exists(MAPPING_PATH):
-            shutil.rmtree(MAPPING_PATH)
+        if os.path.exists(config._MAPPING_PATH):
+            shutil.rmtree(config._MAPPING_PATH)
         yield
 
     @pytest.fixture(scope="class")

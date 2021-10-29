@@ -1,7 +1,6 @@
 import logging
 import re
 import math
-from models.configuration import Configuration
 
 
 def create_logger(name: str) -> logging.Logger:

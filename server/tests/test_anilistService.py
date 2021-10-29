@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 import pytest
-from config import ANILIST_TOKEN
+from config import Config
 
 from services.animeListServices.anilistService import AnilistService, AnilistUser
 from models.animeList.animeList import AnimeList
@@ -17,7 +17,8 @@ mock_lists = [
 
 mock_anime_update_data = AnimeListAnime("1", "Cowbow Bebop", "Cowboy Bebop", 0, 10, 2)
 
-token = ANILIST_TOKEN
+config = Config()
+token = config.ANILIST_TOKEN
 invalid_token = "invalidToken123"
 
 

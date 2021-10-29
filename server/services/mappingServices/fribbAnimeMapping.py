@@ -2,7 +2,7 @@ import os
 from typing import List
 import urllib.request
 import time
-from config import MAPPING_PATH
+from config import Config
 from fileManager import ensure_required_directories_exist, load_json
 from models.mapping.fribbsAnilistMapping import FribbsMapping
 import utils
@@ -12,7 +12,8 @@ logger = utils.create_logger("FribbAnimeMapping")
 
 class FribbAnimeMapping:
     def __init__(self, mapping_update_threshold: int = 604800) -> None:
-        self.anime_list_mapping_path = os.path.join(MAPPING_PATH, "fribb-anime-list-full.json")
+        self.config = Config()
+        self.anime_list_mapping_path = os.path.join(self.config._MAPPING_PATH, "fribb-anime-list-full.json")
         # How old the fribb mapping file should be before a new one is dowloaded
         self.mapping_update_threshold = mapping_update_threshold
 

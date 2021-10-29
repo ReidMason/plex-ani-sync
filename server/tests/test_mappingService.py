@@ -1,17 +1,18 @@
-from typing import Mapping
 import pytest
 import os
-from config import MAPPING_PATH
+from config import Config
 from services.mappingServices.mappingService import MappingService
 import shutil
+
+config = Config()
 
 
 class TestLoadAnimeMapping:
     @pytest.fixture(autouse=True)
     def wrapper(self):
         # Cleanup any existing directories
-        if os.path.exists(MAPPING_PATH):
-            shutil.rmtree(MAPPING_PATH)
+        if os.path.exists(config._MAPPING_PATH):
+            shutil.rmtree(config._MAPPING_PATH)
         yield
 
     @pytest.fixture(scope="class")
@@ -27,8 +28,8 @@ class TestSaveAnimeMapping:
     @pytest.fixture(autouse=True)
     def wrapper(self):
         # Cleanup any existing directories
-        if os.path.exists(MAPPING_PATH):
-            shutil.rmtree(MAPPING_PATH)
+        if os.path.exists(config._MAPPING_PATH):
+            shutil.rmtree(config._MAPPING_PATH)
         yield
 
     @pytest.fixture(scope="class")
@@ -52,8 +53,8 @@ class TestEnsureMappingFileExsits:
     @pytest.fixture(autouse=True)
     def wrapper(self):
         # Cleanup any existing directories
-        if os.path.exists(MAPPING_PATH):
-            shutil.rmtree(MAPPING_PATH)
+        if os.path.exists(config._MAPPING_PATH):
+            shutil.rmtree(config._MAPPING_PATH)
         yield
 
     @pytest.fixture(scope="class")

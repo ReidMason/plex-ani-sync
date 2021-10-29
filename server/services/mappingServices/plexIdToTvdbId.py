@@ -1,12 +1,13 @@
 from typing import Optional
-from config import MAPPING_PATH
+from config import Config
 from fileManager import load_json, save_json
 import os
 
 
 class PlexIdToTvdbId:
     def __init__(self) -> None:
-        self.mapping_path = os.path.join(MAPPING_PATH, "plex_id_to_tvdb_id.json")
+        self.config = Config()
+        self.mapping_path = os.path.join(self.config._MAPPING_PATH, "plex_id_to_tvdb_id.json")
         self.mapping: dict = {}
         self.load_mapping()
 

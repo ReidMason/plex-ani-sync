@@ -74,6 +74,9 @@ class AnilistService(IAnimeListService):
         :param variables: The variables used in the request
         :return: The request response data
         """
+        if self.token is None:
+            raise Exception("Missing Anilist token")
+
         headers = {
             'Authorization': 'Bearer ' + self.token,
             'Accept': 'application/json',

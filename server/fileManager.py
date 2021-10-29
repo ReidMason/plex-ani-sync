@@ -1,6 +1,6 @@
 import json
 import os
-from config import REQUIRED_DIRECTORIES
+from config import Config
 
 
 def ensure_required_directories_exist() -> bool:
@@ -8,8 +8,8 @@ def ensure_required_directories_exist() -> bool:
 
     :return: Whether any directories were created
     """
-
-    return any([create_directory_path(path) for path in REQUIRED_DIRECTORIES])
+    config = Config()
+    return any([create_directory_path(path) for path in config.REQUIRED_DIRECTORIES])
 
 
 def save_json(filepath: str, data: dict) -> None:

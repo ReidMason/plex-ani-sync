@@ -1,7 +1,6 @@
 from typing import List
 import os
-from config import ANILIST_TOKEN, MAPPING_PATH
-import os
+from config import Config
 from models.anilist.anime import Anime
 from models.plex.plexAnime import PlexAnime
 from services.animeListServices.anilistService import AnilistService
@@ -15,14 +14,15 @@ logger = utils.create_logger("MappingService")
 
 class MappingService:
     def __init__(self) -> None:
+        self.config = Config()
         self.fribb_anime_mapping: FribbAnimeMapping = FribbAnimeMapping()
-        self.anime_list_mapping_path = os.path.join(MAPPING_PATH, "anime-mapping.json")
-        self.mappings: List[TvdbToAnilistMapping] = None
+        self.anime_list_mapping_path = os.path.join(self.config._MAPPING_PATH, "anime-mapping.json")
+        self.mappings: List[TvdbToAnilistMapping] = []
         self.load_mappings()
         self.check_for_new_fribbs_mappings()
 
     def find_new_anilist_mapping(self, anime: PlexAnime):
-        anilist_service = AnilistService(ANILIST_TOKEN)
+        anilist_service = AnilistService(self.config.ANILIST_TOKEN)
 
         # First see if there is an entry for another season of the show that we can use as a reference
         logger.debug(f"Checking if there's another season entry for {anime.display_name}")
@@ -60,7 +60,7 @@ class MappingService:
                 return
 
     def create_anilist_season_mapping(self, anime: PlexAnime, anilist_id: int) -> bool:
-        anilist_service = AnilistService(ANILIST_TOKEN)
+        anilist_service = AnilistService(self.config.ANILIST_TOKEN)
         obtained_anime = anilist_service.get_anime_with_seasons(anilist_id)
 
         if obtained_anime is None:
