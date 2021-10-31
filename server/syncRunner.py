@@ -11,6 +11,7 @@ from services.plexService import PlexService
 from fileManager import load_json, save_json
 import utils
 import copy
+import os
 
 logger = utils.create_logger("Syncrunner")
 
@@ -25,7 +26,7 @@ class SyncRunner:
         self.plex_service = PlexService(self.config.PLEX_SERVER_URL, self.config.PLEX_TOKEN)
 
         # Save and load failed mappings
-        self.failed_tvdb_id_mappings = load_json("failed_tvdb_id_mappings.json", [])
+        self.failed_tvdb_id_mappings = load_json(os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"), [])
 
     def create_mapping_for_anime_series(self, series: List[PlexAnime]):
         for anime in series:
@@ -52,8 +53,8 @@ class SyncRunner:
                     "season_number": anime.season_number,
                     "tvdb_id": anime.tvdb_id
                 })
-                save_json("failed_tvdb_id_mappings.json", self.failed_tvdb_id_mappings)
-                print(f"Falied to find mapping for {anime.display_name}")
+                save_json(os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"), self.failed_tvdb_id_mappings)
+                logger.warn(f"Falied to find mapping for {anime.display_name}")
                 continue
 
     def get_watch_status(self, plex_anime: PlexAnime, mapping: TvdbToAnilistMapping, anime_list_anime: AnimeListAnime):

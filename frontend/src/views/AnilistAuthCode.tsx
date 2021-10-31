@@ -10,8 +10,12 @@ function getHashParams(hash: string) {
         d = function (s: any) { return decodeURIComponent(s.replace(a, " ")); },
         q = hash.substring(1);
 
-    while (e = r.exec(q))
+    e = r.exec(q)
+    while (e) {
         hashParams[d(e[1])] = d(e[2]);
+        e = r.exec(q)
+    }
+
 
     return hashParams;
 }

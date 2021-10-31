@@ -1,11 +1,6 @@
-.idea
-venv
-__pycache__
-.vscode
-config.json
-server/static
-failed_tvdb_id_mappings.json
-.pytest_cache
+server/venv
+frontend/node_modules
+server/static/*
 
 # Keep the anime-mapping.json file
 server/data/*

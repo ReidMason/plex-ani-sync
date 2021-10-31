@@ -3,12 +3,16 @@ import { Route, Switch, useRouteMatch } from 'react-router'
 import AnilistAuthCode from '../views/AnilistAuthCode'
 import AnilistSetup from '../views/AnilistSetup'
 import PlexSetup from '../views/PlexSetup'
+import PlexSetupServerUrl from '../views/PlexSetupServerUrl'
 
 export default function SetupRoutes() {
     const match = useRouteMatch();
 
     return (
         <Switch>
+            <Route path={`${match.url}/plex-setup-server-url`}>
+                <PlexSetupServerUrl />
+            </Route>
             <Route path={`${match.url}/anilist-setup/auth-code`}>
                 <AnilistAuthCode />
             </Route>

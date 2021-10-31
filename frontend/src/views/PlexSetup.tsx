@@ -5,31 +5,33 @@ import PlexService from '../services/PlexService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useHistory } from 'react-router';
 
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export default function PlexSetup() {
     const [plexPin, setPlexPin] = useState<string>("");
     const [pinAuthenticated, setPinAuthenticated] = useState<boolean>(false);
 
     const history = useHistory();
 
-    const redirectToIndex = () => {
-        history.push("/");
-    }
-
     useEffect(() => {
         const waitForPlexAuthentication = async () => {
-            while (!plexAuthenticated) {
-                const response = await PlexService.plexAuthenticated()
-                plexAuthenticated = response.data.plexAuthenticated;
-                if (plexAuthenticated) {
+            while (!plexTokenfilled) {
+                const response = await PlexService.tokenFilled()
+                plexTokenfilled = response.data.tokenFilled;
+                if (plexTokenfilled) {
                     setPinAuthenticated(true);
-                    setTimeout(redirectToIndex, 3000);
+                    setTimeout(() => (history.push("/")), 3000);
+                    return;
                 }
+                await sleep(1000);
             }
         }
 
         const checkPinAuthenticated = async () => {
-            const response = await PlexService.plexAuthenticated();
-            pinAlreadyAuthenticated = response.data.plexAuthenticated;
+            const response = await PlexService.tokenFilled();
+            pinAlreadyAuthenticated = response.data.tokenFilled;
 
             if (!pinAlreadyAuthenticated) {
                 const response = await PlexService.getPlexPin();
@@ -38,13 +40,13 @@ export default function PlexSetup() {
         }
 
         var pinAlreadyAuthenticated = false;
-        var plexAuthenticated = false;
+        var plexTokenfilled = false;
 
         checkPinAuthenticated();
 
         if (!pinAlreadyAuthenticated)
             waitForPlexAuthentication()
-    }, [])
+    }, [history])
 
     const openPlexLink = () => {
         window.open('https://www.plex.tv/link/', '_blank');
@@ -52,7 +54,7 @@ export default function PlexSetup() {
 
     return (
         <div className="bg-gray-700 h-full flex justify-center items-center">
-            <div className="bg-indigo-400 max-w-[500px] w-full h-full text-center p-8">
+            <div className="w-full h-full text-center p-8">
                 {pinAuthenticated ?
                     <div className="flex flex-col items-center justify-center h-full">
                         <h1 className="text-4xl">
@@ -69,7 +71,7 @@ export default function PlexSetup() {
                         </div>
 
                         <h1 className="text-4xl mb-6 font-semibold">Plex pin</h1>
-                        <h1 className="text-xl mb-8">Enter the pin below to link your plex account</h1>
+                        <h1 className="text-xl mb-6">Enter the pin below to link your plex account</h1>
 
                         <div className="mb-4">
                             {plexPin ?

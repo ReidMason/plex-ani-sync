@@ -3,11 +3,11 @@ import json
 from json import JSONDecodeError
 from typing import List
 
-
+live = os.environ.get("IS_LIVE", "false").lower() == "true"
 class Config:
     def __init__(self) -> None:
         # Required paths
-        self._DATA_PATH = "data"
+        self._DATA_PATH = "/data" if live else "data" 
         self._MAPPING_PATH = os.path.join(self._DATA_PATH, "mapping")
         self._LOGS_PATH = os.path.join(self._DATA_PATH, "logs")
 
@@ -21,6 +21,11 @@ class Config:
 
         self.DAYS_UNTIL_PAUSED: int = 14
         self.DAYS_UNTIL_DROPPED: int = 31
+
+        self.SYNC_CRONTIME: dict = "0 19 * * *"
+        self.SYNC_SCHEDULE_ENABLED: bool = True
+
+        self.DATE_FORMAT: str = "%d-%m-%Y %H:%M:%S"
         self.load_config_data()
 
     @property
@@ -39,10 +44,16 @@ class Config:
 
         # Load the data from the config file
         with open(self.config_path, 'r') as f:
-            try:
-                config_data = json.load(f)
-            except JSONDecodeError:
-                raise Exception("Error parsing config file")
+            
+            attempts = 0
+            while attempts < 10:
+                try:
+                    config_data = json.load(f)
+                    break
+                except JSONDecodeError:
+                    attempts += 1
+                    if attempts > 9:
+                        raise Exception("Error parsing config file")
 
             fields = [x for x in self.__dict__ if not x.startswith("_")]
             for field in fields:

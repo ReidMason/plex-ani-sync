@@ -3,6 +3,7 @@ import { Route, Switch, useHistory } from 'react-router'
 import LoadingSpinner from '../components/LoadingSpinner';
 import AnilistService from '../services/AnilistService';
 import PlexService from '../services/PlexService';
+import Index from '../views/Index';
 
 export default function MainRoutes() {
     const [loading, setLoading] = useState<boolean>(true);
@@ -10,9 +11,18 @@ export default function MainRoutes() {
 
     useEffect(() => {
         const checkPlexAuthenticated = () => {
-            return PlexService.plexAuthenticated().then((response) => {
-                if (!response.data.plexAuthenticated)
+            return PlexService.tokenFilled().then((response) => {
+                if (!response.data.tokenFilled)
                     history.push("/setup/plex-setup")
+                return !response.data.tokenFilled;
+            })
+        }
+
+        const checkPlexServerUrlFilled = () => {
+            return PlexService.serverUrlFilled().then((response) => {
+                if (!response.data.serverUrlFilled)
+                    history.push("/setup/plex-setup-server-url");
+                return !response.data.serverUrlFilled;
             })
         }
 
@@ -23,12 +33,24 @@ export default function MainRoutes() {
             })
         }
 
-        checkPlexAuthenticated().finally(() => {
-            checkAnilistAuthenticated().finally(() => {
+        checkPlexServerUrlFilled().then((redirecred: boolean) => {
+            if (!redirecred) {
+                checkPlexAuthenticated().then((redirected: boolean) => {
+                    if (!redirected) {
+                        checkAnilistAuthenticated().finally(() => {
+                            setLoading(false);
+                        });
+                    } else {
+                        setLoading(false);
+                    }
+                });
+            } else {
                 setLoading(false);
-            });
-        });
-    }, [])
+            }
+        })
+
+
+    }, [history])
 
     return (
         <>
@@ -41,9 +63,7 @@ export default function MainRoutes() {
                 :
                 <Switch>
                     <Route exact path="/">
-                        <div className="bg-gray-600">
-                            <h1>Index</h1>
-                        </div>
+                        <Index />
                     </Route>
                 </Switch>
             }

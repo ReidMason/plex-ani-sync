@@ -70,7 +70,9 @@ export default function Button({ children, disabled, variant, rounded, onClick, 
             >
                 <div className="flex items-center gap-2">
                     {loading &&
-                        <LoadingSpinner />
+                        <div className="h-5 w-5">
+                            <LoadingSpinner />
+                        </div>
                     }
                     {children}
                 </div>

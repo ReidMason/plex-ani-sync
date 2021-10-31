@@ -49,3 +49,8 @@ class PlexAnime:
 
     def __repr__(self) -> str:
         return self.display_name
+
+    def serialize(self) -> dict:
+        data = self.__dict__
+        data['plex_season'] = None
+        return data
