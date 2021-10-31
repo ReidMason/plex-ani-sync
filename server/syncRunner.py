@@ -83,21 +83,21 @@ class SyncRunner:
         watch_episodes_unchanged = plex_anime.episodes_watched == anime_list_anime.watched_episodes if anime_list_anime is not None else True
 
         # Completed
-        if plex_anime.episodes_watched > 0 and total_episodes != None and plex_anime.episodes_watched >= total_episodes:
+        if total_episodes > 0 and plex_anime.episodes_watched > 0 and total_episodes != None and plex_anime.episodes_watched >= total_episodes:
             return 1
 
         # Dropped
         # Needs to be updated depending on how long it's been since the last update and if the current status is Paused or Current
-        if watch_episodes_unchanged and plex_anime.episodes_watched > 0 and days_since_last_viewing is not None and days_since_last_viewing > self.config.DAYS_UNTIL_DROPPED:
+        if plex_anime.episodes_watched > 0 and days_since_last_viewing is not None and days_since_last_viewing > self.config.DAYS_UNTIL_DROPPED:
             return 5
 
         # Paused
         # Needs to be updated depending on how long it's been since the last update and if the current status is Current
-        if watch_episodes_unchanged and plex_anime.episodes_watched > 0 and days_since_last_viewing is not None and days_since_last_viewing > self.config.DAYS_UNTIL_PAUSED:
+        if plex_anime.episodes_watched > 0 and days_since_last_viewing is not None and days_since_last_viewing > self.config.DAYS_UNTIL_PAUSED:
             return 4
 
         # Current
-        if plex_anime.episodes_watched > 0 and (total_episodes is None or plex_anime.episodes_watched < total_episodes):
+        if plex_anime.episodes_watched > 0 and ((total_episodes is None or total_episodes == 0) or plex_anime.episodes_watched < total_episodes):
             return 2
 
         # Planning
