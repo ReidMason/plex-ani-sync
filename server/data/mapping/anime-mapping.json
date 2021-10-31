@@ -6028,5 +6028,23 @@
         "ignored": false,
         "episode_start": null,
         "season_length": null
+    },
+    {
+        "season_number": "1",
+        "tvdb_id": "402127",
+        "anilist_id": 133411,
+        "title": "Can I Make Your Ears Happy in 180 Seconds?",
+        "ignored": false,
+        "episode_start": null,
+        "season_length": null
+    },
+    {
+        "season_number": "1",
+        "tvdb_id": "388644",
+        "anilist_id": 118465,
+        "title": "World's End Harem",
+        "ignored": false,
+        "episode_start": null,
+        "season_length": null
     }
 ]
