@@ -10,5 +10,5 @@ class IAnimeListService(Protocol):
         raise NotImplementedError("Please Implement this method")
 
     @abc.abstractmethod
-    def update_anime(self, anime_id: str, watched_episodes: int, status: int) -> bool:
+    def update_anime(self, anime_id: int, watched_episodes: int, status: int, title: str = None) -> bool:
         raise NotImplementedError("Please Implement this method")

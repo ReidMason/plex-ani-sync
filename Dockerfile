@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y gcc
 
 ADD ./server /app/server
 
-COPY --from=build-step /app/frontend/build /app/server/static
+COPY --from=build-step /app/frontend/build /app/server/flaskApp/static
 
 WORKDIR /app/server
 

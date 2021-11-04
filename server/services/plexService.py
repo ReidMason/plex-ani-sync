@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import Callable, Generator, List, Optional
 
-from plexapi.video import Show
+from plexapi.video import Season, Show
 from config import Config
 from plexapi.exceptions import Unauthorized, NotFound
 from plexapi.library import ShowSection
@@ -68,18 +68,22 @@ class PlexConnectionError(Exception):
 
 
 class PlexAuthService:
-    def __init__(self):
+    def __init__(self, authenticated_callback: Optional[Callable] = None):
         self.plex_pin_login: Optional[MyPlexPinLogin] = MyPlexPinLogin()
+        self.authenticated_callback: Optional[Callable] = authenticated_callback
 
     def generate_pin(self) -> str:
         self.plex_pin_login.run(self.pin_auth_callback)
         return self.plex_pin_login.pin
 
-    @staticmethod
-    def pin_auth_callback(token: str) -> None:
+    def pin_auth_callback(self, token: str) -> None:
         config = Config()
         config.PLEX_TOKEN = token
         config.save()
+
+        # Call the custom callback
+        if self.authenticated_callback is not None:
+            self.authenticated_callback()
 
 
 class PlexService:
@@ -95,7 +99,7 @@ class PlexService:
     def can_use_token_auth(self):
         return self.token is not None
 
-    def authenticate(self) -> bool:
+    def authenticate(self) -> None:
         if self.server_url is None:
             raise Exception("Missing Plex server url")
 
@@ -125,13 +129,13 @@ class PlexService:
     def get_media_in_library(self, library: ShowSection):
         return library.all()
 
-    def get_all_anime(self) -> List[PlexAnime]:
+    def get_all_anime(self) -> Generator[List[PlexAnime], None, None]:
         logger.info("Finding all anime")
         for library in self.get_anime_libraries():
             for anime in self.get_anime_in_library(library):
                 yield anime
 
-    def get_anime_in_library(self, library) -> List[PlexAnime]:
+    def get_anime_in_library(self, library) -> Generator[List[PlexAnime], None, None]:
         plex_id_to_tvdb_id = PlexIdToTvdbId()
 
         library_media = self.get_media_in_library(library)
@@ -141,6 +145,6 @@ class PlexService:
             anime_seasons = self.get_all_seasons_for_anime(anime)
             yield [PlexAnime(x, tvdb_id, anime.year) for x in anime_seasons]
 
-    def get_all_seasons_for_anime(self, anime):
+    def get_all_seasons_for_anime(self, anime) -> Generator[Season, None, None]:
         for season in anime.seasons():
             yield season

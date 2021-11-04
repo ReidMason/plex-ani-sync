@@ -6,7 +6,11 @@ export function joinUrl(...paths: Array<string>): string {
 }
 
 export function createRequestUrl(endpoint: string): string {
-    const baseUrl: string = process.env.REACT_APP_API_BASE_URL!;
+    const baseUrl: string = getBaseUrl();
 
     return joinUrl(baseUrl, endpoint)
+}
+
+export function getBaseUrl(): string {
+    return process.env.REACT_APP_API_BASE_URL!
 }

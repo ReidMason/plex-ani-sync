@@ -17,7 +17,7 @@ class PlexAnime:
 
         self.plex_season: Season = plex_season
         self._episodes: Optional[List[Episode]] = None
-        self._episodes_watched: int = None
+        self._episodes_watched: Optional[int] = None
         self._last_viewed_at: Optional[datetime] = None
 
     @property
@@ -42,7 +42,8 @@ class PlexAnime:
     def last_viewed_at(self) -> Optional[datetime]:
         if self._last_viewed_at is None:
             for episode in self.episodes:
-                if self._last_viewed_at is None or (episode.lastViewedAt is not None and self._last_viewed_at < episode.lastViewedAt):
+                if self._last_viewed_at is None or (
+                    episode.lastViewedAt is not None and self._last_viewed_at < episode.lastViewedAt):
                     self._last_viewed_at = episode.lastViewedAt
 
         return self._last_viewed_at

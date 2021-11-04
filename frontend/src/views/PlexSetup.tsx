@@ -4,10 +4,8 @@ import PinDisplay from '../components/PinDisplay'
 import PlexService from '../services/PlexService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useHistory } from 'react-router';
-
-function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+import { io } from 'socket.io-client';
+import { getBaseUrl } from '../utils';
 
 export default function PlexSetup() {
     const [plexPin, setPlexPin] = useState<string>("");
@@ -17,16 +15,13 @@ export default function PlexSetup() {
 
     useEffect(() => {
         const waitForPlexAuthentication = async () => {
-            while (!plexTokenfilled) {
-                const response = await PlexService.tokenFilled()
-                plexTokenfilled = response.data.tokenFilled;
-                if (plexTokenfilled) {
-                    setPinAuthenticated(true);
-                    setTimeout(() => (history.push("/")), 3000);
-                    return;
-                }
-                await sleep(1000);
-            }
+            var socket = io(getBaseUrl());
+
+            socket.on('plex_auth_success', function () {
+                setPinAuthenticated(true);
+                setTimeout(() => (history.push("/")), 3000);
+                socket.disconnect();
+            })
         }
 
         const checkPinAuthenticated = async () => {
@@ -40,7 +35,6 @@ export default function PlexSetup() {
         }
 
         var pinAlreadyAuthenticated = false;
-        var plexTokenfilled = false;
 
         checkPinAuthenticated();
 

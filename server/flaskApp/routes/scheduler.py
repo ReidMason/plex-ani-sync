@@ -1,27 +1,31 @@
-from time import sleep
 from typing import Optional
 
 from apscheduler.job import Job
 from config import Config
-from flask import Blueprint, json, jsonify, request
+from flask import Blueprint, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from threading import Thread
 from syncRunner import SyncRunner
 import utils
+from ..app import socketio
 
 logger = utils.create_logger("Scheduler")
 
-scheduler_route = Blueprint('scheduler', __name__, url_prefix='/api/scheduler')
+scheduler_route = Blueprint('scheduler', __name__, url_prefix = '/api/scheduler')
 
 job_running = False
+
+
+def emit_sync_process_logs(payload: dict):
+    socketio.emit('sync_process_logs', payload)
 
 
 def run_job_threading():
     global job_running
     job_running = True
     logger.debug("Running syncher...")
-    SyncRunner().run()
+    SyncRunner(emit_sync_process_logs).run()
     logger.debug("Syncher finished")
     job_running = False
 
@@ -31,9 +35,9 @@ def run_job():
         print("Job already running")
         return
 
-    thread = Thread(target=run_job_threading)
+    # socketio.start_background_task(run_job_threading)
+    thread = Thread(target = run_job_threading)
     thread.start()
-    # thread.join()
 
 
 def set_scheduler_job(config: Config = None) -> Optional[Job]:
@@ -58,7 +62,7 @@ scheduler.start()
 set_scheduler_job()
 
 
-@scheduler_route.route('/forceRunSync', methods=["POST"])
+@scheduler_route.route('/forceRunSync', methods = ["POST"])
 def force_run_sync():
     if job_running:
         return jsonify({"message": "Job already running"})
@@ -79,7 +83,7 @@ def get_next_run_time():
     return jsonify({"nextRunTime": next_run_time, "syncRunning": job_running})
 
 
-@scheduler_route.route('/updateScheduler', methods=["POST"])
+@scheduler_route.route('/updateScheduler', methods = ["POST"])
 def update_scheduler():
     config = Config()
     data = request.json

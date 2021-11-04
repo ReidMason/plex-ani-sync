@@ -1,5 +1,6 @@
+import time
 from datetime import datetime
-from typing import List
+from typing import Callable, List, Optional
 from config import Config
 from models.animeList.animeList import AnimeList
 from models.animeList.animeListAnime import AnimeListAnime
@@ -17,8 +18,11 @@ logger = utils.create_logger("Syncrunner")
 
 
 class SyncRunner:
-    def __init__(self) -> None:
+    def __init__(self, processing_callback: Callable = None) -> None:
         self.config = Config()
+
+        self.processing_callback: Optional[Callable] = processing_callback
+        self.processing_logs: List[str] = []
 
         self.anilist_service = AnilistService(self.config.ANILIST_TOKEN)
         self.mapping_service = MappingService()
@@ -26,12 +30,16 @@ class SyncRunner:
         self.plex_service = PlexService(self.config.PLEX_SERVER_URL, self.config.PLEX_TOKEN)
 
         # Save and load failed mappings
-        self.failed_tvdb_id_mappings = load_json(os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"), [])
+        self.failed_tvdb_id_mappings: List[dict] = load_json(
+            os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"),
+            [])
 
     def create_mapping_for_anime_series(self, series: List[PlexAnime]):
         for anime in series:
             # Skip specials seasons
-            if anime.season_number == "0" or any([x.get("tvdb_id") == anime.tvdb_id and x.get("season_number") == anime.season_number for x in self.failed_tvdb_id_mappings]):
+            if anime.season_number == "0" or any(
+                [x.get("tvdb_id") == anime.tvdb_id and x.get("season_number") == anime.season_number for x in
+                 self.failed_tvdb_id_mappings]):
                 continue
 
             # Try and get the mapping if not create it
@@ -49,11 +57,12 @@ class SyncRunner:
             # Mapping could not be found or created
             if len(mapping) == 0:
                 self.failed_tvdb_id_mappings.append({
-                    "title": anime.title,
+                    "title"        : anime.title,
                     "season_number": anime.season_number,
-                    "tvdb_id": anime.tvdb_id
+                    "tvdb_id"      : anime.tvdb_id
                 })
-                save_json(os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"), self.failed_tvdb_id_mappings)
+                save_json(os.path.join(self.config._DATA_PATH, "failed_tvdb_id_mappings.json"),
+                          self.failed_tvdb_id_mappings)
                 logger.warn(f"Falied to find mapping for {anime.display_name}")
                 continue
 
@@ -97,7 +106,8 @@ class SyncRunner:
             return 4
 
         # Current
-        if plex_anime.episodes_watched > 0 and ((total_episodes is None or total_episodes == 0) or plex_anime.episodes_watched < total_episodes):
+        if plex_anime.episodes_watched > 0 and (
+            (total_episodes is None or total_episodes == 0) or plex_anime.episodes_watched < total_episodes):
             return 2
 
         # Planning
@@ -159,7 +169,8 @@ class SyncRunner:
             if list_anime is None:
                 self.anilist_service.update_anime(wildcard_mapping.anilist_id,
                                                   plex_anime.episodes_watched, watch_status, plex_anime.title)
-            elif list_anime.watch_status != 1 and (list_anime.watch_status != watch_status or list_anime.watched_episodes != plex_anime.episodes_watched):
+            elif list_anime.watch_status != 1 and (
+                list_anime.watch_status != watch_status or list_anime.watched_episodes != plex_anime.episodes_watched):
                 self.anilist_service.update_anime(wildcard_mapping.anilist_id,
                                                   plex_anime.episodes_watched, watch_status, plex_anime.title)
 
@@ -209,16 +220,25 @@ class SyncRunner:
                 if list_anime is None:
                     self.anilist_service.update_anime(mapping.anilist_id, plex_anime.episodes_watched,
                                                       watch_status, plex_anime.title)
-                elif list_anime.watch_status != 1 and (list_anime.watch_status != watch_status or list_anime.watched_episodes != plex_anime.episodes_watched):
+                elif list_anime.watch_status != 1 and (
+                    list_anime.watch_status != watch_status or list_anime.watched_episodes != plex_anime.episodes_watched):
                     self.anilist_service.update_anime(mapping.anilist_id, plex_anime.episodes_watched,
                                                       watch_status, plex_anime.title)
 
     def run(self):
+        self.processing_logs = []
+
         self.plex_service.authenticate()
 
         anime_list = self.anilist_service.get_anime_list()
         all_anime = self.plex_service.get_all_anime()
         for series in all_anime:
+            # Send the most recent processed series
+            self.processing_logs.append({'seriesTitle': series[0].title})
+            if self.processing_callback is not None:
+                self.processing_callback({'updates': self.processing_logs[-10:]})
+
+            # Run the sync
             self.create_mapping_for_anime_series(series)
             self.process_series(series, anime_list)
 

@@ -6,7 +6,6 @@ interface PinDisplayProps {
 
 export default function PinDisplay({ pin }: PinDisplayProps) {
     const [copyMessage, setCopyMessage] = useState("");
-    const pinArray = pin.split('');
 
     const copyPin = () => {
         const clipboard = navigator.clipboard;

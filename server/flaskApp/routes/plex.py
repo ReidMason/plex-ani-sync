@@ -1,22 +1,30 @@
-from time import sleep
-
+from flask import Blueprint, jsonify, request
 from config import Config
-from flask import Blueprint, json, jsonify, request
 from services.plexService import PlexAuthService, PlexService
 import itertools
+from ..app import socketio
 
-plex_route = Blueprint('plex', __name__, url_prefix='/api/plex')
+plex_route = Blueprint('plex', __name__, url_prefix = '/api/plex')
+
+
+def emit_plex_authentication_successful():
+    socketio.emit('plex_auth_success')
+
+
+@plex_route.route('/testing')
+def testing():
+    socketio.emit('response', "This is my message from here")
 
 
 @plex_route.route('/tokenFilled')
 def token_filled():
     config = Config()
-    return jsonify({'tokenFilled': config.PLEX_TOKEN != None})
+    return jsonify({'tokenFilled': config.PLEX_TOKEN is not None})
 
 
 @plex_route.route('/getPin')
 def get_pin():
-    plex_auth_service = PlexAuthService()
+    plex_auth_service = PlexAuthService(authenticated_callback = emit_plex_authentication_successful)
     pin = plex_auth_service.generate_pin()
 
     return jsonify({'pin': pin})
@@ -50,7 +58,7 @@ def server_url_filled():
     return jsonify({"serverUrlFilled": config.PLEX_SERVER_URL is not None})
 
 
-@plex_route.route('/setPlexServerUrl', methods=['POST'])
+@plex_route.route('/setPlexServerUrl', methods = ['POST'])
 def set_plex_server_url():
     config = Config()
     data = request.json

@@ -1,5 +1,7 @@
 import json
 import os
+from typing import List, Union
+
 from config import Config
 
 
@@ -12,13 +14,13 @@ def ensure_required_directories_exist() -> bool:
     return any([create_directory_path(path) for path in config.REQUIRED_DIRECTORIES])
 
 
-def save_json(filepath: str, data: dict) -> None:
+def save_json(filepath: str, data: Union[dict, List[dict]]) -> None:
     ensure_required_directories_exist()
     with open(filepath, 'w') as f:
         json.dump(data, f)
 
 
-def load_json(filepath: str, default_data: dict = None) -> dict:
+def load_json(filepath: str, default_data: Union[dict, List[dict]] = None) -> Union[dict, List[dict]]:
     ensure_required_directories_exist()
     if not os.path.exists(filepath):
         save_json(filepath, default_data if default_data is not None else {})

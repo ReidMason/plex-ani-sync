@@ -28,14 +28,14 @@ class AnilistAuth:
 
     def get_token(self) -> Optional[AnilistTokenResponse]:
         payload = {
-            'grant_type': 'authorization_code',
-            'client_id': '',
+            'grant_type'   : 'authorization_code',
+            'client_id'    : '',
             'client_secret': '',
-            'redirect_uri': '',
-            'code': self.authorization_code,
+            'redirect_uri' : '',
+            'code'         : self.authorization_code,
         }
 
-        r = requests.post("https://anilist.co/api/v2/oauth/token", json=payload)
+        r = requests.post("https://anilist.co/api/v2/oauth/token", json = payload)
         response = r.json()
 
         # Check for invalid response
@@ -79,16 +79,16 @@ class AnilistService(IAnimeListService):
 
         headers = {
             'Authorization': 'Bearer ' + self.token,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Accept'       : 'application/json',
+            'Content-Type' : 'application/json'
         }
 
         try:
             r = requests.post(
                 self.base_url,
-                headers=headers,
-                json={
-                    'query': query,
+                headers = headers,
+                json = {
+                    'query'    : query,
                     'variables': variables
                 })
 
@@ -182,12 +182,12 @@ class AnilistService(IAnimeListService):
         for anime in raw_anime_list:
             media = anime.get('media')
             anime_list.anime_list.append(AnimeListAnime(
-                anime_id=media.get('id'),
-                title=media.get('title').get('english'),
-                romaji_title=media.get('title').get('romaji'),
-                watch_status=watch_status_mapping.get(anime.get('status').lower(), 0),
-                total_episodes=media.get('episodes'),
-                watched_episodes=anime.get('progress'),
+                anime_id = media.get('id'),
+                title = media.get('title').get('english'),
+                romaji_title = media.get('title').get('romaji'),
+                watch_status = watch_status_mapping.get(anime.get('status').lower(), 0),
+                total_episodes = media.get('episodes'),
+                watched_episodes = anime.get('progress'),
             ))
 
         return anime_list
@@ -215,16 +215,17 @@ class AnilistService(IAnimeListService):
             # Extract relevant data from the response
         viewer = response.get('data').get('Viewer')
         return AnilistUser(
-            user_id=viewer.get('id'),
-            name=viewer.get('name')
+            user_id = viewer.get('id'),
+            name = viewer.get('name')
         )
 
-    def update_anime(self, anime_id: str, watched_episodes: int, status: int, title: str = None) -> bool:
+    def update_anime(self, anime_id: int, watched_episodes: int, status: int, title: str = None) -> bool:
         """ Updates a series on Anilist. This can be used to change the progress or status of a show on Anilist.
 
         :param anime_id: The id of the show that needs to be updated.
         :param watched_episodes: The current number of watched episodes.
         :param status: The current status number.
+        :param title: The title of the anime being updated.
         :return: Whether or not the update was successful.
         """
         logger.info(
@@ -241,8 +242,8 @@ class AnilistService(IAnimeListService):
             '''
 
         variables = {
-            'mediaId': anime_id,
-            'status': watch_status_mapping.get(status, "").upper(),
+            'mediaId' : anime_id,
+            'status'  : watch_status_mapping.get(status, "").upper(),
             'progress': watched_episodes
         }
 
@@ -285,7 +286,7 @@ class AnilistService(IAnimeListService):
 
         return None
 
-    def get_anime_prequels(self, anime_id: int, anime: Anime = None) -> Anime:
+    def get_anime_prequels(self, anime_id: int, anime: Anime = None) -> Optional[Anime]:
         if anime is None:
             anime = self.get_anime(anime_id)
 
@@ -316,7 +317,7 @@ class AnilistService(IAnimeListService):
 
         return anime
 
-    def get_anime_sequels(self, anime_id: int, anime: Anime = None) -> Anime:
+    def get_anime_sequels(self, anime_id: int, anime: Anime = None) -> Optional[Anime]:
         if anime is None:
             anime = self.get_anime(anime_id)
 

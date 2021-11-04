@@ -1,20 +1,22 @@
 import os
 import json
 from json import JSONDecodeError
-from typing import List
+from typing import List, Optional
 
 live = os.environ.get("IS_LIVE", "false").lower() == "true"
+
+
 class Config:
     def __init__(self) -> None:
         # Required paths
-        self._DATA_PATH = "/data" if live else "data" 
+        self._DATA_PATH = "/data" if live else "data"
         self._MAPPING_PATH = os.path.join(self._DATA_PATH, "mapping")
         self._LOGS_PATH = os.path.join(self._DATA_PATH, "logs")
 
-        self.PLEX_SERVER_URL: str = None
-        self.PLEX_TOKEN: str = None
+        self.PLEX_SERVER_URL: Optional[str] = None
+        self.PLEX_TOKEN: Optional[str] = None
 
-        self.ANILIST_TOKEN: str = None
+        self.ANILIST_TOKEN: Optional[str] = None
 
         self.ANIME_LIBRARIES: List[str] = ["Anime"]
         self.MARK_UNWATCHED_EPISODES_AS_PLANNING: bool = False
@@ -22,7 +24,7 @@ class Config:
         self.DAYS_UNTIL_PAUSED: int = 14
         self.DAYS_UNTIL_DROPPED: int = 31
 
-        self.SYNC_CRONTIME: dict = "0 19 * * *"
+        self.SYNC_CRONTIME: str = "0 19 * * *"
         self.SYNC_SCHEDULE_ENABLED: bool = True
 
         self.DATE_FORMAT: str = "%d-%m-%Y %H:%M:%S"
@@ -44,7 +46,8 @@ class Config:
 
         # Load the data from the config file
         with open(self.config_path, 'r') as f:
-            
+
+            # Try and load the config data a few times before giving up
             attempts = 0
             while attempts < 10:
                 try:
@@ -60,7 +63,12 @@ class Config:
                 data_value = config_data.get(field)
                 if data_value is not None:
                     setattr(self, field, data_value)
-        self.save()
+
+            # If the config file is missing values we need to save in order to add them
+            config_keys = set([x for x in self.__dict__.keys() if not x.startswith("_")])
+            config_data_keys = set(config_data.keys())
+            if config_keys != config_data_keys:
+                self.save()
 
     def save(self) -> None:
         with open(self.config_path, 'w') as f:

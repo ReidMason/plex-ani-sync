@@ -55,7 +55,7 @@ export default function MainRoutes() {
     return (
         <>
             {loading ?
-                <div className="bg-gray-500 flex items-center justify-center h-full">
+                <div className="bg-gray-700 flex items-center justify-center h-full">
                     <div className="w-24 h-24">
                         <LoadingSpinner />
                     </div>

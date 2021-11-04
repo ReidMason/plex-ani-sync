@@ -3,7 +3,7 @@ venv
 __pycache__
 .vscode
 config.json
-server/static
+server/flaskApp/static
 failed_tvdb_id_mappings.json
 .pytest_cache
 
