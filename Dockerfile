@@ -5,7 +5,7 @@ ADD ./frontend /app/frontend
 
 # Set the working directory to /app
 WORKDIR /app/frontend
-RUN npm install --silent
+RUN npm ci --silent
 RUN npm run build --silent
 
 FROM python:3.9-slim
