@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_socketio import SocketIO
 
-socketio = SocketIO()
+socketio = SocketIO(async_handlers = True)
 
 
 def create_app(debug: bool = False) -> Flask:
@@ -24,7 +24,8 @@ def create_app(debug: bool = False) -> Flask:
     ensure_required_directories_exist()
 
     # Move the anime-mapping file if it's live
-    if os.environ.get("IS_LIVE", "false").lower() == "true":
+    is_live = os.environ.get("IS_LIVE", "false").lower() == "true"
+    if is_live:
         if os.path.exists("data/mapping/anime-mapping.json"):
             mapping_data = load_json("data/mapping/anime-mapping.json")
             save_json(os.path.join(config._MAPPING_PATH, "anime-mapping.json"), mapping_data)
@@ -49,5 +50,5 @@ def create_app(debug: bool = False) -> Flask:
         return send_file(os.path.join('static/static/', folder, file))
 
     # Init socketio to allow websockets
-    socketio.init_app(app, cors_allowed_origins = "*", async_mode = 'gevent')
+    socketio.init_app(app, cors_allowed_origins = "*")
     return app

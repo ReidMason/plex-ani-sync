@@ -11,7 +11,8 @@ RUN npm run build --silent
 FROM python:3.9-slim
 
 # Need to install a C compiler for uwsgi
-RUN apt-get update && apt-get install -y gcc
+RUN apt-get update && apt-get install -y gcc libssl-dev
+RUN CFLAGS="-I/usr/local/opt/openssl/include" LDFLAGS="-L/usr/local/opt/openssl/lib" UWSGI_PROFILE_OVERRIDE=ssl=true pip3 install uwsgi -Iv
 
 ADD ./server /app/server
 
@@ -20,9 +21,10 @@ COPY --from=build-step /app/frontend/build /app/server/flaskApp/static
 WORKDIR /app/server
 
 RUN pip3 install -r requirements.txt
+RUN pip3 install uwsgi
 
 RUN mkdir /data
 
 ENV IS_LIVE=true
 
-CMD ["uwsgi", "--socket", "0.0.0.0:5002", "--protocol=http", "--enable-threads", "-w", "wsgi:app"]
+CMD ["uwsgi", "--socket", "0.0.0.0:5002", "--gevent", "1000", "--http-websockets", "--master", "--protocol=http", "--enable-threads", "-w", "wsgi:app"]

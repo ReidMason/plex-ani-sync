@@ -36,8 +36,9 @@ def run_job():
         return
 
     # socketio.start_background_task(run_job_threading)
-    thread = Thread(target = run_job_threading)
-    thread.start()
+    socketio.start_background_task(target = run_job_threading)
+    # thread = Thread(target = run_job_threading)
+    # thread.start()
 
 
 def set_scheduler_job(config: Config = None) -> Optional[Job]:
