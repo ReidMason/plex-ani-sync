@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from config import Config
-from services.plexService import PlexAuthService, PlexService
+from services.plexClient import PlexAuthService, PlexClient
 import itertools
 from ..app import socketio
 
@@ -33,7 +33,7 @@ def get_pin():
 @plex_route.route('/plexAuthenticated')
 def plex_authenticated():
     config = Config()
-    plex_service = PlexService(config.PLEX_SERVER_URL, config.PLEX_TOKEN)
+    plex_service = PlexClient(config.PLEX_SERVER_URL, config.PLEX_TOKEN)
     try:
         plex_service.authenticate()
     except Exception:
@@ -45,7 +45,7 @@ def plex_authenticated():
 @plex_route.route('/getAnime')
 def get_anime():
     config = Config()
-    plex_service = PlexService(config.PLEX_SERVER_URL, config.PLEX_TOKEN)
+    plex_service = PlexClient(config.PLEX_SERVER_URL, config.PLEX_TOKEN)
     plex_service.authenticate()
     anime = [[y.serialize() for y in x] for x in itertools.islice(plex_service.get_all_anime(), 5)]
 

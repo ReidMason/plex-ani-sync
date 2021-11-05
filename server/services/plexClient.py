@@ -86,7 +86,7 @@ class PlexAuthService:
             self.authenticated_callback()
 
 
-class PlexService:
+class PlexClient:
     def __init__(self, server_url: str, plex_token: str):
         self.config = Config()
         self.server_url: str = server_url
