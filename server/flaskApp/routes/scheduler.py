@@ -57,7 +57,7 @@ def set_scheduler_job(config: Config = None) -> Optional[Job]:
     return job
 
 
-# Start he scheduler
+# Start the scheduler
 scheduler = BackgroundScheduler()
 scheduler.start()
 set_scheduler_job()

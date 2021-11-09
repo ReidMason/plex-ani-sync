@@ -7,9 +7,8 @@ live = os.environ.get("IS_LIVE", "false").lower() == "true"
 
 
 class Config:
-    def __init__(self) -> None:
-        # Required paths
-        self._DATA_PATH = "/data" if live else "data"
+    def __init__(self) -> None:  # Required paths
+        self._DATA_PATH = "/data" if live else os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         self._MAPPING_PATH = os.path.join(self._DATA_PATH, "mapping")
         self._LOGS_PATH = os.path.join(self._DATA_PATH, "logs")
 

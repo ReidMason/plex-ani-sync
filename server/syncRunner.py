@@ -8,7 +8,7 @@ from models.mapping.tvdbToAnilistMapping import TvdbToAnilistMapping
 from models.plex.plexAnime import PlexAnime
 from services.animeListServices.anilistService import AnilistService
 from services.mappingServices.mappingService import MappingService
-from services.plexService import PlexService
+from services.plexClient import PlexClient
 from fileManager import load_json, save_json
 import utils
 import copy
@@ -27,7 +27,7 @@ class SyncRunner:
         self.anilist_service = AnilistService(self.config.ANILIST_TOKEN)
         self.mapping_service = MappingService()
 
-        self.plex_service = PlexService(self.config.PLEX_SERVER_URL, self.config.PLEX_TOKEN)
+        self.plex_service = PlexClient(self.config.PLEX_SERVER_URL, self.config.PLEX_TOKEN)
 
         # Save and load failed mappings
         self.failed_tvdb_id_mappings: List[dict] = load_json(
@@ -82,6 +82,10 @@ class SyncRunner:
         else:
             total_episodes = anime_list_anime.total_episodes
 
+        # If total episodes is still none then we don't know how long the show will be
+        if total_episodes is None:
+            total_episodes = 0
+
         last_viewed_at = plex_anime.last_viewed_at
         if last_viewed_at is not None:
             days_since_last_viewing = utils.ensure_number_is_positive(
@@ -89,7 +93,7 @@ class SyncRunner:
         else:
             days_since_last_viewing = None
 
-        watch_episodes_unchanged = plex_anime.episodes_watched == anime_list_anime.watched_episodes if anime_list_anime is not None else True
+        # watch_episodes_unchanged = plex_anime.episodes_watched == anime_list_anime.watched_episodes if anime_list_anime is not None else True
 
         # Completed
         if total_episodes > 0 and plex_anime.episodes_watched > 0 and total_episodes != None and plex_anime.episodes_watched >= total_episodes:
@@ -188,7 +192,7 @@ class SyncRunner:
             # We don't want to print mapping errors for "specials" seasons because they are unlikely to be mapped
             if len(mappings) == 0 and str(immutable_plex_anime.season_number) != "0":
                 # We only want to log if there aren't any wildcard mappings
-                if (len(wildcard_mappings) == 0):
+                if len(wildcard_mappings) == 0:
                     logger.info(f'No mappings for "{immutable_plex_anime.display_name}"')
                 continue
 
@@ -225,8 +229,13 @@ class SyncRunner:
                     self.anilist_service.update_anime(mapping.anilist_id, plex_anime.episodes_watched,
                                                       watch_status, plex_anime.title)
 
+    def run_callback(self, callback_data: dict) -> None:
+        if self.processing_callback is not None:
+            self.processing_callback(callback_data)
+
     def run(self):
         self.processing_logs = []
+        self.run_callback({'updates': self.processing_logs, 'syncIsRunning': True})
 
         self.plex_service.authenticate()
 
@@ -234,18 +243,15 @@ class SyncRunner:
         all_anime = self.plex_service.get_all_anime()
         for series in all_anime:
             # Send the most recent processed series
-            self.processing_logs.append({'seriesTitle': series[0].title})
-            if self.processing_callback is not None:
-                self.processing_callback({'updates': self.processing_logs[-10:]})
+            self.processing_logs.append({'seriesTitle': series[0].display_name})
+            self.run_callback({'updates': self.processing_logs, 'syncIsRunning': True})
 
             # Run the sync
             self.create_mapping_for_anime_series(series)
             self.process_series(series, anime_list)
+        self.run_callback({'updates': self.processing_logs, 'syncIsRunning': False})
 
 
 if __name__ == "__main__":
-    sync_runner = SyncRunner()
-    try:
-        sync_runner.run()
-    except Exception as e:
-        print(e)
+    sr = SyncRunner()
+    sr.run()

@@ -1,7 +1,9 @@
 class AnimeListAnime:
-    def __init__(self, anime_id: str, title: str, romaji_title: str, total_episodes: int, watched_episodes: int,
+    def __init__(self, entry_id: int, anime_id: int, title: str, romaji_title: str, total_episodes: int,
+                 watched_episodes: int,
                  watch_status: int):
-        self.anime_id: str = str(anime_id)
+        self.entry_id: int = int(entry_id)
+        self.anime_id: int = int(anime_id)
         self.title: str = str(title)
         self.romaji_title: str = str(romaji_title)
         self.total_episodes: int = int(total_episodes if total_episodes is not None else 0)

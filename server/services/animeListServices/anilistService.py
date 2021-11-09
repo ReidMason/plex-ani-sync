@@ -1,5 +1,6 @@
 import json
 import time
+from enum import Enum
 from typing import List, Optional
 
 import requests
@@ -10,16 +11,28 @@ from models.anilist.anilistTokenResponse import AnilistTokenResponse
 from services.animeListServices.IAnimeListService import IAnimeListService
 from models.animeList.animeList import AnimeList
 from models.animeList.animeListAnime import AnimeListAnime
-from models.twoWayMapping import TwoWayMapping
 
 logger = utils.create_logger("AnilistService")
 
-watch_status_mapping: TwoWayMapping = TwoWayMapping()
-watch_status_mapping["completed"] = 1
-watch_status_mapping["current"] = 2
-watch_status_mapping["planning"] = 3
-watch_status_mapping["paused"] = 4
-watch_status_mapping["dropped"] = 5
+
+class WatchStatusMapping(Enum):
+    COMPLETED = 1
+    CURRENT = 2
+    PLANNING = 3
+    PAUSED = 4
+    DROPPED = 5
+    UNKNOWN = 0
+
+    @classmethod
+    def get_status_id(cls, status_string: str) -> Enum:
+        try:
+            return cls[status_string.upper()]
+        except KeyError:
+            return cls.UNKNOWN
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.UNKNOWN
 
 
 class AnilistAuth:
@@ -182,10 +195,11 @@ class AnilistService(IAnimeListService):
         for anime in raw_anime_list:
             media = anime.get('media')
             anime_list.anime_list.append(AnimeListAnime(
+                entry_id = anime.get('id'),
                 anime_id = media.get('id'),
                 title = media.get('title').get('english'),
                 romaji_title = media.get('title').get('romaji'),
-                watch_status = watch_status_mapping.get(anime.get('status').lower(), 0),
+                watch_status = WatchStatusMapping.get_status_id(anime.get('status').upper()).value,
                 total_episodes = media.get('episodes'),
                 watched_episodes = anime.get('progress'),
             ))
@@ -228,8 +242,9 @@ class AnilistService(IAnimeListService):
         :param title: The title of the anime being updated.
         :return: Whether or not the update was successful.
         """
+        watch_status_name = WatchStatusMapping(status).name
         logger.info(
-            f'Updating "{title or anime_id}" to "{watch_status_mapping[status]}" Episodes watched: {watched_episodes}')
+            f'Updating "{title or anime_id}" to "{watch_status_name}" Episodes watched: {watched_episodes}')
 
         query = '''
             mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int) {
@@ -243,7 +258,7 @@ class AnilistService(IAnimeListService):
 
         variables = {
             'mediaId' : anime_id,
-            'status'  : watch_status_mapping.get(status, "").upper(),
+            'status'  : watch_status_name.upper(),
             'progress': watched_episodes
         }
 
@@ -428,3 +443,38 @@ class AnilistService(IAnimeListService):
             return Anime(anime_data)
 
         return None
+
+    def delete_media_entry(self, media_list_entry_id: int):
+        query = '''
+                    mutation ($mediaListEntryId: Int) {
+                        DeleteMediaListEntry (id: $mediaListEntryId)
+                        {
+                            deleted
+                        }
+                    }
+                    '''
+
+        variables = {
+            'mediaListEntryId': media_list_entry_id
+        }
+
+        response = self.send_graphql_request(query, variables)
+
+        return response
+
+    def get_planning_anime(self):
+        anime_list = self.get_anime_list()
+        return [x for x in anime_list.anime_list if x.watch_status == WatchStatusMapping.PLANNING.value]
+
+    def clear_planning_list(self):
+        for anime in self.get_planning_anime():
+            self.delete_media_entry(anime.entry_id)
+
+
+if __name__ == '__main__':
+    from config import Config
+
+    config = Config()
+
+    anilist_service = AnilistService(config.ANILIST_TOKEN)
+    anilist_service.clear_planning_list()

@@ -3,15 +3,20 @@ import { io } from 'socket.io-client';
 import Button from '../components/Button';
 import SchedulerService from '../services/SchedulerService';
 import { getBaseUrl } from '../utils';
+import SyncProcessLog from '../components/SyncProcessLog';
+import { ProcessLog, ProcessLogs } from '../interfaces/Interfaces';
+import EnterTransition from '../components/EnterTransition';
+import DeletePlanningList from '../components/DeletePlanningList';
 
-interface SyncLog {
-    seriesTitle: string;
+const logListTransition = {
+    hidden: 'transition duration-300 transform -translate-y-3 opacity-0',
+    visible: 'transition duration-300 transform translate-y-0 opacity-100',
 }
 
 export default function Index() {
     const [nextRunTime, setNextRunTime] = useState<string>("");
     const [syncRunning, setSyncrunning] = useState<boolean>(false);
-    const [processedShowsLog, setProcessedShowsLog] = useState<Array<SyncLog>>([])
+    const [processedShowsLog, setProcessedShowsLog] = useState<Array<ProcessLog>>([]);
 
     const update_things = () => {
         SchedulerService.getNextRunTime().then((response) => {
@@ -23,8 +28,9 @@ export default function Index() {
     useEffect(() => {
         var socket = io(getBaseUrl());
 
-        socket.on('sync_process_logs', function (response) {
-            setProcessedShowsLog(response.updates.reverse());
+        socket.on('sync_process_logs', function (response: ProcessLogs) {
+            setProcessedShowsLog(response.updates.reverse().slice(0, 5));
+            setSyncrunning(response.syncIsRunning);
         })
 
         update_things();
@@ -36,28 +42,30 @@ export default function Index() {
             SchedulerService.getNextRunTime().then((response) => {
                 setNextRunTime(response.data.nextRunTime);
                 setSyncrunning(response.data.syncRunning);
+                console.log(processedShowsLog);
             })
         });
     }
 
     return (
-        <div className="bg-gray-700 h-full pt-24 flex flex-col items-center gap-4">
-            <h1 className="text-center text-4xl font-semibold">Plex Anilist sync</h1>
-            {nextRunTime &&
-                <div className="text-center">
-                    <h2 className="text-2xl">Next run time</h2>
-                    <h2 className="text-2xl">{nextRunTime}</h2>
-                </div>
-            }
-            {syncRunning && <h2 className="text-2xl">Sync running</h2>}
+        <div className="bg-gray-700 h-full pt-24">
+            <EnterTransition className="flex flex-col items-center gap-4">
+                <h1 className="text-center text-4xl font-semibold">Plex Anilist sync</h1>
+                {nextRunTime &&
+                    <div className="text-center">
+                        <h2 className="text-2xl">Next run time</h2>
+                        <h2 className="text-2xl">{nextRunTime}</h2>
+                    </div>
+                }
 
-            <Button loading={syncRunning} onClick={startSync}>Sync now</Button>
-            <div className="flex flex-col-reverse w-3/12 text-center h-52 relative">
-                <div className="absolute top-0 bg-gradient-to-b from-gray-700 h-3/6 w-full"></div>
-                {processedShowsLog.map((syncLog) => (
-                    <p key={syncLog.seriesTitle} className="truncate overflow-ellipsis text-gray-300">{syncLog.seriesTitle}</p>
-                ))}
-            </div>
+                <Button loading={syncRunning} onClick={startSync}>Sync now</Button>
+                <div className={`w-3/12 flex flex-col items-center ${syncRunning ? logListTransition.visible : logListTransition.hidden}`}>
+                    <h2 className="text-2xl">Sync running</h2>
+                    <SyncProcessLog processedShowsLog={processedShowsLog} />
+                </div>
+
+                {/* <DeletePlanningList /> */}
+            </EnterTransition>
         </div>
     )
 }

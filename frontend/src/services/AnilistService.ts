@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
+import { AnilistAnime } from '../interfaces/Interfaces';
 import { createRequestUrl } from '../utils';
 
 interface anilistAuthenticatedReponse {
@@ -13,6 +14,10 @@ const AnilistService = {
 
     anilistAuthenticated(): Promise<AxiosResponse<anilistAuthenticatedReponse>> {
         return axios.get<anilistAuthenticatedReponse>(createRequestUrl("/api/anilist/anilistAuthenticated"))
+    },
+
+    getPlanningAnimeToRemove(): Promise<AxiosResponse<Array<AnilistAnime>>> {
+        return axios.get<Array<AnilistAnime>>(createRequestUrl("/api/anilist/getPlanningAnimeToRemove"))
     }
 }
 
