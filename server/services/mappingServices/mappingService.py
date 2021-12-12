@@ -78,7 +78,7 @@ class MappingService:
         for index, list_season in enumerate(all_seasons):
             # Find the season with the matching title
             # We are going to use that as the starting season instead of the actual first season
-            if list_season.title == anime.title:
+            if list_season.title.lower() == anime.title.lower():
                 target_season_index = index + int(anime.season_number) - 1
                 season = all_seasons[target_season_index]
                 break
@@ -88,7 +88,7 @@ class MappingService:
             for index, list_season in enumerate(all_seasons):
                 # Find a season with a matching synonym
                 # We are going to use that as the starting season isntead of the actual first season
-                if anime.title in list_season.synonyms:
+                if anime.title.lower() in list_season.synonyms.lower():
                     target_season_index = index + int(anime.season_number) - 1
                     season = all_seasons[target_season_index]
                     break
