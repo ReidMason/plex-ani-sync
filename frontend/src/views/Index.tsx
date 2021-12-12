@@ -42,7 +42,6 @@ export default function Index() {
             SchedulerService.getNextRunTime().then((response) => {
                 setNextRunTime(response.data.nextRunTime);
                 setSyncrunning(response.data.syncRunning);
-                console.log(processedShowsLog);
             })
         });
     }
