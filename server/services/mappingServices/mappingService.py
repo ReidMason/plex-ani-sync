@@ -52,7 +52,8 @@ class MappingService:
         # Try searching for the animes name
         logger.debug(f"Doing anilist search for for {anime.display_name}")
         search_results = anilist_service.search_for_anime(anime.title)
-        search_results = [x for x in search_results if x.start_date is not None and x.start_date.year == anime.release_year]
+        search_results = [x for x in search_results if
+                          x.start_date is not None and x.start_date.year == anime.release_year]
         if len(search_results) > 0:
             result = search_results[0]
             new_mapping_added = self.create_anilist_season_mapping(anime, result.id)
@@ -88,7 +89,7 @@ class MappingService:
             for index, list_season in enumerate(all_seasons):
                 # Find a season with a matching synonym
                 # We are going to use that as the starting season isntead of the actual first season
-                if anime.title.lower() in list_season.synonyms.lower():
+                if anime.title.lower() in [x.lower() for x in list_season.synonyms]:
                     target_season_index = index + int(anime.season_number) - 1
                     season = all_seasons[target_season_index]
                     break
@@ -179,7 +180,7 @@ class MappingService:
             self.save_mapping()
 
     def save_mapping(self):
-        sorted_mappings = sorted(self.mappings, key=lambda x: (
+        sorted_mappings = sorted(self.mappings, key = lambda x: (
             int(x.tvdb_id), int(x.season_number if x.season_number != "*" else 0)))
         data = [x.serialize() for x in sorted_mappings] if sorted_mappings is not None else []
 
