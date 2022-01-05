@@ -108,12 +108,12 @@ class MappingService:
             seasons = [season]
             for season_after in seasons_after:
                 seasons.append(season_after)
-                episode_total = sum([x.episodes for x in seasons])
+                episode_total = sum([x.episodes for x in seasons if x.episodes is not None])
                 if episode_total >= len(anime.episodes):
                     break
 
             # If we have more than one item in the seasons list the Plex season consists of multiple anilist seasons
-            if len(seasons) > 1 and sum([x.episodes for x in seasons]) == len(anime.episodes):
+            if len(seasons) > 1 and sum([x.episodes for x in seasons if x.episodes is not None]) == len(anime.episodes):
                 episode_start = 1
                 new_mapping_added = False
                 for index, season in enumerate(seasons):
