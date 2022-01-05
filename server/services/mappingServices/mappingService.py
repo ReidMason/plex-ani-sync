@@ -21,7 +21,7 @@ class MappingService:
         self.load_mappings()
         self.check_for_new_fribbs_mappings()
 
-    def find_new_anilist_mapping(self, anime: PlexAnime):
+    def find_new_anilist_mapping(self, anime: PlexAnime, series: List[PlexAnime]):
         anilist_service = AnilistService(self.config.ANILIST_TOKEN)
 
         # First see if there is an entry for another season of the show that we can use as a reference
@@ -56,11 +56,11 @@ class MappingService:
                           x.start_date is not None and x.start_date.year == anime.release_year]
         if len(search_results) > 0:
             result = search_results[0]
-            new_mapping_added = self.create_anilist_season_mapping(anime, result.id)
+            new_mapping_added = self.create_anilist_season_mapping(anime, result.id, series)
             if new_mapping_added:
                 return
 
-    def create_anilist_season_mapping(self, anime: PlexAnime, anilist_id: int) -> bool:
+    def create_anilist_season_mapping(self, anime: PlexAnime, anilist_id: int, series: List[PlexAnime] = None) -> bool:
         anilist_service = AnilistService(self.config.ANILIST_TOKEN)
         obtained_anime = anilist_service.get_anime_with_seasons(anilist_id)
 
@@ -98,6 +98,17 @@ class MappingService:
         if season is None:
             target_season_index = int(anime.season_number) - 1
             season = all_seasons[target_season_index]
+
+        # Check for wildcard mapping
+        # Get the total number of episodes listed on plex excluding specials
+        # If there is only one season found from anilist then we need to check if the total number of episodes match
+        total_episodes_in_series = sum(
+            [len(x.episodes) for x in series if x.episodes is not None and x.season_number != "0"])
+        only_one_season = len(all_seasons) == 1 and all_seasons[0].episodes is not None
+        if only_one_season and total_episodes_in_series == all_seasons[0].episodes:
+            anime.season_number = "*"
+            successful = self.add_new_mapping(anime, season, )
+            return successful
 
         # Now we can check for plex series spanning a few anilist seasons
         # We count the total episodes adding one season at a time

@@ -51,7 +51,7 @@ class SyncRunner:
 
             # If it's still none we need to try and add a mapping
             if len(mapping) == 0:
-                self.mapping_service.find_new_anilist_mapping(anime)
+                self.mapping_service.find_new_anilist_mapping(anime, series)
                 mapping = self.mapping_service.get_mapping_by_tvdb_id(anime.tvdb_id, anime.season_number)
 
             # Mapping could not be found or created
