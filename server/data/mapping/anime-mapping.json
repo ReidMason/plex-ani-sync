@@ -2646,7 +2646,7 @@
     "season_length": null
   },
   {
-    "season_number": "1",
+    "season_number": "*",
     "tvdb_id": "274195",
     "anilist_id": 4382,
     "title": "The Melancholy of Haruhi Suzumiya",
