@@ -30,7 +30,7 @@ class MappingService:
         if len(mappings_with_tvdb_id) > 0:
             similar_anilist_id = mappings_with_tvdb_id[0].anilist_id
             new_mapping_added = self.create_anilist_season_mapping(anime, similar_anilist_id)
-            if (new_mapping_added):
+            if new_mapping_added:
                 return
 
         # Failing that check to see if the mapping exists in fribbs mapping
