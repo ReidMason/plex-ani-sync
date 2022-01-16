@@ -126,13 +126,14 @@ class MappingService:
         # Check for wildcard mapping
         # Get the total number of episodes listed on plex excluding specials
         # If there is only one season found from anilist then we need to check if the total number of episodes match
-        total_episodes_in_series = sum(
-            [len(x.episodes) for x in series if x.episodes is not None and x.season_number != "0"])
-        only_one_season = len(all_seasons) == 1 and all_seasons[0].episodes is not None
-        if only_one_season and total_episodes_in_series == all_seasons[0].episodes:
-            anime.season_number = "*"
-            successful = self.add_new_mapping(anime, season, )
-            return successful
+        if series is not None:
+            total_episodes_in_series = sum(
+                [len(x.episodes) for x in series if x.episodes is not None and x.season_number != "0"])
+            only_one_season = len(all_seasons) == 1 and all_seasons[0].episodes is not None
+            if only_one_season and total_episodes_in_series == all_seasons[0].episodes:
+                anime.season_number = "*"
+                successful = self.add_new_mapping(anime, season, )
+                return successful
 
         return self.add_new_mapping(anime, season)
 
