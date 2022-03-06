@@ -12,3 +12,4 @@ server/data/*
 server/data/mapping/*
 !server/data/mapping/
 !server/data/mapping/anime-mapping.json
+test.py
