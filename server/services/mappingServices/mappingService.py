@@ -120,6 +120,11 @@ class MappingService:
                     successful = self.add_new_mapping(anime, season, episode_start)
                     if successful:
                         new_mapping_added = True
+
+                    # Skip when episodes ar enone
+                    if season.episodes is None:
+                        continue
+
                     episode_start += season.episodes
                 return new_mapping_added
 
