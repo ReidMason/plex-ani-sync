@@ -282,7 +282,10 @@ func TestMakeRequest(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"value":"fixed"}`))
+		_, err := w.Write([]byte(`{"value":"fixed"}`))
+		if err != nil {
+			t.Error("Failed to write mock http server response")
+		}
 	}))
 
 	for _, tc := range testCases {

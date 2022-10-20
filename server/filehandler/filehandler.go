@@ -21,8 +21,16 @@ func New[T any]() *FileHandler[T] {
 }
 
 func (fh FileHandler[T]) SaveJson(path string, data T) error {
-	fh.CreateFile(path)
-	rawData, _ := json.MarshalIndent(data, "", " ")
+	err := fh.CreateFile(path)
+	if err != nil {
+		return err
+	}
+
+	rawData, err := json.MarshalIndent(data, "", " ")
+	if err != nil {
+		return err
+	}
+
 	return os.WriteFile(path, rawData, 0644)
 }
 
@@ -41,9 +49,14 @@ func (fh FileHandler[T]) CreateDirectory(path string) error {
 	return os.MkdirAll(base, os.ModePerm)
 }
 
-func (fh FileHandler[T]) CreateFile(path string) {
-	fh.CreateDirectory(path)
-	os.Create(path)
+func (fh FileHandler[T]) CreateFile(path string) error {
+	err := fh.CreateDirectory(path)
+	if err != nil {
+		return err
+	}
+
+	_, err = os.Create(path)
+	return err
 }
 
 func (fh FileHandler[T]) FileExists(path string) bool {

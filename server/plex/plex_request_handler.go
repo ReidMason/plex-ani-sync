@@ -54,7 +54,11 @@ func (prh RequestHandler) MakeRequest(method, endpoint string) (string, error) {
 }
 
 func (prh RequestHandler) getPlexUrl(endpoint string) (string, error) {
-	cfg, _ := prh.ConfigHandler.GetConfig()
+	cfg, err := prh.ConfigHandler.GetConfig()
+	if err != nil {
+		return "", err
+	}
+
 	plexUrl, err := url.Parse(cfg.Plex.BaseUrl)
 	if err != nil {
 		return "", err

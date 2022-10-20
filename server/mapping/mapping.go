@@ -33,7 +33,11 @@ func (m mapper) GetAnilistMapping(seasonRatingKey string) (Mapping, error) {
 
 func (m mapper) LoadMapping() (Mappings, error) {
 	filePath := "data/mapping.json"
-	m.FileHandler.EnsureFileExists(filePath, Mappings{})
+	_, err := m.FileHandler.EnsureFileExists(filePath, Mappings{})
+	if err != nil {
+		return []Mapping{}, nil
+	}
+
 	return m.FileHandler.LoadJsonFile(filePath)
 }
 
