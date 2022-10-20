@@ -292,7 +292,7 @@ func TestMakeRequest(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			// Update the conection URL for testing
+			// Update the connection URL for testing
 			tc.MockConfig.Plex.BaseUrl = server.URL
 
 			plexRequestHandler := NewRequestHandler(config.NewMock(tc.MockConfig))
@@ -315,5 +315,4 @@ func TestMakeRequest(t *testing.T) {
 			}
 		})
 	}
-
 }
