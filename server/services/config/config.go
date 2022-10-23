@@ -1,7 +1,7 @@
 package config
 
 import (
-	"plex-ani-sync/filehandler"
+	"plex-ani-sync/services/filehandler"
 )
 
 type IConfigHandler interface {

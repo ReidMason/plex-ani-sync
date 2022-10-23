@@ -1,15 +1,16 @@
 package plex
 
 import (
-	"plex-ani-sync/config"
-	"plex-ani-sync/requesthandler"
-	"plex-ani-sync/utils"
+	"net/http"
+	"plex-ani-sync/services/config"
+	"plex-ani-sync/services/requesthandler"
+	"plex-ani-sync/services/utils"
 )
 
 type IPlexConnection interface {
-	GetAllSeries(libraryId string) []Series
-	GetAllLibraries() []Library
-	GetSeasons(ratingKey string) []Season
+	GetSeries(libraryId string) ([]Series, error)
+	GetAllLibraries() ([]Library, error)
+	GetSeasons(ratingKey string) ([]Season, error)
 }
 
 type Connection struct {
@@ -17,12 +18,14 @@ type Connection struct {
 	RequestHandler requesthandler.IRequestHandler
 }
 
+var _ IPlexConnection = (*Connection)(nil)
+
 func New(configHandler config.IConfigHandler, requestHandler requesthandler.IRequestHandler) *Connection {
 	return &Connection{ConfigHandler: configHandler, RequestHandler: requestHandler}
 }
 
-func (pc Connection) GetAllSeries(libraryId string) ([]Series, error) {
-	jsonData, err := pc.RequestHandler.MakeRequest("GET", "/library/sections/"+libraryId+"/all")
+func (pc Connection) GetSeries(libraryId string) ([]Series, error) {
+	jsonData, err := pc.makeRequest("GET", "/library/sections/"+libraryId+"/all")
 	if err != nil {
 		var series []Series
 		return series, err
@@ -38,7 +41,7 @@ func (pc Connection) GetAllSeries(libraryId string) ([]Series, error) {
 }
 
 func (pc Connection) GetAllLibraries() ([]Library, error) {
-	jsonData, err := pc.RequestHandler.MakeRequest("GET", "/library/sections")
+	jsonData, err := pc.makeRequest("GET", "/library/sections")
 	if err != nil {
 		var libraries []Library
 		return libraries, err
@@ -54,7 +57,7 @@ func (pc Connection) GetAllLibraries() ([]Library, error) {
 }
 
 func (pc Connection) GetSeasons(ratingKey string) ([]Season, error) {
-	jsonData, err := pc.RequestHandler.MakeRequest("GET", "/library/metadata/"+ratingKey+"/children")
+	jsonData, err := pc.makeRequest("GET", "/library/metadata/"+ratingKey+"/children")
 	if err != nil {
 		var seasons []Season
 		return seasons, err
@@ -67,6 +70,36 @@ func (pc Connection) GetSeasons(ratingKey string) ([]Season, error) {
 	}
 
 	return seasons.MediaContainer.Metadata, nil
+}
+
+func (pc Connection) makeRequest(method, endpoint string) (string, error) {
+	cfg, err := pc.ConfigHandler.GetConfig()
+	if err != nil {
+		return "", err
+	}
+
+	queryParams := []requesthandler.QueryParam{
+		{
+			Key:   "X-Plex-Token",
+			Value: cfg.Plex.Token,
+		},
+	}
+	url, err := requesthandler.BuildUrl(cfg.Plex.BaseUrl, endpoint, queryParams)
+	if err != nil {
+		return "", err
+	}
+
+	headers := http.Header{
+		"Content-Type": {"application/json"},
+		"Accept":       {"application/json"},
+	}
+
+	response, err := pc.RequestHandler.MakeRequest(method, url, headers)
+	if err != nil {
+		return "", err
+	}
+
+	return response, nil
 }
 
 type BaseResponse[T any] struct {
@@ -142,6 +175,39 @@ type Location struct {
 }
 
 type Series struct {
-	RatingKey string
-	Title     string
+	RatingKey             string  `json:"ratingKey"`
+	Key                   string  `json:"key"`
+	SkipChildren          bool    `json:"skipChildren"`
+	GUID                  string  `json:"guid"`
+	Studio                string  `json:"studio"`
+	Type                  string  `json:"type"`
+	Title                 string  `json:"title"`
+	TitleSort             string  `json:"titleSort"`
+	Summary               string  `json:"summary"`
+	Index                 int     `json:"index"`
+	Rating                float64 `json:"rating"`
+	ViewCount             int     `json:"viewCount"`
+	SkipCount             int     `json:"skipCount"`
+	LastViewedAt          int     `json:"lastViewedAt"`
+	Year                  int     `json:"year"`
+	Thumb                 string  `json:"thumb"`
+	Art                   string  `json:"art"`
+	Banner                string  `json:"banner"`
+	Duration              int     `json:"duration"`
+	OriginallyAvailableAt string  `json:"originallyAvailableAt"`
+	LeafCount             int     `json:"leafCount"`
+	ViewedLeafCount       int     `json:"viewedLeafCount"`
+	ChildCount            int     `json:"childCount"`
+	AddedAt               int     `json:"addedAt"`
+	UpdatedAt             int     `json:"updatedAt"`
+	Genre                 []Genre `json:"Genre"`
+	Role                  []Role  `json:"Role"`
+}
+
+type Genre struct {
+	Tag string `json:"tag"`
+}
+
+type Role struct {
+	Tag string `json:"tag"`
 }

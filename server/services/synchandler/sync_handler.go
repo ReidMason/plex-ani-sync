@@ -2,8 +2,8 @@ package synchandler
 
 import (
 	"math"
-	"plex-ani-sync/config"
-	"plex-ani-sync/plex"
+	"plex-ani-sync/services/config"
+	"plex-ani-sync/services/plex"
 	"time"
 )
 

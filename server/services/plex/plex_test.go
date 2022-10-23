@@ -3,8 +3,8 @@ package plex
 import (
 	"encoding/json"
 	"net/url"
-	"plex-ani-sync/config"
-	"plex-ani-sync/requesthandler"
+	"plex-ani-sync/services/config"
+	"plex-ani-sync/services/requesthandler"
 	"reflect"
 	"testing"
 )
@@ -28,7 +28,7 @@ func TestGetAllSeries(t *testing.T) {
 	t.Parallel()
 
 	plexConnection := New(getBaseMockConfig(), requesthandler.NewMock(requesthandler.GetMockResponseData().SeriesResponse, nil))
-	allSeries, err := plexConnection.GetAllSeries("1")
+	allSeries, err := plexConnection.GetSeries("1")
 
 	expectedTitle := "Test anime title"
 	gotExpectedTitle := allSeries[0].Title == expectedTitle
@@ -99,7 +99,7 @@ func TestGetAllSeriesWhenResponseErrors(t *testing.T) {
 			t.Parallel()
 
 			plexConnection := New(getBaseMockConfig(), requesthandler.NewMock("", tc.ResponseError))
-			libraries, err := plexConnection.GetAllSeries("1")
+			libraries, err := plexConnection.GetSeries("1")
 
 			gotExpectedResult := libraries == nil
 			errorType := reflect.TypeOf(err)
@@ -135,7 +135,7 @@ func TestGetAllSeriesWhenJSONIsInvalid(t *testing.T) {
 			t.Parallel()
 
 			plexConnection := New(getBaseMockConfig(), requesthandler.NewMock(tc.ResponseData, nil))
-			libraries, err := plexConnection.GetAllSeries("1")
+			libraries, err := plexConnection.GetSeries("1")
 
 			gotExpectedResult := libraries == nil
 			errorType := reflect.TypeOf(err)

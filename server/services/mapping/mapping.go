@@ -1,8 +1,8 @@
 package mapping
 
 import (
-	"plex-ani-sync/filehandler"
-	"plex-ani-sync/utils"
+	"plex-ani-sync/services/filehandler"
+	"plex-ani-sync/services/utils"
 )
 
 type Mappings = []Mapping

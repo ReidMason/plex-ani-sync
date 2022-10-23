@@ -1,7 +1,7 @@
 package filehandler
 
 import (
-	"plex-ani-sync/utils"
+	"plex-ani-sync/services/utils"
 )
 
 type mockFileHandler[T any] struct {

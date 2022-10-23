@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"plex-ani-sync/utils"
+	"plex-ani-sync/services/utils"
 )
 
 type FileSystem[T any] interface {

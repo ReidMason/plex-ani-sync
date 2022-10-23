@@ -1,46 +1,40 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"plex-ani-sync/config"
-	"plex-ani-sync/plex"
-	"plex-ani-sync/synchandler"
-	"plex-ani-sync/utils"
-	"sync"
-	"time"
+	"plex-ani-sync/controllers"
+	"plex-ani-sync/services/anilist"
+	"plex-ani-sync/services/config"
+	"plex-ani-sync/services/plex"
+	"plex-ani-sync/services/requesthandler"
+
+	"github.com/gin-gonic/gin"
 )
 
-var wg sync.WaitGroup
-
-func timeTrack(start time.Time, name string) {
-	elapsed := time.Since(start)
-	log.Printf("function %s took %s", name, elapsed)
-}
-
 func main() {
-	defer timeTrack(time.Now(), "Main")
+	router := gin.Default()
 
-	plexConnection := plex.New(config.NewConfigHandler(), plex.NewRequestHandler(config.NewConfigHandler()))
-	syncHandler := synchandler.NewSyncHandler(config.NewConfigHandler())
+	configService := config.NewConfigHandler()
+	requesthandler := requesthandler.New()
+	plexService := plex.New(configService, requesthandler)
+	anilistService := anilist.New(requesthandler)
 
-	libraries, _ := plexConnection.GetAllLibraries()
-	library, _ := utils.GetSliceItem(libraries, func(x plex.Library) bool { return x.Title == "Anime" })
-	allSeries, _ := plexConnection.GetAllSeries(library.Key)
+	router.GET("/plex/libraries", controllers.GetLibraries(plexService))
+	router.GET("/plex/libraries/:libraryId/series", controllers.GetSeries(plexService))
 
-	for _, series := range allSeries {
-		wg.Add(1)
-		go showWatchStatus(series, *plexConnection, *syncHandler)
-	}
-	wg.Wait()
-}
+	router.GET("/anilist/setup/auth-confirmation", controllers.AuthConfirmation(configService))
+	router.GET("/anilist/setup/auth-confirmation", func(ctx *gin.Context) {
+		anilistService.GetAccessToken()
+	})
 
-func showWatchStatus(series plex.Series, plexConnection plex.Connection, syncHandler synchandler.SyncHandler) {
-	defer wg.Done()
+	clientId := "6512"
+	redirectUri := "http://10.128.0.160:5050/anilist/setup/auth-confirmation"
+	url := "https://anilist.co/api/v2/oauth/authorize?client_id=" + clientId + "&redirect_uri=" + redirectUri + "&response_type=code"
 
-	seasons, _ := plexConnection.GetSeasons(series.RatingKey)
-	for _, season := range seasons {
-		watchStatus := syncHandler.GetWatchStatus(season)
-		fmt.Printf("%s %s - %s\n", series.Title, season.Title, watchStatus)
+	log.Print(url)
+
+	err := router.Run(":5050")
+	if err != nil {
+		log.Fatal("Failed to start web server")
 	}
 }

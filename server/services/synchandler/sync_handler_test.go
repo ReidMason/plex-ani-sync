@@ -1,8 +1,8 @@
 package synchandler
 
 import (
-	"plex-ani-sync/config"
-	"plex-ani-sync/plex"
+	"plex-ani-sync/services/config"
+	"plex-ani-sync/services/plex"
 	"testing"
 	"time"
 )

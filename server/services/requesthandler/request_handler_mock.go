@@ -1,7 +1,9 @@
 package requesthandler
 
+import "net/http"
+
 type MockRequestHandler struct {
-	ResponseData string
+	ResponseData  string
 	ResponseError error
 }
 
@@ -11,7 +13,7 @@ func NewMock(responseData string, responseError error) *MockRequestHandler {
 
 var _ IRequestHandler = (*MockRequestHandler)(nil)
 
-func (rh MockRequestHandler) MakeRequest(method, endpoint string) (string, error) {
+func (rh MockRequestHandler) MakeRequest(method, url string, headers http.Header) (string, error) {
 	return rh.ResponseData, rh.ResponseError
 }
 
@@ -20,7 +22,7 @@ type MockResponseData struct {
 }
 
 func GetMockResponseData() MockResponseData {
-	return MockResponseData {
+	return MockResponseData{
 		LibrariesResponse: `{
 "MediaContainer": {
 "size": 2,
@@ -86,7 +88,7 @@ func GetMockResponseData() MockResponseData {
 ]
 }
 }`,
-SeasonsResponse: `{
+		SeasonsResponse: `{
 "MediaContainer": {
 "size": 1,
 "allowSync": true,
@@ -140,7 +142,7 @@ SeasonsResponse: `{
 }
 }
 `,
-SeriesResponse: `{
+		SeriesResponse: `{
 "MediaContainer": {
 "size": 565,
 "allowSync": true,
