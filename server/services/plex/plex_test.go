@@ -3,6 +3,7 @@ package plex
 import (
 	"encoding/json"
 	"net/url"
+	"plex-ani-sync/models"
 	"plex-ani-sync/services/config"
 	"plex-ani-sync/services/requesthandler"
 	"reflect"
@@ -10,15 +11,11 @@ import (
 )
 
 func getBaseMockConfig() config.IConfigHandler {
-	mockConfig := config.Config{
-		Plex: config.PlexConfig{
-			BaseUrl: "",
-			Token:   "",
-		},
-		Sync: config.SyncConfig{
-			DaysUntilPaused:  14,
-			DaysUntilDropped: 31,
-		},
+	mockConfig := models.Config{
+		PlexBaseUrl:          "",
+		PlexToken:            "",
+		SyncDaysUntilPaused:  14,
+		SyncDaysUntilDropped: 31,
 	}
 
 	return config.NewMock(mockConfig)

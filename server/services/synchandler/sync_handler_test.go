@@ -39,7 +39,7 @@ func TestWatchStatus(t *testing.T) {
 			Season: plex.Season{
 				Episodes:        12,
 				EpisodesWatched: 1,
-				LastViewedAt:    time.Now().Unix() - int64(cfg.Sync.DaysUntilPaused+1)*86400,
+				LastViewedAt:    time.Now().Unix() - int64(cfg.SyncDaysUntilPaused+1)*86400,
 			},
 		},
 		{
@@ -47,7 +47,7 @@ func TestWatchStatus(t *testing.T) {
 			Season: plex.Season{
 				Episodes:        12,
 				EpisodesWatched: 1,
-				LastViewedAt:    time.Now().Unix() - int64(cfg.Sync.DaysUntilDropped+1)*86400,
+				LastViewedAt:    time.Now().Unix() - int64(cfg.SyncDaysUntilDropped+1)*86400,
 			},
 		},
 	}

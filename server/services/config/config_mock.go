@@ -1,28 +1,22 @@
 package config
 
+import (
+	"plex-ani-sync/models"
+)
+
 type MockConfigHandler struct {
-	MockConfig Config
+	MockConfig models.Config
 }
 
 var _ IConfigHandler = (*MockConfigHandler)(nil)
 
-func (ch MockConfigHandler) GetConfig() (Config, error) {
+func (ch MockConfigHandler) GetConfig() (models.Config, error) {
 	return ch.MockConfig, nil
 }
 
-func NewMock(mockConfig Config) *MockConfigHandler {
-	return &MockConfigHandler{MockConfig: mockConfig}
+func (ch MockConfigHandler) SaveConfig(newConfig models.Config) error {
+	return nil
 }
-
-func GetDefaultConfig() Config {
-	return Config{
-		Plex: PlexConfig{
-			BaseUrl: "http://testing",
-			Token:   "testToken123",
-		},
-		Sync: SyncConfig{
-			DaysUntilPaused:  14,
-			DaysUntilDropped: 31,
-		},
-	}
+func NewMock(mockConfig models.Config) *MockConfigHandler {
+	return &MockConfigHandler{MockConfig: mockConfig}
 }

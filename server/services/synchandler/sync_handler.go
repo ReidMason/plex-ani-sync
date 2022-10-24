@@ -28,11 +28,11 @@ func (sh *SyncHandler) GetWatchStatus(season plex.Season) string {
 	now := time.Now().Unix()
 	daysSinceLastWatched := int64(math.Abs(float64((season.LastViewedAt - now) / 86400)))
 
-	if season.EpisodesWatched > 0 && daysSinceLastWatched > int64(config.Sync.DaysUntilDropped) {
+	if season.EpisodesWatched > 0 && daysSinceLastWatched > int64(config.SyncDaysUntilDropped) {
 		return "Dropped"
 	}
 
-	if season.EpisodesWatched > 0 && daysSinceLastWatched > int64(config.Sync.DaysUntilPaused) {
+	if season.EpisodesWatched > 0 && daysSinceLastWatched > int64(config.SyncDaysUntilPaused) {
 		return "Paused"
 	}
 

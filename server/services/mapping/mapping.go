@@ -1,7 +1,6 @@
 package mapping
 
 import (
-	"plex-ani-sync/services/filehandler"
 	"plex-ani-sync/services/utils"
 )
 

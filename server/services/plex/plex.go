@@ -81,10 +81,10 @@ func (pc Connection) makeRequest(method, endpoint string) (string, error) {
 	queryParams := []requesthandler.QueryParam{
 		{
 			Key:   "X-Plex-Token",
-			Value: cfg.Plex.Token,
+			Value: cfg.PlexToken,
 		},
 	}
-	url, err := requesthandler.BuildUrl(cfg.Plex.BaseUrl, endpoint, queryParams)
+	url, err := requesthandler.BuildUrl(cfg.PlexBaseUrl, endpoint, queryParams)
 	if err != nil {
 		return "", err
 	}

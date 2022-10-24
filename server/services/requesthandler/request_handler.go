@@ -39,7 +39,8 @@ func (rh RequestHandler) MakeRequest(method, url string, headers http.Header) (s
 		return "", err
 	}
 
-	return string(body), nil
+	stringBody := string(body)
+	return stringBody, nil
 }
 
 func BuildRequest(method, url string, headers http.Header) (*http.Request, error) {
