@@ -1,4 +1,4 @@
-# Plex-ani-sync
+ Plex-ani-sync
 A program to sync Anilist with a plex library so that you no longer need to update your anime list manually.
 
 ## Installation
