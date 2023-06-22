@@ -8,7 +8,7 @@ use serde_json::json;
 
 use crate::services::{config::config::ConfigInterface, dbstore::dbstore::DbStore};
 
-use super::anime_list_service::{AnimeListService, AnimeResult};
+use super::anime_list_service::{AnimeListService, AnimeResult, RelationType};
 
 // We need to use to visit this page then we'll redirect them back to the main page to get the auth
 // code token thing https://anilist.gitbook.io/anilist-apiv2-docs/overview/oauth/implicit-grant
@@ -25,7 +25,6 @@ struct GraphQlBody {
     query: String,
     variables: serde_json::Value,
 }
-
 impl<T, J> AnilistService<T, J>
 where
     T: ConfigInterface,
@@ -121,8 +120,8 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         info!("Quering anilist API for search term: {}", search_term);
 
         let query = r#"query ($anime_name: String) {
-                Page(perPage: 5) {
-                    media(search: $anime_name, type: ANIME) {
+                Page(perPage: 10) {
+                    media(search: $anime_name, type: ANIME, sort: SEARCH_MATCH) {
                         id
                         format
                         episodes
@@ -149,6 +148,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
                             nodes {
                                 id
                                 format
+                                episodes
                                 endDate {
                                     year
                                     month
@@ -182,7 +182,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         return Ok(result.data.page.media);
     }
 
-    async fn get_anime(&self, anime_id: String) -> Result<Option<AnimeResult>, anyhow::Error> {
+    async fn get_anime(&self, anime_id: &str) -> Result<Option<AnimeResult>, anyhow::Error> {
         let result = self.dbstore.get_cached_anime_result(&anime_id).await;
 
         if result.is_some() {
@@ -239,7 +239,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
 	}"#;
 
         let vars = GetAnimeVars {
-            anime_id: anime_id.clone(),
+            anime_id: anime_id.to_string(),
         };
         let data = GraphQlBody {
             query: String::from(query),
@@ -254,29 +254,44 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
 
         return Ok(Some(result.data.media));
     }
+
+    async fn find_sequel(
+        &self,
+        anime_result: AnimeResult,
+    ) -> Result<Option<AnimeResult>, anyhow::Error> {
+        let nodes = anime_result.relations.nodes;
+        let edges = anime_result.relations.edges;
+        for (edge, node) in edges.iter().zip(nodes) {
+            if edge.relation_type == RelationType::Sequel {
+                return self.get_anime(&node.id.to_string()).await;
+            }
+        }
+
+        return Ok(None);
+    }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnilistResponse<T> {
     pub data: T,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAnimeRequestResult {
     #[serde(rename = "Media")]
     pub media: AnimeResult,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnimeSearchRequestResult {
     #[serde(rename = "Page")]
     pub page: Page,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Page {
     pub media: Vec<AnimeResult>,
@@ -396,7 +411,7 @@ mod tests {
         let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
 
         let response = list_service
-            .get_anime(String::from(anime_id))
+            .get_anime(anime_id)
             .await
             .expect("Failed to get anilist anime result")
             .expect("No anime found");

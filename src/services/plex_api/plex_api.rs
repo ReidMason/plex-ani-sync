@@ -43,7 +43,7 @@ pub struct PlexLibrary {
     pub title: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PlexSeason {
     #[serde(rename = "ratingKey")]
     pub rating_key: String,
@@ -66,7 +66,7 @@ pub struct PlexSeason {
     pub last_viewed_at: Option<u32>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PlexSeries {
     #[serde(rename = "ratingKey")]
     pub rating_key: String,
@@ -77,6 +77,7 @@ pub struct PlexSeries {
     pub last_viewed_at: Option<u32>,
 }
 
+#[derive(Debug, Clone)]
 pub struct SeriesWithSeason {
     pub series: PlexSeries,
     pub seasons: Vec<PlexSeason>,

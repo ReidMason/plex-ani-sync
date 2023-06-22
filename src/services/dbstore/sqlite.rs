@@ -172,7 +172,7 @@ pub struct Config {
 mod tests {
     use crate::{
         services::anime_list_service::{
-            anime_list_service::{AnimeListService, Date, Relations, Title},
+            anime_list_service::{AnimeListService, Date, MediaStatus, Relations, Title},
             mock_anime_list_service::MockAnimeListService,
         },
         utils::init_logger,
@@ -219,7 +219,7 @@ mod tests {
             format: None,
             episodes: None,
             synonyms: vec![],
-            status: "Completed".to_string(),
+            status: MediaStatus::Finished,
             end_date: Date {
                 year: None,
                 month: None,
