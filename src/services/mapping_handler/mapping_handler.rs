@@ -1,19 +1,12 @@
-use std::error::Error;
-
 use anyhow::Ok;
 use async_trait::async_trait;
-use log::{info, warn};
 
-use crate::services::anime_list_service::anime_list_service::{
-    AnimeListService, AnimeResult, RelationType,
-};
+use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
 use crate::services::plex_api::plex_api::{PlexSeason, SeriesWithSeason};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
     async fn find_mapping(&self, series: SeriesWithSeason) -> Result<Vec<Mapping>, anyhow::Error>;
-    async fn find_mappingv1(&self, series: SeriesWithSeason)
-        -> Result<Vec<Mapping>, anyhow::Error>;
     async fn find_match_for_season(
         &self,
         season: &PlexSeason,
@@ -47,30 +40,16 @@ where
     T: AnimeListService,
 {
     pub fn new(anime_list_service: T) -> Self {
-        return Self { anime_list_service };
+        Self { anime_list_service }
     }
 }
 
 fn cleanup_string(string: &str) -> String {
-    string
-        .replace(":", "")
-        .replace(" ", "")
-        .trim()
-        .to_lowercase()
+    string.replace([':', ' '], "").trim().to_lowercase()
 }
 
 fn compare_strings(string1: &str, string2: &str) -> bool {
     cleanup_string(string1) == cleanup_string(string2)
-}
-
-fn find_matchv1(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeResult> {
-    for result in results {
-        if result.episodes == Some(target.episodes) {
-            return Some(result.clone());
-        }
-    }
-
-    None
 }
 
 #[derive(Clone)]
@@ -195,6 +174,8 @@ where
     }
 
     async fn find_mapping(&self, series: SeriesWithSeason) -> Result<Vec<Mapping>, anyhow::Error> {
+        // TODO: Reduce the chance of mapping errors by building up a vec of mappings for one
+        // season then only push them if all the episodes are covered
         let mut mappings: Vec<Mapping> = vec![];
         // Just skip big series for now
         if series.seasons.len() > 6 {
@@ -210,7 +191,7 @@ where
             // We start by just mapping the first season
             let is_first_season = season.index == 1;
             if is_first_season {
-                let found_match = self.find_match_for_season(&season).await?;
+                let found_match = self.find_match_for_season(season).await?;
                 let found_match = match found_match {
                     Some(x) => x,
                     None => return Ok(mappings),
@@ -235,25 +216,27 @@ where
                 while counter < limit
                     && get_mapped_episode_count(&mappings, &season.rating_key) < season.episodes
                 {
-                    println!("");
+                    // println!("");
                     counter += 1;
-                    let prev_plex_season = &series.seasons[i - 1];
-                    let mut prev_mapping = get_prev_mapping(&mappings, &season);
+                    let mut prev_mapping = get_prev_mapping(&mappings, season);
                     // If we got a prev mapping matching the current season this is a multi entry
                     // season
-                    let mutli_entry_season = !prev_mapping.is_none();
-                    if prev_mapping.is_none() {
-                        prev_mapping = get_prev_mapping(&mappings, &prev_plex_season);
+
+                    let mutli_entry_season = prev_mapping.is_some();
+                    if prev_mapping.is_none() && i > 0 {
+                        let prev_plex_season = &series.seasons[i - 1];
+                        prev_mapping = get_prev_mapping(&mappings, prev_plex_season);
                     }
+
                     let prev_mapping = match prev_mapping {
                         Some(x) => x,
                         None => return Ok(mappings),
                     };
 
-                    println!(
-                        "Plex season {} previous mapping '{:?}'",
-                        season.index, prev_mapping
-                    );
+                    // println!(
+                    //     "Plex season {} previous mapping '{:?}'",
+                    //     season.index, prev_mapping
+                    // );
 
                     let prev_mapping_entry = self
                         .anime_list_service
@@ -275,7 +258,7 @@ where
                         None => return Ok(mappings),
                     };
 
-                    println!("Found sequel '{}'", sequel.title.english.as_ref().unwrap());
+                    // println!("Found sequel '{}'", sequel.title.english.as_ref().unwrap());
 
                     let current_mapped_episodes =
                         get_mapped_episode_count(&mappings, &season.rating_key);
@@ -283,11 +266,11 @@ where
                     // TODO: Don't just use 0 if the episode number isn't known
                     // This likely means it's still releasing but we need to check
                     if current_mapped_episodes + sequel.episodes.unwrap_or(0) > season.episodes {
-                        let found_match = find_match(vec![sequel], &season);
+                        let found_match = find_match(vec![sequel], season);
                         let found_match = match found_match {
                             Some(x) => x,
                             None => {
-                                println!("Didn't find a good match for the season");
+                                // println!("Didn't find a good match for the season");
                                 return Ok(mappings);
                             }
                         };
@@ -296,7 +279,7 @@ where
 
                     let mut plex_episode_start = 0;
                     if mutli_entry_season {
-                        println!("It's a multi season!");
+                        // println!("It's a multi season!");
                         plex_episode_start =
                             prev_mapping.plex_episode_start + prev_mapping.season_length;
                     }
@@ -311,57 +294,9 @@ where
                         enabled: true,
                         ignored: false,
                     };
-                    println!("Added mapping: {:?}", mapping);
+                    // println!("Added mapping: {:?}", mapping);
                     mappings.push(mapping);
                 }
-            }
-        }
-        return Ok(mappings);
-    }
-
-    async fn find_mappingv1(
-        &self,
-        series: SeriesWithSeason,
-    ) -> Result<Vec<Mapping>, anyhow::Error> {
-        let mut mappings: Vec<Mapping> = vec![];
-        // Just skip big series for now
-        if series.seasons.len() > 6 {
-            return Ok(mappings);
-        }
-
-        for season in series.seasons {
-            if season.index == 0 {
-                continue;
-            }
-
-            let search_with_season = &format!("{} season {}", &season.parent_title, &season.index);
-            let searches: Vec<&str> = vec![&season.parent_title, search_with_season];
-            for search in searches {
-                let results = self.anime_list_service.search_anime(search).await?;
-
-                if results.is_empty() {
-                    continue;
-                }
-
-                let result = match find_matchv1(results, &season) {
-                    Some(result) => result,
-                    None => {
-                        continue;
-                    }
-                };
-
-                let mapping = Mapping {
-                    id: 1,
-                    plex_id: season.rating_key.clone(),
-                    plex_episode_start: 0,
-                    season_length: season.episodes,
-                    anime_list_id: result.id.to_string(),
-                    episode_start: 0,
-                    enabled: true,
-                    ignored: false,
-                };
-                mappings.push(mapping);
-                break;
             }
         }
         return Ok(mappings);
@@ -613,4 +548,6 @@ mod tests {
         assert_eq!("131681".to_string(), result[5].anime_list_id);
         assert_eq!("146984".to_string(), result[6].anime_list_id);
     }
+
+    // Write test for way of the house husband because of an indexing error
 }
