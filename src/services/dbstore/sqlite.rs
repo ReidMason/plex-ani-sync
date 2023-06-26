@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteError, SqlitePoolOptions},
     ConnectOptions, FromRow, Pool,
 };
 
@@ -144,6 +144,38 @@ impl DbStore for Sqlite {
             .await
             .expect("Failed to clear anime cache");
     }
+
+    async fn get_mappings(&self) -> Result<Vec<Mapping>, sqlx::Error> {
+        sqlx::query_as::<_, Mapping>("SELECT * FROM mapping")
+            .fetch_all(&self.pool)
+            .await
+    }
+
+    async fn get_mapping_for_series(
+        &self,
+        plex_series_id: &str,
+    ) -> Result<Vec<Mapping>, sqlx::Error> {
+        sqlx::query_as::<_, Mapping>("SELECT * FROM mapping WHERE plex_series_id = ?")
+            .bind(plex_series_id)
+            .fetch_all(&self.pool)
+            .await
+    }
+
+    async fn save_mapping(&self, mapping: &Mapping) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO mapping (list_provider_id, plex_id, plex_series_id, plex_episode_start, season_length, anime_list_id, episode_start, enabled, ignored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(mapping.list_provider_id)
+            .bind(&mapping.plex_id)
+            .bind(&mapping.plex_series_id)
+            .bind(mapping.plex_episode_start)
+            .bind(mapping.season_length)
+            .bind(&mapping.anime_list_id)
+            .bind(mapping.episode_start)
+            .bind(mapping.enabled)
+            .bind(mapping.ignored)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[derive(FromRow, Clone, Serialize, Deserialize)]
@@ -166,6 +198,26 @@ pub struct Config {
     pub plex_url: String,
     pub plex_token: String,
     pub anilist_token: String,
+}
+
+#[derive(FromRow, Serialize, Deserialize)]
+pub struct ListProvider {
+    pub id: u32,
+    pub name: String,
+}
+
+#[derive(FromRow, Clone, Serialize, Deserialize)]
+pub struct Mapping {
+    pub id: u32,
+    pub list_provider_id: u32,
+    pub plex_id: String,
+    pub plex_series_id: String,
+    pub plex_episode_start: u32,
+    pub season_length: u32,
+    pub anime_list_id: String,
+    pub episode_start: u32,
+    pub enabled: bool,
+    pub ignored: bool,
 }
 
 #[cfg(test)]

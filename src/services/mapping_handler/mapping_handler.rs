@@ -1,46 +1,42 @@
+use std::vec;
+
 use anyhow::Ok;
 use async_trait::async_trait;
 
 use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
+use crate::services::dbstore::dbstore::DbStore;
+use crate::services::dbstore::sqlite::Mapping;
 use crate::services::plex_api::plex_api::{PlexSeason, SeriesWithSeason};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
-    async fn find_mapping(&self, series: SeriesWithSeason) -> Result<Vec<Mapping>, anyhow::Error>;
+    async fn create_mapping(&self, series: SeriesWithSeason)
+        -> Result<Vec<Mapping>, anyhow::Error>;
     async fn find_match_for_season(
         &self,
         season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
 }
 
-#[derive(Clone, Debug)]
-pub struct Mapping {
-    id: u32,
-
-    plex_id: String,
-    plex_episode_start: u16,
-    pub season_length: u16,
-
-    pub anime_list_id: String,
-    episode_start: u16,
-
-    enabled: bool,
-    ignored: bool,
-}
-
-pub struct MappingHandler<T>
+pub struct MappingHandler<T, J>
 where
     T: AnimeListService,
+    J: DbStore,
 {
     anime_list_service: T,
+    db_store: J,
 }
 
-impl<T> MappingHandler<T>
+impl<T, J> MappingHandler<T, J>
 where
     T: AnimeListService,
+    J: DbStore,
 {
-    pub fn new(anime_list_service: T) -> Self {
-        Self { anime_list_service }
+    pub fn new(anime_list_service: T, db_store: J) -> Self {
+        Self {
+            anime_list_service,
+            db_store,
+        }
     }
 }
 
@@ -86,17 +82,17 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeRes
 
         for potential_title in potential_titles {
             if let Some(english_title) = &potential_match.result.title.english {
-                if compare_strings(english_title, &potential_title) {
+                if compare_strings(english_title, potential_title) {
                     potential_match.score += 50;
                 }
             }
 
-            if compare_strings(&potential_match.result.title.romaji, &potential_title) {
+            if compare_strings(&potential_match.result.title.romaji, potential_title) {
                 potential_match.score += 50;
             }
 
             for synonym in potential_match.result.synonyms.clone() {
-                if compare_strings(&synonym, &potential_title) {
+                if compare_strings(&synonym, potential_title) {
                     potential_match.score += 10;
                 }
             }
@@ -114,10 +110,7 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeRes
     // });
 
     let min_score = 0;
-    potential_matches = potential_matches
-        .into_iter()
-        .filter(|x| x.score > min_score)
-        .collect();
+    potential_matches.retain(|x| x.score > min_score);
 
     match potential_matches.pop() {
         Some(x) => Some(x.result),
@@ -125,7 +118,7 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeRes
     }
 }
 
-fn get_mapped_episode_count(mappings: &Vec<Mapping>, rating_key: &str) -> u16 {
+fn get_mapped_episode_count(mappings: &[Mapping], rating_key: &str) -> u32 {
     mappings
         .iter()
         .filter_map(|x| {
@@ -134,10 +127,10 @@ fn get_mapped_episode_count(mappings: &Vec<Mapping>, rating_key: &str) -> u16 {
             }
             None
         })
-        .sum::<u16>()
+        .sum::<u32>()
 }
 
-fn get_prev_mapping(mappings: &Vec<Mapping>, season: &PlexSeason) -> Option<Mapping> {
+fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping> {
     let mut prev_mappings: Vec<&Mapping> = mappings
         .iter()
         .filter(|x| x.plex_id == season.rating_key)
@@ -153,9 +146,10 @@ fn get_prev_mapping(mappings: &Vec<Mapping>, season: &PlexSeason) -> Option<Mapp
 }
 
 #[async_trait]
-impl<T> MappingHandlerInterface for MappingHandler<T>
+impl<T, J> MappingHandlerInterface for MappingHandler<T, J>
 where
     T: AnimeListService + Sync + Send,
+    J: DbStore,
 {
     async fn find_match_for_season(
         &self,
@@ -173,16 +167,36 @@ where
         return Ok(find_match(results, season));
     }
 
-    async fn find_mapping(&self, series: SeriesWithSeason) -> Result<Vec<Mapping>, anyhow::Error> {
+    async fn create_mapping(
+        &self,
+        series: SeriesWithSeason,
+    ) -> Result<Vec<Mapping>, anyhow::Error> {
         // TODO: Reduce the chance of mapping errors by building up a vec of mappings for one
         // season then only push them if all the episodes are covered
-        let mut mappings: Vec<Mapping> = vec![];
+
+        // Load any existing mappings
+        let mut mappings = self
+            .db_store
+            .get_mapping_for_series(&series.series.rating_key)
+            .await?;
+
         // Just skip big series for now
         if series.seasons.len() > 6 {
             return Ok(mappings);
         }
 
         for (i, season) in series.seasons.iter().enumerate() {
+            // let mappings = match result {
+            //     Ok(x) => x,
+            //     Err(e) => {
+            //         error!(
+            //             "Failed to get existing mappings for {} season {}",
+            //             season.parent_title, season.index
+            //         );
+            //         return Err(e).into();
+            //     }
+            // };
+
             let is_specials_season = season.index == 0;
             if is_specials_season {
                 continue;
@@ -190,7 +204,9 @@ where
 
             // We start by just mapping the first season
             let is_first_season = season.index == 1;
-            if is_first_season {
+            if is_first_season
+                && get_mapped_episode_count(&mappings, &season.rating_key) < season.episodes.into()
+            {
                 let found_match = self.find_match_for_season(season).await?;
                 let found_match = match found_match {
                     Some(x) => x,
@@ -198,10 +214,12 @@ where
                 };
 
                 let mapping = Mapping {
-                    id: 1,
+                    id: 0,
+                    list_provider_id: 1,
                     plex_id: season.rating_key.clone(),
+                    plex_series_id: series.series.rating_key.clone(),
                     plex_episode_start: 0,
-                    season_length: found_match.episodes.unwrap_or(season.episodes),
+                    season_length: found_match.episodes.unwrap_or(season.episodes).into(),
                     anime_list_id: found_match.id.to_string(),
                     episode_start: 0,
                     enabled: true,
@@ -213,10 +231,11 @@ where
             if !mappings.is_empty() {
                 let limit = 5;
                 let mut counter = 0;
+
                 while counter < limit
-                    && get_mapped_episode_count(&mappings, &season.rating_key) < season.episodes
+                    && get_mapped_episode_count(&mappings, &season.rating_key)
+                        < season.episodes.into()
                 {
-                    // println!("");
                     counter += 1;
                     let mut prev_mapping = get_prev_mapping(&mappings, season);
                     // If we got a prev mapping matching the current season this is a multi entry
@@ -262,10 +281,10 @@ where
 
                     let current_mapped_episodes =
                         get_mapped_episode_count(&mappings, &season.rating_key);
-
-                    // TODO: Don't just use 0 if the episode number isn't known
-                    // This likely means it's still releasing but we need to check
-                    if current_mapped_episodes + sequel.episodes.unwrap_or(0) > season.episodes {
+                    // TODO: Don't just use 0 if the episode number isn't known This likely means it's still releasing but we need to check
+                    if current_mapped_episodes + u32::from(sequel.episodes.unwrap_or(0))
+                        > season.episodes.into()
+                    {
                         let found_match = find_match(vec![sequel], season);
                         let found_match = match found_match {
                             Some(x) => x,
@@ -285,10 +304,12 @@ where
                     }
 
                     let mapping = Mapping {
-                        id: 1,
+                        id: 0,
+                        list_provider_id: 1,
                         plex_id: season.rating_key.clone(),
+                        plex_series_id: series.series.rating_key.clone(),
                         plex_episode_start,
-                        season_length: sequel.episodes.unwrap_or(season.episodes),
+                        season_length: sequel.episodes.unwrap_or(season.episodes).into(),
                         anime_list_id: sequel.id.to_string(),
                         episode_start: 0,
                         enabled: true,
@@ -299,6 +320,12 @@ where
                 }
             }
         }
+
+        let new_mappings = mappings.iter().filter(|x| x.id == 0);
+        for mapping in new_mappings {
+            let _ = self.db_store.save_mapping(mapping).await;
+        }
+
         return Ok(mappings);
     }
 }
@@ -317,7 +344,7 @@ mod tests {
 
     use super::*;
 
-    async fn init() -> MappingHandler<AnilistService<ConfigService, Sqlite>> {
+    async fn init() -> MappingHandler<AnilistService<ConfigService, Sqlite>, Sqlite> {
         init_logger();
 
         let mut db_store = Sqlite::new(&get_db_file_location()).await;
@@ -328,7 +355,8 @@ mod tests {
 
         let list_service = AnilistService::new(config_service, db_store, None);
 
-        MappingHandler::new(list_service)
+        let db_store = Sqlite::new(&get_db_file_location()).await;
+        MappingHandler::new(list_service, db_store)
     }
 
     #[tokio::test]
@@ -353,7 +381,7 @@ mod tests {
         };
 
         let result = mapper
-            .find_mapping(series)
+            .create_mapping(series)
             .await
             .expect("Faied to get result for one to one mapping");
 
@@ -394,7 +422,7 @@ mod tests {
         };
 
         let result = mapper
-            .find_mapping(series)
+            .create_mapping(series)
             .await
             .expect("Faied to get result for two season mapping");
 
@@ -463,7 +491,7 @@ mod tests {
         };
 
         let result = mapper
-            .find_mapping(series)
+            .create_mapping(series)
             .await
             .expect("Faied to get result for complex name mapping");
 
@@ -534,7 +562,7 @@ mod tests {
         };
 
         let result = mapper
-            .find_mapping(series)
+            .create_mapping(series)
             .await
             .expect("Faied to get result for complex name mapping");
 
