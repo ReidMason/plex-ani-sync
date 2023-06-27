@@ -1,9 +1,12 @@
+use std::vec;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 pub type PlexLibraryResponse = BaseResponse<DirectoryResponse<PlexLibrary>>;
 pub type PlexSeriesResponse = BaseResponse<MetadataResponse<Vec<PlexSeries>>>;
 pub type PlexSeasonResponse = BaseResponse<MetadataResponse<Vec<PlexSeason>>>;
+pub type PlexEpisodesResponse = BaseResponse<MetadataResponse<Vec<PlexEpisodeResponse>>>;
 
 #[async_trait]
 pub trait PlexInterface {
@@ -14,10 +17,69 @@ pub trait PlexInterface {
         &self,
         library_id: u8,
     ) -> Result<Vec<SeriesWithSeason>, reqwest::Error>;
-    async fn popualte_seasons(
+    async fn populate_seasons(
         &self,
         series: PlexSeries,
     ) -> Result<SeriesWithSeason, reqwest::Error>;
+    async fn get_episodes(
+        &self,
+        season_rating_key: &str,
+    ) -> Result<PlexEpisodesResponse, reqwest::Error>;
+
+    async fn get_seasons2(
+        &self,
+        series_rating_key: &str,
+    ) -> Result<PlexSeasonResponse, reqwest::Error>;
+    async fn get_full_series_data(
+        &self,
+        library_id: u8,
+    ) -> Result<Vec<PlexSeries2>, reqwest::Error>;
+}
+
+pub struct PlexSeries2 {
+    pub rating_key: String,
+    pub seasons: Vec<PlexSeason2>,
+}
+
+impl From<PlexSeries> for PlexSeries2 {
+    fn from(series: PlexSeries) -> Self {
+        Self {
+            rating_key: series.rating_key,
+            seasons: vec![],
+        }
+    }
+}
+
+pub struct PlexSeason2 {
+    pub rating_key: String,
+    pub episodes: Vec<PlexEpisode>,
+}
+
+impl From<PlexSeason> for PlexSeason2 {
+    fn from(season: PlexSeason) -> Self {
+        Self {
+            rating_key: season.rating_key,
+            episodes: vec![],
+        }
+    }
+}
+
+pub struct PlexEpisode {
+    pub rating_key: String,
+}
+
+impl From<PlexEpisodeResponse> for PlexEpisode {
+    fn from(episode: PlexEpisodeResponse) -> Self {
+        Self {
+            rating_key: episode.rating_key,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PlexEpisodeResponse {
+    #[serde(rename = "ratingKey")]
+    pub rating_key: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

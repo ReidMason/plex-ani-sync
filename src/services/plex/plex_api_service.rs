@@ -7,10 +7,13 @@ use url::Url;
 
 use crate::services::{
     config::config::ConfigInterface,
-    plex_api::plex_api::{PlexLibraryResponse, PlexSeasonResponse, PlexSeriesResponse},
+    plex::plex_api::{PlexLibraryResponse, PlexSeasonResponse, PlexSeriesResponse},
 };
 
-use super::plex_api::{PlexInterface, PlexLibrary, PlexSeason, PlexSeries, SeriesWithSeason};
+use super::plex_api::{
+    PlexEpisode, PlexEpisodesResponse, PlexInterface, PlexLibrary, PlexSeason, PlexSeason2,
+    PlexSeries, PlexSeries2, SeriesWithSeason,
+};
 
 pub struct PlexApi<T>
 where
@@ -96,7 +99,7 @@ where
         let path = format!("/library/sections/{}/all", library_id);
 
         info!("Getting Plex series for library id: {}", library_id);
-        let response: PlexSeriesResponse = match __self.make_request(&path).await {
+        let response: PlexSeriesResponse = match self.make_request(&path).await {
             Ok(x) => x,
             Err(e) => {
                 error!("Error getting series for library_id: {}", library_id);
@@ -116,7 +119,7 @@ where
         let path = format!("/library/metadata/{}/children", rating_key);
 
         info!("Getting Plex seasons for series id: {}", rating_key);
-        let response: PlexSeasonResponse = match __self.make_request(&path).await {
+        let response: PlexSeasonResponse = match self.make_request(&path).await {
             Ok(x) => x,
             Err(e) => {
                 error!(
@@ -127,12 +130,12 @@ where
             }
         };
 
-        let season_count = response.media_container.metadata.len();
-        info!("Found {} seasons for series {}", season_count, rating_key);
+        // let season_count = response.media_container.metadata.len();
+        // info!("Found {} seasons for series {}", season_count, rating_key);
         return Ok(response.media_container.metadata);
     }
 
-    async fn popualte_seasons(
+    async fn populate_seasons(
         &self,
         series: PlexSeries,
     ) -> Result<SeriesWithSeason, reqwest::Error> {
@@ -149,7 +152,7 @@ where
 
         let futures = FuturesUnordered::new();
         for s in series {
-            futures.push(self.popualte_seasons(s));
+            futures.push(self.populate_seasons(s));
         }
 
         let futures = join_all(futures).await;
@@ -163,6 +166,72 @@ where
             .collect();
 
         return Ok(result);
+    }
+
+    async fn get_episodes(
+        &self,
+        season_rating_key: &str,
+    ) -> Result<PlexEpisodesResponse, reqwest::Error> {
+        let path = format!("/library/metadata/{}/children", season_rating_key);
+
+        // info!("Getting Plex episodes for season id: {}", season_rating_key);
+        let response: PlexEpisodesResponse = match self.make_request(&path).await {
+            Ok(x) => x,
+            Err(e) => {
+                error!(
+                    "Error getting episodes for season id: {} Error: {e}",
+                    season_rating_key
+                );
+                return Err(e);
+            }
+        };
+
+        let series_count = response.media_container.metadata.len();
+        // info!(
+        //     "Found {} episodes for season {}",
+        //     series_count, season_rating_key
+        // );
+        return Ok(response);
+    }
+
+    async fn get_full_series_data(
+        &self,
+        library_id: u8,
+    ) -> Result<Vec<PlexSeries2>, reqwest::Error> {
+        let all_series = self.get_series(library_id).await?;
+        let mut all_series: Vec<PlexSeries2> = all_series
+            .into_iter()
+            .map(|x| PlexSeries2::from(x))
+            .collect();
+
+        for series in all_series.iter_mut() {
+            let seasons = self.get_seasons(&series.rating_key).await;
+            let seasons = match seasons {
+                Ok(x) => x,
+                Err(_) => {
+                    error!("Failed to find seasons for {}", series.rating_key);
+                    continue;
+                }
+            };
+            let mut seasons: Vec<PlexSeason2> =
+                seasons.into_iter().map(|x| PlexSeason2::from(x)).collect();
+
+            for season in seasons.iter_mut() {
+                let episodes_response = self.get_episodes(&season.rating_key).await;
+                let episodes = match episodes_response {
+                    Ok(x) => x.media_container.metadata,
+                    Err(_) => {
+                        error!("Failed to find episodes for {}", series.rating_key);
+                        continue;
+                    }
+                };
+                season.episodes = episodes.into_iter().map(|x| PlexEpisode::from(x)).collect();
+            }
+
+            series.seasons = seasons;
+        }
+
+        return Ok(all_series);
     }
 }
 
@@ -205,6 +274,69 @@ mod tests {
         }
 
         panic!("Failed to find response '{}'", response)
+    }
+
+    #[tokio::test]
+    async fn test_get_full_series_data() {
+        let mut config_service = MockConfig {
+            plex_token: "123abc".to_string(),
+            plex_base_url: "".to_string(),
+            anilist_token: "".to_string(),
+        };
+
+        let mock_server = MockServer::start().await;
+
+        let series_response = get_response("series");
+        Mock::given(method("GET"))
+            .and(path("/library/sections/1/all"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(query_param(
+                "X-Plex-Token".to_string(),
+                config_service.get_plex_token(),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(series_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let seasons_response = get_response("seasons");
+        Mock::given(method("GET"))
+            .and(path("/library/metadata/17456/children"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(query_param(
+                "X-Plex-Token".to_string(),
+                config_service.get_plex_token(),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(seasons_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let episodes_response = get_response("episodes");
+        Mock::given(method("GET"))
+            .and(path("/library/metadata/30037/children"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(query_param(
+                "X-Plex-Token".to_string(),
+                config_service.get_plex_token(),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(episodes_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        config_service.plex_base_url = mock_server.uri();
+        let plex_service = PlexApi::new(config_service);
+
+        let data = plex_service.get_full_series_data(1).await.unwrap();
+        assert_eq!(1, data.len());
+        let series = &data[0];
+        assert_eq!(5, series.seasons.len());
+        let seasons = &series.seasons;
+        assert_eq!(8, seasons[0].episodes.len());
     }
 
     #[tokio::test]
