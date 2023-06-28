@@ -115,7 +115,7 @@ where
         return Ok(response.media_container.metadata);
     }
 
-    async fn get_episodes(&self, season: &mut PlexSeason) -> Result<(), reqwest::Error> {
+    async fn populate_episodes(&self, season: &mut PlexSeason) -> Result<(), reqwest::Error> {
         let path = format!("/library/metadata/{}/children", season.rating_key);
 
         let response: PlexEpisodesResponse = self.make_request(&path).await?;
@@ -129,7 +129,7 @@ where
         Ok(())
     }
 
-    async fn get_seasons(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error> {
+    async fn populate_seasons(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error> {
         let path = format!("/library/metadata/{}/children", series.rating_key);
 
         let response: PlexSeasonResponse = self.make_request(&path).await?;
@@ -142,7 +142,7 @@ where
 
         let futures = FuturesUnordered::new();
         for season in seasons.iter_mut() {
-            futures.push(self.get_episodes(season));
+            futures.push(self.populate_episodes(season));
         }
 
         join_all(futures).await;
@@ -165,7 +165,7 @@ where
             info!("Processing chunk");
             let futures = FuturesUnordered::new();
             for series in chunk.iter_mut() {
-                futures.push(self.get_seasons(series));
+                futures.push(self.populate_seasons(series));
             }
             join_all(futures).await;
         }
@@ -222,9 +222,7 @@ mod tests {
             plex_base_url: "".to_string(),
             anilist_token: "".to_string(),
         };
-
         let mock_server = MockServer::start().await;
-
         let series_response = get_response("series");
         Mock::given(method("GET"))
             .and(path("/library/sections/1/all"))
