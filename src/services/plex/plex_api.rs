@@ -3,40 +3,28 @@ use std::vec;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-pub type PlexLibraryResponse = BaseResponse<DirectoryResponse<PlexLibrary>>;
-pub type PlexSeriesResponse = BaseResponse<MetadataResponse<Vec<PlexSeries>>>;
-pub type PlexSeasonResponse = BaseResponse<MetadataResponse<Vec<PlexSeason>>>;
-pub type PlexEpisodesResponse = BaseResponse<MetadataResponse<Vec<PlexEpisodeResponse>>>;
+pub type PlexLibraryResponse = BaseResponse<DirectoryResponse<ResponsePlexLibrary>>;
+pub type PlexSeriesResponse = BaseResponse<MetadataResponse<Vec<ResponsePlexSeries>>>;
+pub type PlexSeasonResponse = BaseResponse<MetadataResponse<Vec<ResponsePlexSeason>>>;
+pub type PlexEpisodesResponse = BaseResponse<MetadataResponse<Vec<ResponsePlexEpisode>>>;
 
 #[async_trait]
 pub trait PlexInterface {
-    async fn get_libraries(self) -> Result<Vec<PlexLibrary>, reqwest::Error>;
-    async fn get_series(&self, library_id: u8) -> Result<Vec<PlexSeries>, reqwest::Error>;
-    async fn get_seasons(&self, rating_key: &str) -> Result<Vec<PlexSeason>, reqwest::Error>;
-    async fn get_all_seasons(
-        &self,
-        library_id: u8,
-    ) -> Result<Vec<SeriesWithSeason>, reqwest::Error>;
-    async fn populate_seasons(
-        &self,
-        series: PlexSeries,
-    ) -> Result<SeriesWithSeason, reqwest::Error>;
-    async fn get_episodes(&self, season: &mut PlexSeason2) -> Result<(), reqwest::Error>;
-
-    async fn get_seasons2(&self, series: &mut PlexSeries2) -> Result<(), reqwest::Error>;
-    async fn get_full_series_data(
-        &self,
-        library_id: u8,
-    ) -> Result<Vec<PlexSeries2>, reqwest::Error>;
+    async fn get_libraries(self) -> Result<Vec<ResponsePlexLibrary>, reqwest::Error>;
+    async fn get_series(&self, library_id: u8) -> Result<Vec<ResponsePlexSeries>, reqwest::Error>;
+    async fn get_episodes(&self, season: &mut PlexSeason) -> Result<(), reqwest::Error>;
+    async fn get_seasons2(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error>;
+    async fn get_full_series_data(&self, library_id: u8)
+        -> Result<Vec<PlexSeries>, reqwest::Error>;
 }
 
-pub struct PlexSeries2 {
+pub struct PlexSeries {
     pub rating_key: String,
-    pub seasons: Vec<PlexSeason2>,
+    pub seasons: Vec<PlexSeason>,
 }
 
-impl From<PlexSeries> for PlexSeries2 {
-    fn from(series: PlexSeries) -> Self {
+impl From<ResponsePlexSeries> for PlexSeries {
+    fn from(series: ResponsePlexSeries) -> Self {
         Self {
             rating_key: series.rating_key,
             seasons: vec![],
@@ -44,13 +32,13 @@ impl From<PlexSeries> for PlexSeries2 {
     }
 }
 
-pub struct PlexSeason2 {
+pub struct PlexSeason {
     pub rating_key: String,
     pub episodes: Vec<PlexEpisode>,
 }
 
-impl From<PlexSeason> for PlexSeason2 {
-    fn from(season: PlexSeason) -> Self {
+impl From<ResponsePlexSeason> for PlexSeason {
+    fn from(season: ResponsePlexSeason) -> Self {
         Self {
             rating_key: season.rating_key,
             episodes: vec![],
@@ -58,22 +46,28 @@ impl From<PlexSeason> for PlexSeason2 {
     }
 }
 
+#[derive(Clone)]
 pub struct PlexEpisode {
     pub rating_key: String,
+    pub last_viewed_at: Option<i64>,
 }
 
-impl From<PlexEpisodeResponse> for PlexEpisode {
-    fn from(episode: PlexEpisodeResponse) -> Self {
+impl From<ResponsePlexEpisode> for PlexEpisode {
+    fn from(episode: ResponsePlexEpisode) -> Self {
         Self {
             rating_key: episode.rating_key,
+            last_viewed_at: episode.last_viewed_at,
         }
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct PlexEpisodeResponse {
+pub struct ResponsePlexEpisode {
     #[serde(rename = "ratingKey")]
     pub rating_key: String,
+
+    #[serde(rename = "lastViewedAt")]
+    pub last_viewed_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -95,12 +89,12 @@ pub struct DirectoryResponse<T> {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub struct PlexLibrary {
+pub struct ResponsePlexLibrary {
     pub title: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlexSeason {
+pub struct ResponsePlexSeason {
     #[serde(rename = "ratingKey")]
     pub rating_key: String,
 
@@ -123,7 +117,7 @@ pub struct PlexSeason {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlexSeries {
+pub struct ResponsePlexSeries {
     #[serde(rename = "ratingKey")]
     pub rating_key: String,
 
@@ -135,17 +129,17 @@ pub struct PlexSeries {
 
 #[derive(Debug, Clone)]
 pub struct SeriesWithSeason {
-    pub series: PlexSeries,
-    pub seasons: Vec<PlexSeason>,
+    pub series: ResponsePlexSeries,
+    pub seasons: Vec<ResponsePlexSeason>,
 }
 
 impl SeriesWithSeason {
-    pub fn new(series: PlexSeries, seasons: Vec<PlexSeason>) -> Self {
+    pub fn new(series: ResponsePlexSeries, seasons: Vec<ResponsePlexSeason>) -> Self {
         Self { series, seasons }
     }
 }
 
-impl Default for BaseResponse<DirectoryResponse<PlexLibrary>> {
+impl Default for BaseResponse<DirectoryResponse<ResponsePlexLibrary>> {
     fn default() -> Self {
         Self {
             media_container: Default::default(),
@@ -153,7 +147,7 @@ impl Default for BaseResponse<DirectoryResponse<PlexLibrary>> {
     }
 }
 
-impl Default for DirectoryResponse<PlexLibrary> {
+impl Default for DirectoryResponse<ResponsePlexLibrary> {
     fn default() -> Self {
         Self {
             directory: Default::default(),

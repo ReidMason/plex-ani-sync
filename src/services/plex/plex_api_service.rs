@@ -11,8 +11,8 @@ use crate::services::{
 };
 
 use super::plex_api::{
-    PlexEpisode, PlexEpisodesResponse, PlexInterface, PlexLibrary, PlexSeason, PlexSeason2,
-    PlexSeries, PlexSeries2, SeriesWithSeason,
+    PlexEpisode, PlexEpisodesResponse, PlexInterface, PlexSeason, PlexSeries, ResponsePlexLibrary,
+    ResponsePlexSeries,
 };
 
 pub struct PlexApi<T>
@@ -84,7 +84,7 @@ impl<T> PlexInterface for PlexApi<T>
 where
     T: ConfigInterface,
 {
-    async fn get_libraries(self) -> Result<Vec<PlexLibrary>, reqwest::Error> {
+    async fn get_libraries(self) -> Result<Vec<ResponsePlexLibrary>, reqwest::Error> {
         let path = "/library/sections/";
 
         info!("Getting Plex libraries");
@@ -95,7 +95,7 @@ where
         return Ok(response.media_container.directory);
     }
 
-    async fn get_series(&self, library_id: u8) -> Result<Vec<PlexSeries>, reqwest::Error> {
+    async fn get_series(&self, library_id: u8) -> Result<Vec<ResponsePlexSeries>, reqwest::Error> {
         let path = format!("/library/sections/{}/all", library_id);
 
         info!("Getting Plex series for library id: {}", library_id);
@@ -115,60 +115,7 @@ where
         return Ok(response.media_container.metadata);
     }
 
-    async fn get_seasons(&self, rating_key: &str) -> Result<Vec<PlexSeason>, reqwest::Error> {
-        let path = format!("/library/metadata/{}/children", rating_key);
-
-        // info!("Getting Plex seasons for series id: {}", rating_key);
-        let response: PlexSeasonResponse = match __self.make_request(&path).await {
-            Ok(x) => x,
-            Err(e) => {
-                error!(
-                    "Error getting seasons for series {}. Error: {}",
-                    rating_key, e
-                );
-                return Err(e);
-            }
-        };
-
-        // let season_count = response.media_container.metadata.len();
-        // info!("Found {} seasons for series {}", season_count, rating_key);
-        return Ok(response.media_container.metadata);
-    }
-
-    async fn populate_seasons(
-        &self,
-        series: PlexSeries,
-    ) -> Result<SeriesWithSeason, reqwest::Error> {
-        let seasons = self.get_seasons(&series.rating_key).await?;
-
-        Ok(SeriesWithSeason::new(series, seasons))
-    }
-
-    async fn get_all_seasons(
-        &self,
-        library_id: u8,
-    ) -> Result<Vec<SeriesWithSeason>, reqwest::Error> {
-        let series = self.get_series(library_id).await?;
-
-        let futures = FuturesUnordered::new();
-        for s in series {
-            futures.push(self.populate_seasons(s));
-        }
-
-        let futures = join_all(futures).await;
-
-        let result: Vec<SeriesWithSeason> = futures
-            .into_iter()
-            .filter_map(|x| match x {
-                Ok(x) => Some(x),
-                Err(_) => None,
-            })
-            .collect();
-
-        return Ok(result);
-    }
-
-    async fn get_episodes(&self, season: &mut PlexSeason2) -> Result<(), reqwest::Error> {
+    async fn get_episodes(&self, season: &mut PlexSeason) -> Result<(), reqwest::Error> {
         let path = format!("/library/metadata/{}/children", season.rating_key);
 
         let response: PlexEpisodesResponse = self.make_request(&path).await?;
@@ -182,15 +129,15 @@ where
         Ok(())
     }
 
-    async fn get_seasons2(&self, series: &mut PlexSeries2) -> Result<(), reqwest::Error> {
+    async fn get_seasons2(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error> {
         let path = format!("/library/metadata/{}/children", series.rating_key);
 
         let response: PlexSeasonResponse = self.make_request(&path).await?;
-        let mut seasons: Vec<PlexSeason2> = response
+        let mut seasons: Vec<PlexSeason> = response
             .media_container
             .metadata
             .into_iter()
-            .map(|x| PlexSeason2::from(x))
+            .map(|x| PlexSeason::from(x))
             .collect();
 
         let futures = FuturesUnordered::new();
@@ -207,11 +154,11 @@ where
     async fn get_full_series_data(
         &self,
         library_id: u8,
-    ) -> Result<Vec<PlexSeries2>, reqwest::Error> {
+    ) -> Result<Vec<PlexSeries>, reqwest::Error> {
         let all_series = self.get_series(library_id).await?;
-        let mut all_series: Vec<PlexSeries2> = all_series
+        let mut all_series: Vec<PlexSeries> = all_series
             .into_iter()
-            .map(|x| PlexSeries2::from(x))
+            .map(|x| PlexSeries::from(x))
             .collect();
 
         for chunk in all_series.chunks_mut(50) {
@@ -422,9 +369,8 @@ mod tests {
 
         let series = plex_api.get_series(1).await.unwrap();
 
-        assert_eq!(series.len(), 2);
-        assert_eq!(series[0].clone().rating_key, "24581".to_string());
-        assert_eq!(series[1].clone().rating_key, "26268".to_string());
+        assert_eq!(1, series.len());
+        assert_eq!("17456".to_string(), series[0].clone().rating_key);
     }
 
     #[tokio::test]
@@ -449,64 +395,5 @@ mod tests {
         let plex_api = PlexApi::new(config_service);
 
         assert!(plex_api.get_series(1).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_get_seasons() {
-        init_logger();
-
-        let response = get_response("seasons");
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/library/metadata/24581/children"))
-            .and(headers(CONTENT_TYPE, vec!["application/json"]))
-            .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_string(response))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
-
-        let series = plex_api.get_seasons("24581").await.unwrap();
-
-        assert_eq!(series.len(), 1);
-        assert_eq!(series[0].clone().rating_key, "24582".to_string());
-    }
-
-    #[tokio::test]
-    async fn test_get_seasons_404_error_response() {
-        init_logger();
-
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(404))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
-
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
-
-        assert!(plex_api.get_seasons("12345").await.is_err());
     }
 }
