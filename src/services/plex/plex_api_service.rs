@@ -129,7 +129,7 @@ where
         Ok(())
     }
 
-    async fn get_seasons2(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error> {
+    async fn get_seasons(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error> {
         let path = format!("/library/metadata/{}/children", series.rating_key);
 
         let response: PlexSeasonResponse = self.make_request(&path).await?;
@@ -165,7 +165,7 @@ where
             info!("Processing chunk");
             let futures = FuturesUnordered::new();
             for series in chunk.iter_mut() {
-                futures.push(self.get_seasons2(series));
+                futures.push(self.get_seasons(series));
             }
             join_all(futures).await;
         }
