@@ -21,15 +21,9 @@ pub trait PlexInterface {
         &self,
         series: PlexSeries,
     ) -> Result<SeriesWithSeason, reqwest::Error>;
-    async fn get_episodes(
-        &self,
-        season_rating_key: &str,
-    ) -> Result<PlexEpisodesResponse, reqwest::Error>;
+    async fn get_episodes(&self, season: &mut PlexSeason2) -> Result<(), reqwest::Error>;
 
-    async fn get_seasons2(
-        &self,
-        series_rating_key: &str,
-    ) -> Result<PlexSeasonResponse, reqwest::Error>;
+    async fn get_seasons2(&self, series: &mut PlexSeries2) -> Result<(), reqwest::Error>;
     async fn get_full_series_data(
         &self,
         library_id: u8,

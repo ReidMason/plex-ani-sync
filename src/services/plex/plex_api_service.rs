@@ -99,7 +99,7 @@ where
         let path = format!("/library/sections/{}/all", library_id);
 
         info!("Getting Plex series for library id: {}", library_id);
-        let response: PlexSeriesResponse = match self.make_request(&path).await {
+        let response: PlexSeriesResponse = match __self.make_request(&path).await {
             Ok(x) => x,
             Err(e) => {
                 error!("Error getting series for library_id: {}", library_id);
@@ -118,8 +118,8 @@ where
     async fn get_seasons(&self, rating_key: &str) -> Result<Vec<PlexSeason>, reqwest::Error> {
         let path = format!("/library/metadata/{}/children", rating_key);
 
-        info!("Getting Plex seasons for series id: {}", rating_key);
-        let response: PlexSeasonResponse = match self.make_request(&path).await {
+        // info!("Getting Plex seasons for series id: {}", rating_key);
+        let response: PlexSeasonResponse = match __self.make_request(&path).await {
             Ok(x) => x,
             Err(e) => {
                 error!(
@@ -168,30 +168,40 @@ where
         return Ok(result);
     }
 
-    async fn get_episodes(
-        &self,
-        season_rating_key: &str,
-    ) -> Result<PlexEpisodesResponse, reqwest::Error> {
-        let path = format!("/library/metadata/{}/children", season_rating_key);
+    async fn get_episodes(&self, season: &mut PlexSeason2) -> Result<(), reqwest::Error> {
+        let path = format!("/library/metadata/{}/children", season.rating_key);
 
-        // info!("Getting Plex episodes for season id: {}", season_rating_key);
-        let response: PlexEpisodesResponse = match self.make_request(&path).await {
-            Ok(x) => x,
-            Err(e) => {
-                error!(
-                    "Error getting episodes for season id: {} Error: {e}",
-                    season_rating_key
-                );
-                return Err(e);
-            }
-        };
+        let response: PlexEpisodesResponse = self.make_request(&path).await?;
+        season.episodes = response
+            .media_container
+            .metadata
+            .into_iter()
+            .map(|x| PlexEpisode::from(x))
+            .collect();
 
-        let series_count = response.media_container.metadata.len();
-        // info!(
-        //     "Found {} episodes for season {}",
-        //     series_count, season_rating_key
-        // );
-        return Ok(response);
+        Ok(())
+    }
+
+    async fn get_seasons2(&self, series: &mut PlexSeries2) -> Result<(), reqwest::Error> {
+        let path = format!("/library/metadata/{}/children", series.rating_key);
+
+        let response: PlexSeasonResponse = self.make_request(&path).await?;
+        let mut seasons: Vec<PlexSeason2> = response
+            .media_container
+            .metadata
+            .into_iter()
+            .map(|x| PlexSeason2::from(x))
+            .collect();
+
+        let futures = FuturesUnordered::new();
+        for season in seasons.iter_mut() {
+            futures.push(self.get_episodes(season));
+        }
+
+        join_all(futures).await;
+
+        series.seasons = seasons;
+        Ok(())
     }
 
     async fn get_full_series_data(
@@ -204,31 +214,13 @@ where
             .map(|x| PlexSeries2::from(x))
             .collect();
 
-        for series in all_series.iter_mut() {
-            let seasons = self.get_seasons(&series.rating_key).await;
-            let seasons = match seasons {
-                Ok(x) => x,
-                Err(_) => {
-                    error!("Failed to find seasons for {}", series.rating_key);
-                    continue;
-                }
-            };
-            let mut seasons: Vec<PlexSeason2> =
-                seasons.into_iter().map(|x| PlexSeason2::from(x)).collect();
-
-            for season in seasons.iter_mut() {
-                let episodes_response = self.get_episodes(&season.rating_key).await;
-                let episodes = match episodes_response {
-                    Ok(x) => x.media_container.metadata,
-                    Err(_) => {
-                        error!("Failed to find episodes for {}", series.rating_key);
-                        continue;
-                    }
-                };
-                season.episodes = episodes.into_iter().map(|x| PlexEpisode::from(x)).collect();
+        for chunk in all_series.chunks_mut(50) {
+            info!("Processing chunk");
+            let futures = FuturesUnordered::new();
+            for series in chunk.iter_mut() {
+                futures.push(self.get_seasons2(series));
             }
-
-            series.seasons = seasons;
+            join_all(futures).await;
         }
 
         return Ok(all_series);
