@@ -3,31 +3,18 @@ use std::cmp::min;
 use chrono::{Duration, Utc};
 
 use crate::services::{
-    anime_list_service::anime_list_service::AnimeResult, dbstore::sqlite::Mapping,
+    anime_list_service::anime_list_service::AnimeResult,
+    dbstore::sqlite::Mapping,
+    plex::plex_api::{PlexEpisode, PlexSeries2},
 };
 
-struct AnimeEntryPlexRepresentation {
+pub struct AnimeEntryPlexRepresentation {
     anime_result: AnimeResult,
     plex_episodes: Vec<PlexEpisode>,
 }
 
-struct PlexSeries {
-    seasons: Vec<PlexSeason>,
-}
-
-struct PlexSeason {
-    rating_key: String,
-    episodes: Vec<PlexEpisode>,
-}
-
-#[derive(Clone)]
-struct PlexEpisode {
-    id: u32,
-    last_viewed_at: Option<i64>,
-}
-
-fn get_plex_episodes_for_anime_list_id(
-    all_plex_series: &Vec<PlexSeries>,
+pub fn get_plex_episodes_for_anime_list_id(
+    all_plex_series: &Vec<PlexSeries2>,
     all_mappings: &Vec<Mapping>,
     anime_result: AnimeResult,
 ) -> AnimeEntryPlexRepresentation {
@@ -50,10 +37,14 @@ fn get_plex_episodes_for_anime_list_id(
                     season.episodes.len(),
                 );
 
-                for i in start..end {
-                    let index = usize::try_from(i).expect("Failed to convert index");
-                    plex_episodes.push(season.episodes[index].clone());
-                }
+                let mut selected_episodes: Vec<PlexEpisode> = season
+                    .episodes
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| i >= &start && i < &end)
+                    .map(|(_, x)| x.clone())
+                    .collect();
+                plex_episodes.append(&mut selected_episodes);
             }
         }
     }
@@ -151,8 +142,9 @@ fn get_watch_status(
 mod tests {
     use chrono::{Duration, Utc};
 
-    use crate::services::anime_list_service::anime_list_service::{
-        Date, MediaStatus, Relations, Title,
+    use crate::services::{
+        anime_list_service::anime_list_service::{Date, MediaStatus, Relations, Title},
+        plex::plex_api::PlexSeason2,
     };
 
     use super::*;
@@ -189,15 +181,15 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
-                    id: 2,
+                    rating_key: "2".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
-                    id: 3,
+                    rating_key: "3".to_string(),
                     last_viewed_at: Some(12345),
                 },
             ],
@@ -213,15 +205,15 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
-                    id: 2,
+                    rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
-                    id: 3,
+                    rating_key: "3".to_string(),
                     last_viewed_at: None,
                 },
             ],
@@ -239,15 +231,15 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: Some(a_month_ago.timestamp()),
                 },
                 PlexEpisode {
-                    id: 2,
+                    rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
-                    id: 3,
+                    rating_key: "3".to_string(),
                     last_viewed_at: None,
                 },
             ],
@@ -267,15 +259,15 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: Some(two_weeks_ago.timestamp()),
                 },
                 PlexEpisode {
-                    id: 2,
+                    rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
-                    id: 3,
+                    rating_key: "3".to_string(),
                     last_viewed_at: Some(a_month_ago.timestamp()),
                 },
             ],
@@ -293,15 +285,15 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: Some(now.timestamp()),
                 },
                 PlexEpisode {
-                    id: 2,
+                    rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
-                    id: 3,
+                    rating_key: "3".to_string(),
                     last_viewed_at: None,
                 },
             ],
@@ -313,30 +305,31 @@ mod tests {
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_multiple_mappings_across_multiple_plex_seasons() {
-        let all_plex_series = vec![PlexSeries {
+        let all_plex_series = vec![PlexSeries2 {
+            rating_key: "1234".to_string(),
             seasons: vec![
-                PlexSeason {
+                PlexSeason2 {
                     rating_key: "17457".to_string(),
                     episodes: vec![
                         PlexEpisode {
-                            id: 1,
+                            rating_key: "1".to_string(),
                             last_viewed_at: Some(12345),
                         },
                         PlexEpisode {
-                            id: 2,
+                            rating_key: "2".to_string(),
                             last_viewed_at: Some(12345),
                         },
                     ],
                 },
-                PlexSeason {
+                PlexSeason2 {
                     rating_key: "12345".to_string(),
                     episodes: vec![
                         PlexEpisode {
-                            id: 3,
+                            rating_key: "3".to_string(),
                             last_viewed_at: Some(12345),
                         },
                         PlexEpisode {
-                            id: 4,
+                            rating_key: "4".to_string(),
                             last_viewed_at: Some(12345),
                         },
                     ],
@@ -374,23 +367,24 @@ mod tests {
             get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
 
         assert_eq!(3, result.plex_episodes.len());
-        assert_eq!(1, result.plex_episodes[0].id);
-        assert_eq!(3, result.plex_episodes[1].id);
-        assert_eq!(4, result.plex_episodes[2].id);
+        assert_eq!("1", &result.plex_episodes[0].rating_key);
+        assert_eq!("3", &result.plex_episodes[1].rating_key);
+        assert_eq!("4", &result.plex_episodes[2].rating_key);
     }
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id() {
-        let all_plex_series = vec![PlexSeries {
-            seasons: vec![PlexSeason {
+        let all_plex_series = vec![PlexSeries2 {
+            rating_key: "1234".to_string(),
+            seasons: vec![PlexSeason2 {
                 rating_key: "17457".to_string(),
                 episodes: vec![
                     PlexEpisode {
-                        id: 1,
+                        rating_key: "1".to_string(),
                         last_viewed_at: Some(12345),
                     },
                     PlexEpisode {
-                        id: 2,
+                        rating_key: "2".to_string(),
                         last_viewed_at: Some(12345),
                     },
                 ],
@@ -412,22 +406,23 @@ mod tests {
             get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
 
         assert_eq!(2, result.plex_episodes.len());
-        assert_eq!(1, result.plex_episodes[0].id);
-        assert_eq!(2, result.plex_episodes[1].id);
+        assert_eq!("1", &result.plex_episodes[0].rating_key);
+        assert_eq!("2", &result.plex_episodes[1].rating_key);
     }
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_more_episodes_than_mapping() {
-        let all_plex_series = vec![PlexSeries {
-            seasons: vec![PlexSeason {
+        let all_plex_series = vec![PlexSeries2 {
+            rating_key: "1234".to_string(),
+            seasons: vec![PlexSeason2 {
                 rating_key: "17457".to_string(),
                 episodes: vec![
                     PlexEpisode {
-                        id: 1,
+                        rating_key: "1".to_string(),
                         last_viewed_at: Some(12345),
                     },
                     PlexEpisode {
-                        id: 2,
+                        rating_key: "2".to_string(),
                         last_viewed_at: Some(12345),
                     },
                 ],
@@ -450,16 +445,17 @@ mod tests {
             get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
 
         assert_eq!(1, result.plex_episodes.len());
-        assert_eq!(1, result.plex_episodes[0].id);
+        assert_eq!("1", &result.plex_episodes[0].rating_key);
     }
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_less_episodes_than_mapping() {
-        let all_plex_series = vec![PlexSeries {
-            seasons: vec![PlexSeason {
+        let all_plex_series = vec![PlexSeries2 {
+            rating_key: "1234".to_string(),
+            seasons: vec![PlexSeason2 {
                 rating_key: "17457".to_string(),
                 episodes: vec![PlexEpisode {
-                    id: 1,
+                    rating_key: "1".to_string(),
                     last_viewed_at: Some(12345),
                 }],
             }],
