@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
-use crate::services::plex_api::plex_api::{PlexSeason, SeriesWithSeason};
+use crate::services::plex::plex_api::{PlexSeries, ResponsePlexSeason, SeriesWithSeason};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
@@ -14,8 +14,12 @@ pub trait MappingHandlerInterface {
         -> Result<Vec<Mapping>, anyhow::Error>;
     async fn find_match_for_season(
         &self,
-        season: &PlexSeason,
+        season: &ResponsePlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
+    async fn get_all_relevant_mappings(
+        &self,
+        all_series: Vec<PlexSeries>,
+    ) -> Vec<MappingWithListData>;
 }
 
 pub struct MappingHandler<T, J>
@@ -54,7 +58,7 @@ struct ResultScore {
     score: u16,
 }
 
-fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeResult> {
+fn find_match(results: Vec<AnimeResult>, target: &ResponsePlexSeason) -> Option<AnimeResult> {
     let mut potential_matches: Vec<ResultScore> = results
         .into_iter()
         .map(|x| ResultScore {
@@ -130,7 +134,7 @@ fn get_mapped_episode_count(mappings: &[Mapping], rating_key: &str) -> u32 {
         .sum::<u32>()
 }
 
-fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping> {
+fn get_prev_mapping(mappings: &[Mapping], season: &ResponsePlexSeason) -> Option<Mapping> {
     let mut prev_mappings: Vec<&Mapping> = mappings
         .iter()
         .filter(|x| x.plex_id == season.rating_key)
@@ -145,6 +149,11 @@ fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping
     None
 }
 
+pub struct MappingWithListData {
+    pub mapping: Mapping,
+    pub anilist_series: AnimeResult,
+}
+
 #[async_trait]
 impl<T, J> MappingHandlerInterface for MappingHandler<T, J>
 where
@@ -153,7 +162,7 @@ where
 {
     async fn find_match_for_season(
         &self,
-        season: &PlexSeason,
+        season: &ResponsePlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error> {
         let results = self
             .anime_list_service
@@ -165,6 +174,36 @@ where
         }
 
         return Ok(find_match(results, season));
+    }
+
+    async fn get_all_relevant_mappings(
+        &self,
+        all_series: Vec<PlexSeries>,
+    ) -> Vec<MappingWithListData> {
+        let mut mappings: Vec<MappingWithListData> = vec![];
+        for series in all_series {
+            let series_mappings = self
+                .db_store
+                .get_mapping_for_series(&series.rating_key)
+                .await
+                .unwrap();
+
+            for mapping in series_mappings {
+                let anilist_series = self
+                    .anime_list_service
+                    .get_anime(&mapping.anime_list_id)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let mapping_with_data = MappingWithListData {
+                    mapping,
+                    anilist_series,
+                };
+                mappings.push(mapping_with_data);
+            }
+        }
+
+        mappings
     }
 
     async fn create_mapping(
@@ -337,7 +376,7 @@ mod tests {
             anime_list_service::anilist_service::AnilistService,
             config::config::ConfigService,
             dbstore::{dbstore::DbStore, sqlite::Sqlite},
-            plex_api::plex_api::{PlexSeason, PlexSeries},
+            plex::plex_api::{PlexSeriesResponse, ResponsePlexSeason, ResponsePlexSeries},
         },
         utils::{get_db_file_location, init_logger},
     };
@@ -364,12 +403,12 @@ mod tests {
         let mapper = init().await;
 
         let series = SeriesWithSeason {
-            series: PlexSeries {
+            series: ResponsePlexSeries {
                 title: "Mysterious Girlfriend X".to_string(),
                 rating_key: "12345".to_string(),
                 last_viewed_at: Some(0),
             },
-            seasons: vec![PlexSeason {
+            seasons: vec![ResponsePlexSeason {
                 rating_key: "12345".to_string(),
                 parent_title: "Mysterious Girlfriend X".to_string(),
                 index: 1,
@@ -394,13 +433,13 @@ mod tests {
         let mapper = init().await;
 
         let series = SeriesWithSeason {
-            series: PlexSeries {
+            series: ResponsePlexSeries {
                 rating_key: "12794".to_string(),
                 title: "Vinland Saga".to_string(),
                 last_viewed_at: Some(1687277617),
             },
             seasons: vec![
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "12795".to_string(),
                     index: 1,
                     parent_title: "Vinland Saga".to_string(),
@@ -409,7 +448,7 @@ mod tests {
                     episodes: 24,
                     last_viewed_at: Some(1682194762),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "45711".to_string(),
                     index: 2,
                     parent_title: "Vinland Saga".to_string(),
@@ -436,13 +475,13 @@ mod tests {
         let mapper = init().await;
 
         let series = SeriesWithSeason {
-            series: PlexSeries {
+            series: ResponsePlexSeries {
                 rating_key: "10618".to_string(),
                 title: "Overlord".to_string(),
                 last_viewed_at: Some(1659087323),
             },
             seasons: vec![
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "29790".to_string(),
                     index: 0,
                     parent_title: "Overlord".to_string(),
@@ -451,7 +490,7 @@ mod tests {
                     episodes: 37,
                     last_viewed_at: None,
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "10619".to_string(),
                     index: 1,
                     parent_title: "Overlord".to_string(),
@@ -460,7 +499,7 @@ mod tests {
                     episodes: 13,
                     last_viewed_at: Some(1656434507),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "10647".to_string(),
                     index: 2,
                     parent_title: "Overlord".to_string(),
@@ -469,7 +508,7 @@ mod tests {
                     episodes: 13,
                     last_viewed_at: Some(1659087323),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "10663".to_string(),
                     index: 3,
                     parent_title: "Overlord".to_string(),
@@ -478,7 +517,7 @@ mod tests {
                     episodes: 13,
                     last_viewed_at: Some(1609995008),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "43158".to_string(),
                     index: 4,
                     parent_title: "Overlord".to_string(),
@@ -507,13 +546,13 @@ mod tests {
         let mapper = init().await;
 
         let series = SeriesWithSeason {
-            series: PlexSeries {
+            series: ResponsePlexSeries {
                 rating_key: "17456".to_string(),
                 title: "Attack on Titan".to_string(),
                 last_viewed_at: Some(1682194387),
             },
             seasons: vec![
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "30037".to_string(),
                     index: 0,
                     parent_title: "Attack on Titan".to_string(),
@@ -522,7 +561,7 @@ mod tests {
                     episodes: 8,
                     last_viewed_at: None,
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "17457".to_string(),
                     index: 1,
                     parent_title: "Attack on Titan".to_string(),
@@ -531,7 +570,7 @@ mod tests {
                     episodes: 25,
                     last_viewed_at: Some(1682194387),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "17483".to_string(),
                     index: 2,
                     parent_title: "Attack on Titan".to_string(),
@@ -540,7 +579,7 @@ mod tests {
                     episodes: 12,
                     last_viewed_at: Some(1639331438),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "17496".to_string(),
                     index: 3,
                     parent_title: "Attack on Titan".to_string(),
@@ -549,7 +588,7 @@ mod tests {
                     episodes: 22,
                     last_viewed_at: Some(1602543627),
                 },
-                PlexSeason {
+                ResponsePlexSeason {
                     rating_key: "22191".to_string(),
                     index: 4,
                     parent_title: "Attack on Titan".to_string(),
