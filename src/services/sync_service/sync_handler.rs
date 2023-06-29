@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use crate::services::{
     anime_list_service::anime_list_service::AnimeResult,
     dbstore::sqlite::Mapping,
-    plex::plex_api::{PlexEpisode, PlexSeries2},
+    plex::plex_api::{PlexEpisode, PlexSeries},
 };
 
 pub struct AnimeEntryPlexRepresentation {
@@ -14,7 +14,7 @@ pub struct AnimeEntryPlexRepresentation {
 }
 
 pub fn get_plex_episodes_for_anime_list_id(
-    all_plex_series: &Vec<PlexSeries2>,
+    all_plex_series: &Vec<PlexSeries>,
     all_mappings: &Vec<Mapping>,
     anime_result: AnimeResult,
 ) -> AnimeEntryPlexRepresentation {
@@ -144,7 +144,7 @@ mod tests {
 
     use crate::services::{
         anime_list_service::anime_list_service::{Date, MediaStatus, Relations, Title},
-        plex::plex_api::PlexSeason2,
+        plex::plex_api::PlexSeason,
     };
 
     use super::*;
@@ -305,10 +305,10 @@ mod tests {
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_multiple_mappings_across_multiple_plex_seasons() {
-        let all_plex_series = vec![PlexSeries2 {
+        let all_plex_series = vec![PlexSeries {
             rating_key: "1234".to_string(),
             seasons: vec![
-                PlexSeason2 {
+                PlexSeason {
                     rating_key: "17457".to_string(),
                     episodes: vec![
                         PlexEpisode {
@@ -321,7 +321,7 @@ mod tests {
                         },
                     ],
                 },
-                PlexSeason2 {
+                PlexSeason {
                     rating_key: "12345".to_string(),
                     episodes: vec![
                         PlexEpisode {
@@ -374,9 +374,9 @@ mod tests {
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id() {
-        let all_plex_series = vec![PlexSeries2 {
+        let all_plex_series = vec![PlexSeries {
             rating_key: "1234".to_string(),
-            seasons: vec![PlexSeason2 {
+            seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
                 episodes: vec![
                     PlexEpisode {
@@ -412,9 +412,9 @@ mod tests {
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_more_episodes_than_mapping() {
-        let all_plex_series = vec![PlexSeries2 {
+        let all_plex_series = vec![PlexSeries {
             rating_key: "1234".to_string(),
-            seasons: vec![PlexSeason2 {
+            seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
                 episodes: vec![
                     PlexEpisode {
@@ -450,9 +450,9 @@ mod tests {
 
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_less_episodes_than_mapping() {
-        let all_plex_series = vec![PlexSeries2 {
+        let all_plex_series = vec![PlexSeries {
             rating_key: "1234".to_string(),
-            seasons: vec![PlexSeason2 {
+            seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
                 episodes: vec![PlexEpisode {
                     rating_key: "1".to_string(),
