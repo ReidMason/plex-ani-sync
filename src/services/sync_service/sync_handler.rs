@@ -70,9 +70,7 @@ struct AnimeListWatchStatus {
     episodes_watched: u16,
 }
 
-fn get_watch_status(
-    anime_entry_representation: AnimeEntryPlexRepresentation,
-) -> AnimeListWatchStatus {
+fn get_watch_status(anime_entry_representation: AnimeEntryPlexRepresentation) -> WatchStatus {
     let episodes_watched = anime_entry_representation
         .plex_episodes
         .iter()
@@ -80,21 +78,9 @@ fn get_watch_status(
         .count();
     let episodes_watched: u16 = u16::try_from(episodes_watched).unwrap();
 
-    if episodes_watched == 0 {
-        return AnimeListWatchStatus {
-            anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-            watch_status: WatchStatus::Planning,
-            episodes_watched,
-        };
-    }
-
     let total_episodes = anime_entry_representation.anime_result.episodes.unwrap();
     if total_episodes == episodes_watched {
-        return AnimeListWatchStatus {
-            anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-            watch_status: WatchStatus::Complete,
-            episodes_watched,
-        };
+        return WatchStatus::Complete;
     }
 
     let last_viewed_at = anime_entry_representation
@@ -102,40 +88,29 @@ fn get_watch_status(
         .into_iter()
         .map(|x| x.last_viewed_at)
         .max()
-        .unwrap()
         .unwrap();
 
     let dropped_threshold = Utc::now() - Duration::days(30);
-    if episodes_watched > 0 && last_viewed_at <= dropped_threshold.timestamp() {
-        return AnimeListWatchStatus {
-            anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-            watch_status: WatchStatus::Dropped,
-            episodes_watched,
-        };
+    if episodes_watched > 0
+        && last_viewed_at.is_some()
+        && last_viewed_at.unwrap() <= dropped_threshold.timestamp()
+    {
+        return WatchStatus::Dropped;
     }
 
     let paused_threshold = Utc::now() - Duration::days(14);
-    if episodes_watched > 0 && last_viewed_at <= paused_threshold.timestamp() {
-        return AnimeListWatchStatus {
-            anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-            watch_status: WatchStatus::Paused,
-            episodes_watched,
-        };
+    if episodes_watched > 0
+        && last_viewed_at.is_some()
+        && last_viewed_at.unwrap() <= paused_threshold.timestamp()
+    {
+        return WatchStatus::Paused;
     }
 
     if episodes_watched > 0 && episodes_watched < total_episodes {
-        return AnimeListWatchStatus {
-            anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-            watch_status: WatchStatus::Watching,
-            episodes_watched,
-        };
+        return WatchStatus::Watching;
     }
 
-    return AnimeListWatchStatus {
-        anime_list_id: anime_entry_representation.anime_result.id.to_string(),
-        watch_status: WatchStatus::Planning,
-        episodes_watched,
-    };
+    return WatchStatus::Planning;
 }
 
 #[cfg(test)]
@@ -196,7 +171,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Complete, result.watch_status);
+        assert_eq!(WatchStatus::Complete, result);
     }
 
     #[test]
@@ -220,7 +195,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Planning, result.watch_status);
+        assert_eq!(WatchStatus::Planning, result);
     }
 
     #[test]
@@ -246,7 +221,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Dropped, result.watch_status);
+        assert_eq!(WatchStatus::Dropped, result);
     }
 
     #[test]
@@ -274,7 +249,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Paused, result.watch_status);
+        assert_eq!(WatchStatus::Paused, result);
     }
 
     #[test]
@@ -300,7 +275,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Watching, result.watch_status);
+        assert_eq!(WatchStatus::Watching, result);
     }
 
     #[test]
