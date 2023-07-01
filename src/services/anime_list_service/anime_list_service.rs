@@ -9,7 +9,10 @@ pub trait AnimeListService {
         &self,
         anime_result: AnimeResult,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
+    async fn get_list(&self) -> Result<AnimeList, anyhow::Error>;
 }
+
+pub struct AnimeList {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MediaFormat {

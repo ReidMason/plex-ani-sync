@@ -8,7 +8,7 @@ use serde_json::json;
 
 use crate::services::{config::config::ConfigInterface, dbstore::dbstore::DbStore};
 
-use super::anime_list_service::{AnimeListService, AnimeResult, RelationType};
+use super::anime_list_service::{AnimeList, AnimeListService, AnimeResult, RelationType};
 
 // We need to use to visit this page then we'll redirect them back to the main page to get the auth
 // code token thing https://anilist.gitbook.io/anilist-apiv2-docs/overview/oauth/implicit-grant
@@ -25,6 +25,7 @@ struct GraphQlBody {
     query: String,
     variables: serde_json::Value,
 }
+
 impl<T, J> AnilistService<T, J>
 where
     T: ConfigInterface,
@@ -47,7 +48,7 @@ where
         headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(auth_value.as_str()).expect("Failed to parse anilist token"),
+            HeaderValue::from_str(&auth_value).expect("Failed to parse anilist token"),
         );
         headers
     }
@@ -89,6 +90,36 @@ where
 
         Ok(response)
     }
+
+    async fn get_user(&self) -> Result<AnilistUser, anyhow::Error> {
+        let query = r#"query {
+                        Viewer {
+                            id
+                            name
+                        }
+                    }"#;
+
+        let data = GraphQlBody {
+            query: String::from(query),
+            variables: json!({}),
+        };
+
+        let result: AnilistResponse<AnilistUserResponse> = self.make_request(data).await?;
+
+        return Ok(result.data.viewer);
+    }
+}
+
+#[derive(Deserialize)]
+struct AnilistUserResponse {
+    #[serde(rename = "Viewer")]
+    viewer: AnilistUser,
+}
+
+#[derive(Deserialize)]
+struct AnilistUser {
+    id: i64,
+    name: String,
 }
 
 #[derive(Serialize)]
@@ -196,47 +227,40 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         info!("Quering anilist API for anime_id: {}", anime_id);
 
         let query = r#"query ($anime_id: Int) {
-		Media(id: $anime_id, type: ANIME) {
-			id
-			format
-			episodes
-			synonyms
-			status
-			endDate {
-				year
-				month
-				day
-			}
-			startDate {
-				year
-				month
-				day
-			}
-			title {
-				english
-				romaji
-			}
-			relations {
-				edges {
-					relationType
-				}
-				nodes {
-					id
-					format
-					endDate {
-						year
-						month
-						day
-					}
-					startDate {
-						year
-						month
-						day
-					}
-				}
-			}
-		}
-	}"#;
+    Media(id: $anime_id, type: ANIME) {
+      id
+      format
+      episodes
+      synonyms
+      status
+      endDate {
+        year
+        month
+        day
+      }
+      startDate {
+        year
+        month
+        day
+      }
+      title {
+        english
+        romaji
+      }
+      relations {
+        edges {
+          relationType
+        }
+        nodes {
+          id
+          format
+          endDate {
+            year
+            month
+            day
+          }
+          startDate {
+  }"#;
 
         let vars = GetAnimeVars {
             anime_id: anime_id.to_string(),
@@ -268,6 +292,13 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         }
 
         return Ok(None);
+    }
+
+    async fn get_list(&self) -> Result<AnimeList, anyhow::Error> {
+        let user = self.get_user().await?;
+        println!("{}", user.name);
+
+        Ok(AnimeList {})
     }
 }
 
@@ -301,7 +332,7 @@ pub struct Page {
 mod tests {
     use crate::{
         services::{config::config::ConfigService, dbstore::sqlite::Sqlite},
-        utils::init_logger,
+        utils::{get_db_file_location, init_logger},
     };
     use serde::Deserialize;
     use std::fs;
@@ -337,6 +368,43 @@ mod tests {
         }
 
         panic!("Failed to find response '{}'", response)
+    }
+
+    #[tokio::test]
+    async fn test_get_user() {
+        init_logger();
+
+        let response = get_response("get_user");
+        let mut db_store = Sqlite::new("sqlite::memory:").await;
+        db_store.migrate().await;
+
+        let mut config = db_store.get_config().await;
+        config.anilist_token = "testToken123".to_string();
+
+        // let db_config = db_store.get_config().await;
+        // let config_service = ConfigService::new(db_config.clone());
+        let config_service = ConfigService::new(config);
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(bearer_token(config_service.get_anilist_token()))
+            .respond_with(ResponseTemplate::new(200).set_body_string(response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+
+        let response = list_service
+            .get_user()
+            .await
+            .expect("Failed to get anilist user");
+
+        assert_eq!("UserName", response.name);
+        assert_eq!(12345, response.id);
     }
 
     #[tokio::test]

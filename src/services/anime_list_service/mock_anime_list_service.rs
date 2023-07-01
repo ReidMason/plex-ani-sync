@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use super::{
     anilist_service::{AnilistResponse, AnimeSearchRequestResult},
-    anime_list_service::{AnimeListService, AnimeResult},
+    anime_list_service::{AnimeList, AnimeListService, AnimeResult},
 };
 
 pub struct MockAnimeListService {}
@@ -55,6 +55,10 @@ impl AnimeListService for MockAnimeListService {
         &self,
         anime_result: AnimeResult,
     ) -> Result<Option<AnimeResult>, anyhow::Error> {
+        todo!()
+    }
+
+    async fn get_list(&self) -> Result<AnimeList, anyhow::Error> {
         todo!()
     }
 }
