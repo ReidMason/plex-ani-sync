@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use super::{
-    anilist_service::{AnilistResponse, AnimeSearchRequestResult},
-    anime_list_service::{AnimeList, AnimeListService, AnimeResult},
+    anilist_service::{AnilistResponse, AnimeSearchRequestResult, SavedMediaListEntry},
+    anime_list_service::{AnilistWatchStatus, AnimeListEntry, AnimeListService, AnimeResult},
 };
 
 pub struct MockAnimeListService {}
@@ -58,7 +58,16 @@ impl AnimeListService for MockAnimeListService {
         todo!()
     }
 
-    async fn get_list(&self) -> Result<AnimeList, anyhow::Error> {
+    async fn get_list(&self, user_id: u32) -> Result<Vec<AnimeListEntry>, anyhow::Error> {
+        todo!()
+    }
+
+    async fn update_list_entry(
+        &self,
+        media_id: u32,
+        status: AnilistWatchStatus,
+        progress: u16,
+    ) -> Result<SavedMediaListEntry, anyhow::Error> {
         todo!()
     }
 }

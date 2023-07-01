@@ -8,7 +8,9 @@ use serde_json::json;
 
 use crate::services::{config::config::ConfigInterface, dbstore::dbstore::DbStore};
 
-use super::anime_list_service::{AnimeList, AnimeListService, AnimeResult, RelationType};
+use super::anime_list_service::{
+    AnilistWatchStatus, AnimeListEntry, AnimeListService, AnimeResult, RelationType,
+};
 
 // We need to use to visit this page then we'll redirect them back to the main page to get the auth
 // code token thing https://anilist.gitbook.io/anilist-apiv2-docs/overview/oauth/implicit-grant
@@ -118,8 +120,13 @@ struct AnilistUserResponse {
 
 #[derive(Deserialize)]
 struct AnilistUser {
-    id: i64,
+    id: u32,
     name: String,
+}
+
+#[derive(Serialize)]
+struct MediaListCollectionVars {
+    user_id: u32,
 }
 
 #[derive(Serialize)]
@@ -130,6 +137,13 @@ struct SearchAnimeVars {
 #[derive(Serialize)]
 struct GetAnimeVars {
     anime_id: String,
+}
+
+#[derive(Serialize)]
+struct UpdateAnimeListEntryVars {
+    media_id: u32,
+    status: AnilistWatchStatus,
+    progress: u16,
 }
 
 #[async_trait]
@@ -294,12 +308,112 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         return Ok(None);
     }
 
-    async fn get_list(&self) -> Result<AnimeList, anyhow::Error> {
-        let user = self.get_user().await?;
-        println!("{}", user.name);
-
-        Ok(AnimeList {})
+    async fn get_list(&self, user_id: u32) -> Result<Vec<AnimeListEntry>, anyhow::Error> {
+        let query = r#"query($user_id: Int) {
+    MediaListCollection(userId: $user_id, type: ANIME) {
+        lists {
+            name
+            status
+            isCustomList
+            entries {
+                mediaId
+                progress
+            }
+        }
     }
+}"#;
+
+        let vars = MediaListCollectionVars { user_id };
+        let data = GraphQlBody {
+            query: String::from(query),
+            variables: json!(vars),
+        };
+
+        let result: AnilistResponse<AnilistListsMediaListCollectionResponse> =
+            self.make_request(data).await?;
+        let mut anime_list: Vec<AnimeListEntry> = vec![];
+
+        for list in result.data.media_list_collection.lists {
+            let status = match list.status {
+                Some(x) => x,
+                None => continue,
+            };
+
+            for entry in list.entries {
+                anime_list.push(AnimeListEntry {
+                    status: status.clone(),
+                    progress: entry.progress,
+                    media_id: entry.media_id,
+                });
+            }
+        }
+
+        Ok(anime_list)
+    }
+
+    async fn update_list_entry(
+        &self,
+        media_id: u32,
+        status: AnilistWatchStatus,
+        progress: u16,
+    ) -> Result<SavedMediaListEntry, anyhow::Error> {
+        let query = r#"mutation ($media_id: Int, $status: MediaListStatus, $progress: Int) {
+                SaveMediaListEntry (mediaId: $media_id, status: $status, progress: $progress) {
+                    id
+                    status,
+                    progress
+                }
+            }"#;
+
+        let vars = UpdateAnimeListEntryVars {
+            progress,
+            status,
+            media_id,
+        };
+        let data = GraphQlBody {
+            query: String::from(query),
+            variables: json!(vars),
+        };
+
+        let result: AnilistResponse<SavedMediaListEntry> = self.make_request(data).await?;
+
+        Ok(result.data)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedMediaListEntry {
+    pub id: u32,
+    pub status: AnilistWatchStatus,
+    pub progress: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnilistListsMediaListCollectionResponse {
+    #[serde(rename = "MediaListCollection")]
+    pub media_list_collection: AnilistListsResponse,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnilistListsResponse {
+    pub lists: Vec<AnilistList>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnilistList {
+    pub name: String,
+    #[serde(rename = "isCustomList")]
+    pub is_custom_list: bool,
+    pub status: Option<AnilistWatchStatus>,
+    pub entries: Vec<AnilistListEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnilistListEntry {
+    #[serde(rename = "mediaId")]
+    pub media_id: u32,
+    pub progress: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -332,7 +446,7 @@ pub struct Page {
 mod tests {
     use crate::{
         services::{config::config::ConfigService, dbstore::sqlite::Sqlite},
-        utils::{get_db_file_location, init_logger},
+        utils::init_logger,
     };
     use serde::Deserialize;
     use std::fs;
@@ -368,6 +482,43 @@ mod tests {
         }
 
         panic!("Failed to find response '{}'", response)
+    }
+
+    #[tokio::test]
+    async fn test_get_list() {
+        init_logger();
+
+        let response = get_response("get_list");
+        let mut db_store = Sqlite::new("sqlite::memory:").await;
+        db_store.migrate().await;
+
+        let mut config = db_store.get_config().await;
+        config.anilist_token = "testToken123".to_string();
+
+        let config_service = ConfigService::new(config);
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(bearer_token(config_service.get_anilist_token()))
+            .respond_with(ResponseTemplate::new(200).set_body_string(response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+
+        let response = list_service
+            .get_list(12345)
+            .await
+            .expect("Failed to get anilist list");
+
+        assert_eq!(9, response.len());
+        assert_eq!(136149, response[0].media_id);
+        assert_eq!(0, response[0].progress);
+        assert_eq!(8, response[8].progress);
     }
 
     #[tokio::test]

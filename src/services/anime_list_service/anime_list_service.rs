@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use super::anilist_service::SavedMediaListEntry;
+
 #[async_trait]
 pub trait AnimeListService {
     async fn search_anime(&self, search_term: &str) -> Result<Vec<AnimeResult>, anyhow::Error>;
@@ -9,10 +11,34 @@ pub trait AnimeListService {
         &self,
         anime_result: AnimeResult,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
-    async fn get_list(&self) -> Result<AnimeList, anyhow::Error>;
+    async fn get_list(&self, user_id: u32) -> Result<Vec<AnimeListEntry>, anyhow::Error>;
+    async fn update_list_entry(
+        &self,
+        media_id: u32,
+        status: AnilistWatchStatus,
+        progress: u16,
+    ) -> Result<SavedMediaListEntry, anyhow::Error>;
 }
 
-pub struct AnimeList {}
+pub struct AnimeListEntry {
+    pub media_id: u32,
+    pub status: AnilistWatchStatus,
+    pub progress: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AnilistWatchStatus {
+    #[serde(rename = "PLANNING")]
+    Planning,
+    #[serde(rename = "CURRENT")]
+    Current,
+    #[serde(rename = "PAUSED")]
+    Paused,
+    #[serde(rename = "DROPPED")]
+    Dropped,
+    #[serde(rename = "COMPLETED")]
+    Completed,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MediaFormat {
