@@ -3,10 +3,24 @@ use std::cmp::min;
 use chrono::{Duration, Utc};
 
 use crate::services::{
-    anime_list_service::anime_list_service::AnimeResult,
+    anime_list_service::anime_list_service::{AnilistWatchStatus, AnimeListEntry, AnimeResult},
     dbstore::sqlite::Mapping,
     plex::plex_api::{PlexEpisode, PlexSeries},
 };
+
+fn plex_series_to_animeist_entry(plex_anime_entry: AnimeEntryPlexRepresentation) -> AnimeListEntry {
+    let watched_episodes = plex_anime_entry
+        .plex_episodes
+        .iter()
+        .filter(|x| x.last_viewed_at.is_some())
+        .count() as u16;
+
+    AnimeListEntry {
+        media_id: plex_anime_entry.anime_result.id,
+        status: get_watch_status(plex_anime_entry),
+        progress: watched_episodes,
+    }
+}
 
 pub struct AnimeEntryPlexRepresentation {
     anime_result: AnimeResult,
@@ -55,22 +69,15 @@ pub fn get_plex_episodes_for_anime_list_id(
     };
 }
 
-#[derive(Debug, PartialEq)]
-enum WatchStatus {
-    Complete,
-    Watching,
-    Paused,
-    Dropped,
-    Planning,
-}
-
 struct AnimeListWatchStatus {
     anime_list_id: String,
-    watch_status: WatchStatus,
+    watch_status: AnilistWatchStatus,
     episodes_watched: u16,
 }
 
-fn get_watch_status(anime_entry_representation: AnimeEntryPlexRepresentation) -> WatchStatus {
+fn get_watch_status(
+    anime_entry_representation: AnimeEntryPlexRepresentation,
+) -> AnilistWatchStatus {
     let episodes_watched = anime_entry_representation
         .plex_episodes
         .iter()
@@ -80,7 +87,7 @@ fn get_watch_status(anime_entry_representation: AnimeEntryPlexRepresentation) ->
 
     let total_episodes = anime_entry_representation.anime_result.episodes.unwrap();
     if total_episodes == episodes_watched {
-        return WatchStatus::Complete;
+        return AnilistWatchStatus::Completed;
     }
 
     let last_viewed_at = anime_entry_representation
@@ -95,7 +102,7 @@ fn get_watch_status(anime_entry_representation: AnimeEntryPlexRepresentation) ->
         && last_viewed_at.is_some()
         && last_viewed_at.unwrap() <= dropped_threshold.timestamp()
     {
-        return WatchStatus::Dropped;
+        return AnilistWatchStatus::Dropped;
     }
 
     let paused_threshold = Utc::now() - Duration::days(14);
@@ -103,14 +110,14 @@ fn get_watch_status(anime_entry_representation: AnimeEntryPlexRepresentation) ->
         && last_viewed_at.is_some()
         && last_viewed_at.unwrap() <= paused_threshold.timestamp()
     {
-        return WatchStatus::Paused;
+        return AnilistWatchStatus::Paused;
     }
 
     if episodes_watched > 0 && episodes_watched < total_episodes {
-        return WatchStatus::Watching;
+        return AnilistWatchStatus::Current;
     }
 
-    return WatchStatus::Planning;
+    return AnilistWatchStatus::Planning;
 }
 
 #[cfg(test)]
@@ -171,7 +178,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Complete, result);
+        assert_eq!(AnilistWatchStatus::Completed, result);
     }
 
     #[test]
@@ -195,7 +202,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Planning, result);
+        assert_eq!(AnilistWatchStatus::Planning, result);
     }
 
     #[test]
@@ -221,7 +228,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Dropped, result);
+        assert_eq!(AnilistWatchStatus::Dropped, result);
     }
 
     #[test]
@@ -249,7 +256,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Paused, result);
+        assert_eq!(AnilistWatchStatus::Paused, result);
     }
 
     #[test]
@@ -275,7 +282,7 @@ mod tests {
         };
         let result = get_watch_status(anime_entry_representation);
 
-        assert_eq!(WatchStatus::Watching, result);
+        assert_eq!(AnilistWatchStatus::Current, result);
     }
 
     #[test]
