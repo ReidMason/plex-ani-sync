@@ -8,7 +8,9 @@ use crate::services::{
     plex::plex_api::{PlexEpisode, PlexSeries},
 };
 
-fn plex_series_to_animeist_entry(plex_anime_entry: AnimeEntryPlexRepresentation) -> AnimeListEntry {
+fn plex_series_to_animelist_entry(
+    plex_anime_entry: AnimeEntryPlexRepresentation,
+) -> AnimeListEntry {
     let watched_episodes = plex_anime_entry
         .plex_episodes
         .iter()
@@ -156,6 +158,104 @@ mod tests {
             nodes: vec![],
         },
     };
+
+    #[test]
+    fn test_anime_list_entry_equality_when_not_equal_media_id() {
+        let current = AnimeListEntry {
+            media_id: ANIME_RESULT.id + 1,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        let new = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        assert!(current != new);
+    }
+
+    #[test]
+    fn test_anime_list_entry_equality_when_not_equal_status() {
+        let current = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Planning,
+        };
+
+        let new = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        assert!(current != new);
+    }
+
+    #[test]
+    fn test_anime_list_entry_equality_when_not_equal_progress() {
+        let current = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        let new = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 4,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        assert!(current != new);
+    }
+
+    #[test]
+    fn test_anime_list_entry_equality_when_equal() {
+        let current = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        let new = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+
+        assert!(current == new);
+    }
+
+    #[test]
+    fn test_plex_series_to_animelist_entry() {
+        let anime_entry_representation = AnimeEntryPlexRepresentation {
+            anime_result: ANIME_RESULT,
+            plex_episodes: vec![
+                PlexEpisode {
+                    rating_key: "1".to_string(),
+                    last_viewed_at: Some(12345),
+                },
+                PlexEpisode {
+                    rating_key: "2".to_string(),
+                    last_viewed_at: Some(12345),
+                },
+                PlexEpisode {
+                    rating_key: "3".to_string(),
+                    last_viewed_at: Some(12345),
+                },
+            ],
+        };
+
+        let expected = AnimeListEntry {
+            media_id: ANIME_RESULT.id,
+            progress: 3,
+            status: AnilistWatchStatus::Completed,
+        };
+        let result = plex_series_to_animelist_entry(anime_entry_representation);
+
+        assert_eq!(expected, result);
+    }
 
     #[test]
     fn test_get_watch_status_complete() {
