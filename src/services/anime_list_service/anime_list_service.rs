@@ -20,6 +20,7 @@ pub trait AnimeListService {
     ) -> Result<SaveMediaListEntry, anyhow::Error>;
 }
 
+#[derive(Debug, PartialEq)]
 pub struct AnimeListEntry {
     pub media_id: u32,
     pub status: AnilistWatchStatus,
