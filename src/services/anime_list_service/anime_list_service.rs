@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use super::anilist_service::SavedMediaListEntry;
+use super::anilist_service::SaveMediaListEntry;
 
 #[async_trait]
 pub trait AnimeListService {
@@ -17,7 +17,7 @@ pub trait AnimeListService {
         media_id: u32,
         status: AnilistWatchStatus,
         progress: u16,
-    ) -> Result<SavedMediaListEntry, anyhow::Error>;
+    ) -> Result<SaveMediaListEntry, anyhow::Error>;
 }
 
 pub struct AnimeListEntry {
@@ -108,7 +108,7 @@ pub enum RelationType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnimeResult {
-    pub id: i64,
+    pub id: u32,
     pub format: Option<MediaFormat>,
     pub episodes: Option<u16>,
     pub synonyms: Vec<String>,

@@ -356,7 +356,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         media_id: u32,
         status: AnilistWatchStatus,
         progress: u16,
-    ) -> Result<SavedMediaListEntry, anyhow::Error> {
+    ) -> Result<SaveMediaListEntry, anyhow::Error> {
         let query = r#"mutation ($media_id: Int, $status: MediaListStatus, $progress: Int) {
                 SaveMediaListEntry (mediaId: $media_id, status: $status, progress: $progress) {
                     id
@@ -376,18 +376,24 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
             variables: json!(vars),
         };
 
-        let result: AnilistResponse<SavedMediaListEntry> = self.make_request(data).await?;
+        let result: AnilistResponse<SaveMediaListEntryResponse> = self.make_request(data).await?;
 
-        Ok(result.data)
+        Ok(result.data.save_media_list_entry)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SavedMediaListEntry {
+pub struct SaveMediaListEntry {
     pub id: u32,
     pub status: AnilistWatchStatus,
     pub progress: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SaveMediaListEntryResponse {
+    #[serde(rename = "SaveMediaListEntry")]
+    pub save_media_list_entry: SaveMediaListEntry,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -407,11 +413,11 @@ pub struct AnilistList {
     #[serde(rename = "isCustomList")]
     pub is_custom_list: bool,
     pub status: Option<AnilistWatchStatus>,
-    pub entries: Vec<AnilistListEntry>,
+    pub entries: Vec<AnilistListEntryResponse>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AnilistListEntry {
+pub struct AnilistListEntryResponse {
     #[serde(rename = "mediaId")]
     pub media_id: u32,
     pub progress: u16,
@@ -490,11 +496,11 @@ mod tests {
         init_logger();
 
         let response = r#"{
-    \"data\": {
-        \"SaveMediaListEntry\": {
-            \"id\": 89949907,
-            \"status\": \"PLANNING\",
-            \"progress\": 0
+        "data": {
+        "SaveMediaListEntry": {
+            "id": 89949907,
+            "status": "PLANNING",
+            "progress": 0
         }
     }
 }"#;

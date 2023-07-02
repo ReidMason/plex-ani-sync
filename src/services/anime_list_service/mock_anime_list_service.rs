@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use super::{
-    anilist_service::{AnilistResponse, AnimeSearchRequestResult, SavedMediaListEntry},
+    anilist_service::{AnilistResponse, AnimeSearchRequestResult, SaveMediaListEntry},
     anime_list_service::{AnilistWatchStatus, AnimeListEntry, AnimeListService, AnimeResult},
 };
 
@@ -67,7 +67,7 @@ impl AnimeListService for MockAnimeListService {
         media_id: u32,
         status: AnilistWatchStatus,
         progress: u16,
-    ) -> Result<SavedMediaListEntry, anyhow::Error> {
+    ) -> Result<SaveMediaListEntry, anyhow::Error> {
         todo!()
     }
 }
