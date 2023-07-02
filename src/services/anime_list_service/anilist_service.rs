@@ -370,6 +370,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
             status,
             media_id,
         };
+
         let data = GraphQlBody {
             query: String::from(query),
             variables: json!(vars),
@@ -482,6 +483,48 @@ mod tests {
         }
 
         panic!("Failed to find response '{}'", response)
+    }
+
+    #[tokio::test]
+    async fn test_update_entry() {
+        init_logger();
+
+        let response = r#"{
+    \"data\": {
+        \"SaveMediaListEntry\": {
+            \"id\": 89949907,
+            \"status\": \"PLANNING\",
+            \"progress\": 0
+        }
+    }
+}"#;
+        let mut db_store = Sqlite::new("sqlite::memory:").await;
+        db_store.migrate().await;
+
+        let mut config = db_store.get_config().await;
+        config.anilist_token = "testToken123".to_string();
+
+        let config_service = ConfigService::new(config);
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(headers(CONTENT_TYPE, vec!["application/json"]))
+            .and(headers(ACCEPT, vec!["application/json"]))
+            .and(bearer_token(config_service.get_anilist_token()))
+            .respond_with(ResponseTemplate::new(200).set_body_string(response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+
+        let response = list_service
+            .update_list_entry(12345, AnilistWatchStatus::Planning, 5)
+            .await
+            .expect("Failed to update anilist entry");
+
+        assert_eq!(AnilistWatchStatus::Planning, response.status);
     }
 
     #[tokio::test]
