@@ -8,7 +8,7 @@ use crate::services::{
     plex::plex_api::{PlexEpisode, PlexSeries},
 };
 
-fn plex_series_to_animelist_entry(
+pub fn plex_series_to_animelist_entry(
     plex_anime_entry: AnimeEntryPlexRepresentation,
 ) -> AnimeListEntry {
     let watched_episodes = plex_anime_entry
@@ -71,24 +71,19 @@ pub fn get_plex_episodes_for_anime_list_id(
     };
 }
 
-struct AnimeListWatchStatus {
-    anime_list_id: String,
-    watch_status: AnilistWatchStatus,
-    episodes_watched: u16,
-}
-
 fn get_watch_status(
     anime_entry_representation: AnimeEntryPlexRepresentation,
 ) -> AnilistWatchStatus {
     let episodes_watched = anime_entry_representation
         .plex_episodes
         .iter()
-        .filter(|x| x.last_viewed_at.is_some())
+        .filter(|x| x.view_count > 0)
         .count();
     let episodes_watched: u16 = u16::try_from(episodes_watched).unwrap();
 
-    let total_episodes = anime_entry_representation.anime_result.episodes.unwrap();
-    if total_episodes == episodes_watched {
+    let total_episodes = anime_entry_representation.anime_result.episodes;
+
+    if total_episodes == Some(episodes_watched) {
         return AnilistWatchStatus::Completed;
     }
 
@@ -97,7 +92,7 @@ fn get_watch_status(
         .into_iter()
         .map(|x| x.last_viewed_at)
         .max()
-        .unwrap();
+        .unwrap_or(None);
 
     let dropped_threshold = Utc::now() - Duration::days(30);
     if episodes_watched > 0
@@ -115,7 +110,8 @@ fn get_watch_status(
         return AnilistWatchStatus::Paused;
     }
 
-    if episodes_watched > 0 && episodes_watched < total_episodes {
+    if episodes_watched > 0 && (total_episodes.is_none() || Some(episodes_watched) < total_episodes)
+    {
         return AnilistWatchStatus::Current;
     }
 
@@ -233,14 +229,17 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "1".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "2".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "3".to_string(),
                     last_viewed_at: Some(12345),
                 },
@@ -263,14 +262,17 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "1".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "2".to_string(),
                     last_viewed_at: Some(12345),
                 },
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "3".to_string(),
                     last_viewed_at: Some(12345),
                 },
@@ -287,14 +289,17 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
+                    view_count: 0,
                     rating_key: "1".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
+                    view_count: 0,
                     rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
+                    view_count: 0,
                     rating_key: "3".to_string(),
                     last_viewed_at: None,
                 },
@@ -313,14 +318,17 @@ mod tests {
             anime_result: ANIME_RESULT,
             plex_episodes: vec![
                 PlexEpisode {
+                    view_count: 1,
                     rating_key: "1".to_string(),
                     last_viewed_at: Some(a_month_ago.timestamp()),
                 },
                 PlexEpisode {
+                    view_count: 0,
                     rating_key: "2".to_string(),
                     last_viewed_at: None,
                 },
                 PlexEpisode {
+                    view_count: 0,
                     rating_key: "3".to_string(),
                     last_viewed_at: None,
                 },
@@ -342,14 +350,17 @@ mod tests {
             plex_episodes: vec![
                 PlexEpisode {
                     rating_key: "1".to_string(),
+                    view_count: 1,
                     last_viewed_at: Some(two_weeks_ago.timestamp()),
                 },
                 PlexEpisode {
                     rating_key: "2".to_string(),
+                    view_count: 0,
                     last_viewed_at: None,
                 },
                 PlexEpisode {
                     rating_key: "3".to_string(),
+                    view_count: 1,
                     last_viewed_at: Some(a_month_ago.timestamp()),
                 },
             ],
@@ -368,14 +379,17 @@ mod tests {
             plex_episodes: vec![
                 PlexEpisode {
                     rating_key: "1".to_string(),
+                    view_count: 1,
                     last_viewed_at: Some(now.timestamp()),
                 },
                 PlexEpisode {
                     rating_key: "2".to_string(),
+                    view_count: 0,
                     last_viewed_at: None,
                 },
                 PlexEpisode {
                     rating_key: "3".to_string(),
+                    view_count: 0,
                     last_viewed_at: None,
                 },
             ],
@@ -392,26 +406,34 @@ mod tests {
             seasons: vec![
                 PlexSeason {
                     rating_key: "17457".to_string(),
+                    index: 1,
+                    parent_title: "".to_string(),
                     episodes: vec![
                         PlexEpisode {
                             rating_key: "1".to_string(),
+                            view_count: 1,
                             last_viewed_at: Some(12345),
                         },
                         PlexEpisode {
                             rating_key: "2".to_string(),
+                            view_count: 1,
                             last_viewed_at: Some(12345),
                         },
                     ],
                 },
                 PlexSeason {
                     rating_key: "12345".to_string(),
+                    index: 2,
+                    parent_title: "".to_string(),
                     episodes: vec![
                         PlexEpisode {
                             rating_key: "3".to_string(),
+                            view_count: 1,
                             last_viewed_at: Some(12345),
                         },
                         PlexEpisode {
                             rating_key: "4".to_string(),
+                            view_count: 1,
                             last_viewed_at: Some(12345),
                         },
                     ],
@@ -460,13 +482,17 @@ mod tests {
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
+                index: 1,
+                parent_title: "".to_string(),
                 episodes: vec![
                     PlexEpisode {
                         rating_key: "1".to_string(),
+                        view_count: 1,
                         last_viewed_at: Some(12345),
                     },
                     PlexEpisode {
                         rating_key: "2".to_string(),
+                        view_count: 1,
                         last_viewed_at: Some(12345),
                     },
                 ],
@@ -498,13 +524,17 @@ mod tests {
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
+                index: 1,
+                parent_title: "".to_string(),
                 episodes: vec![
                     PlexEpisode {
                         rating_key: "1".to_string(),
+                        view_count: 1,
                         last_viewed_at: Some(12345),
                     },
                     PlexEpisode {
                         rating_key: "2".to_string(),
+                        view_count: 1,
                         last_viewed_at: Some(12345),
                     },
                 ],
@@ -535,9 +565,12 @@ mod tests {
         let all_plex_series = vec![PlexSeries {
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
+                index: 1,
+                parent_title: "".to_string(),
                 rating_key: "17457".to_string(),
                 episodes: vec![PlexEpisode {
                     rating_key: "1".to_string(),
+                    view_count: 1,
                     last_viewed_at: Some(12345),
                 }],
             }],
