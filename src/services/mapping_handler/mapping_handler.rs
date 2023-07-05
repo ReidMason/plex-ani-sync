@@ -1,25 +1,24 @@
-use std::vec;
-
-use anyhow::Ok;
 use async_trait::async_trait;
+use log::error;
+use std::vec;
 
 use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
-use crate::services::plex::plex_api::{PlexSeries, ResponsePlexSeason, SeriesWithSeason};
+use crate::services::plex::plex_api::{PlexSeason, PlexSeries, ResponsePlexSeason};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
-    async fn create_mapping(&self, series: SeriesWithSeason)
-        -> Result<Vec<Mapping>, anyhow::Error>;
+    async fn create_mapping(&self, series: &PlexSeries) -> Result<Vec<Mapping>, anyhow::Error>;
     async fn find_match_for_season(
         &self,
-        season: &ResponsePlexSeason,
+        season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
     async fn get_all_relevant_mappings(
         &self,
-        all_series: Vec<PlexSeries>,
+        all_series: &Vec<PlexSeries>,
     ) -> Vec<MappingWithListData>;
+    async fn get_all_mappings(&self) -> Vec<Mapping>;
 }
 
 pub struct MappingHandler<T, J>
@@ -58,7 +57,7 @@ struct ResultScore {
     score: u16,
 }
 
-fn find_match(results: Vec<AnimeResult>, target: &ResponsePlexSeason) -> Option<AnimeResult> {
+fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeResult> {
     let mut potential_matches: Vec<ResultScore> = results
         .into_iter()
         .map(|x| ResultScore {
@@ -69,7 +68,8 @@ fn find_match(results: Vec<AnimeResult>, target: &ResponsePlexSeason) -> Option<
 
     potential_matches.iter_mut().for_each(|potential_match| {
         // Match episode count
-        if potential_match.result.episodes == Some(target.episodes) {
+        let potential_match_episodes: usize = potential_match.result.episodes.unwrap_or(0).into();
+        if potential_match_episodes == target.episodes.len() {
             potential_match.score += 100;
         }
 
@@ -134,7 +134,7 @@ fn get_mapped_episode_count(mappings: &[Mapping], rating_key: &str) -> u32 {
         .sum::<u32>()
 }
 
-fn get_prev_mapping(mappings: &[Mapping], season: &ResponsePlexSeason) -> Option<Mapping> {
+fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping> {
     let mut prev_mappings: Vec<&Mapping> = mappings
         .iter()
         .filter(|x| x.plex_id == season.rating_key)
@@ -149,6 +149,7 @@ fn get_prev_mapping(mappings: &[Mapping], season: &ResponsePlexSeason) -> Option
     None
 }
 
+#[derive(Debug)]
 pub struct MappingWithListData {
     pub mapping: Mapping,
     pub anilist_series: AnimeResult,
@@ -162,7 +163,7 @@ where
 {
     async fn find_match_for_season(
         &self,
-        season: &ResponsePlexSeason,
+        season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error> {
         let results = self
             .anime_list_service
@@ -178,7 +179,7 @@ where
 
     async fn get_all_relevant_mappings(
         &self,
-        all_series: Vec<PlexSeries>,
+        all_series: &Vec<PlexSeries>,
     ) -> Vec<MappingWithListData> {
         let mut mappings: Vec<MappingWithListData> = vec![];
         for series in all_series {
@@ -192,9 +193,23 @@ where
                 let anilist_series = self
                     .anime_list_service
                     .get_anime(&mapping.anime_list_id)
-                    .await
-                    .unwrap()
-                    .unwrap();
+                    .await;
+                let anilist_series = match anilist_series {
+                    Ok(x) => x,
+                    Err(_) => {
+                        error!("Failed to request anilist entry");
+                        continue;
+                    }
+                };
+
+                let anilist_series = match anilist_series {
+                    Some(x) => x,
+                    None => {
+                        error!("Failed to find anilist entry for mapping");
+                        continue;
+                    }
+                };
+
                 let mapping_with_data = MappingWithListData {
                     mapping,
                     anilist_series,
@@ -206,17 +221,22 @@ where
         mappings
     }
 
-    async fn create_mapping(
-        &self,
-        series: SeriesWithSeason,
-    ) -> Result<Vec<Mapping>, anyhow::Error> {
+    async fn get_all_mappings(&self) -> Vec<Mapping> {
+        let result = self.db_store.get_all_mappings().await;
+        match result {
+            Ok(x) => x,
+            Err(_) => vec![],
+        }
+    }
+
+    async fn create_mapping(&self, series: &PlexSeries) -> Result<Vec<Mapping>, anyhow::Error> {
         // TODO: Reduce the chance of mapping errors by building up a vec of mappings for one
         // season then only push them if all the episodes are covered
 
         // Load any existing mappings
         let mut mappings = self
             .db_store
-            .get_mapping_for_series(&series.series.rating_key)
+            .get_mapping_for_series(&series.rating_key)
             .await?;
 
         // Just skip big series for now
@@ -244,7 +264,8 @@ where
             // We start by just mapping the first season
             let is_first_season = season.index == 1;
             if is_first_season
-                && get_mapped_episode_count(&mappings, &season.rating_key) < season.episodes.into()
+                && get_mapped_episode_count(&mappings, &season.rating_key)
+                    < season.episodes.len().try_into().unwrap()
             {
                 let found_match = self.find_match_for_season(season).await?;
                 let found_match = match found_match {
@@ -256,11 +277,14 @@ where
                     id: 0,
                     list_provider_id: 1,
                     plex_id: season.rating_key.clone(),
-                    plex_series_id: series.series.rating_key.clone(),
-                    plex_episode_start: 0,
-                    season_length: found_match.episodes.unwrap_or(season.episodes).into(),
+                    plex_series_id: series.rating_key.clone(),
+                    plex_episode_start: 1,
+                    season_length: found_match
+                        .episodes
+                        .unwrap_or(season.episodes.len().try_into().unwrap())
+                        .into(),
                     anime_list_id: found_match.id.to_string(),
-                    episode_start: 0,
+                    episode_start: 1,
                     enabled: true,
                     ignored: false,
                 };
@@ -273,7 +297,7 @@ where
 
                 while counter < limit
                     && get_mapped_episode_count(&mappings, &season.rating_key)
-                        < season.episodes.into()
+                        < season.episodes.len().try_into().unwrap()
                 {
                     counter += 1;
                     let mut prev_mapping = get_prev_mapping(&mappings, season);
@@ -322,7 +346,7 @@ where
                         get_mapped_episode_count(&mappings, &season.rating_key);
                     // TODO: Don't just use 0 if the episode number isn't known This likely means it's still releasing but we need to check
                     if current_mapped_episodes + u32::from(sequel.episodes.unwrap_or(0))
-                        > season.episodes.into()
+                        != season.get_episode_count()
                     {
                         let found_match = find_match(vec![sequel], season);
                         let found_match = match found_match {
@@ -346,11 +370,14 @@ where
                         id: 0,
                         list_provider_id: 1,
                         plex_id: season.rating_key.clone(),
-                        plex_series_id: series.series.rating_key.clone(),
+                        plex_series_id: series.rating_key.clone(),
                         plex_episode_start,
-                        season_length: sequel.episodes.unwrap_or(season.episodes).into(),
+                        season_length: sequel
+                            .episodes
+                            .unwrap_or(season.episodes.len().try_into().unwrap())
+                            .into(),
                         anime_list_id: sequel.id.to_string(),
-                        episode_start: 0,
+                        episode_start: 1,
                         enabled: true,
                         ignored: false,
                     };
@@ -376,7 +403,7 @@ mod tests {
             anime_list_service::anilist_service::AnilistService,
             config::config::ConfigService,
             dbstore::{dbstore::DbStore, sqlite::Sqlite},
-            plex::plex_api::{PlexSeriesResponse, ResponsePlexSeason, ResponsePlexSeries},
+            plex::plex_api::{PlexEpisode, ResponsePlexSeason, ResponsePlexSeries},
         },
         utils::{get_db_file_location, init_logger},
     };
@@ -398,31 +425,43 @@ mod tests {
         MappingHandler::new(list_service, db_store)
     }
 
+    fn generate_episodes(num_episodes: u16) -> Vec<PlexEpisode> {
+        let mut episodes: Vec<PlexEpisode> = vec![];
+
+        for i in 1..=num_episodes {
+            episodes.push(PlexEpisode {
+                rating_key: i.to_string(),
+                view_count: 0,
+                last_viewed_at: None,
+            })
+        }
+
+        return episodes;
+    }
+
     #[tokio::test]
     async fn test_one_to_one_mapping() {
         let mapper = init().await;
 
-        let series = SeriesWithSeason {
-            series: ResponsePlexSeries {
-                title: "Mysterious Girlfriend X".to_string(),
-                rating_key: "12345".to_string(),
-                last_viewed_at: Some(0),
-            },
-            seasons: vec![ResponsePlexSeason {
+        let series = PlexSeries {
+            rating_key: "12345".to_string(),
+            seasons: vec![PlexSeason {
                 rating_key: "12345".to_string(),
                 parent_title: "Mysterious Girlfriend X".to_string(),
                 index: 1,
-                episodes: 13,
-                parent_year: Some(2012),
-                watched_episodes: 0,
-                last_viewed_at: Some(0),
+                episodes: generate_episodes(13),
             }],
         };
 
         let result = mapper
-            .create_mapping(series)
+            .create_mapping(&series)
             .await
             .expect("Faied to get result for one to one mapping");
+
+        println!("{}", series.seasons[0].episodes.len());
+        for res in result.iter() {
+            println!("{}", res.anime_list_id);
+        }
 
         assert_eq!(1, result.len());
         assert_eq!("12467".to_string(), result[0].anime_list_id)
@@ -432,36 +471,26 @@ mod tests {
     async fn two_season_mapping() {
         let mapper = init().await;
 
-        let series = SeriesWithSeason {
-            series: ResponsePlexSeries {
-                rating_key: "12794".to_string(),
-                title: "Vinland Saga".to_string(),
-                last_viewed_at: Some(1687277617),
-            },
+        let series = PlexSeries {
+            rating_key: "12794".to_string(),
             seasons: vec![
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "12795".to_string(),
+                    parent_title: "Vinland Saga".to_string(),
                     index: 1,
-                    parent_title: "Vinland Saga".to_string(),
-                    parent_year: None,
-                    watched_episodes: 24,
-                    episodes: 24,
-                    last_viewed_at: Some(1682194762),
+                    episodes: generate_episodes(24),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "45711".to_string(),
-                    index: 2,
                     parent_title: "Vinland Saga".to_string(),
-                    parent_year: Some(2019),
-                    watched_episodes: 24,
-                    episodes: 24,
-                    last_viewed_at: Some(1687277617),
+                    index: 2,
+                    episodes: generate_episodes(24),
                 },
             ],
         };
 
         let result = mapper
-            .create_mapping(series)
+            .create_mapping(&series)
             .await
             .expect("Faied to get result for two season mapping");
 
@@ -474,63 +503,44 @@ mod tests {
     async fn overlord_series_with_difficult_name() {
         let mapper = init().await;
 
-        let series = SeriesWithSeason {
-            series: ResponsePlexSeries {
-                rating_key: "10618".to_string(),
-                title: "Overlord".to_string(),
-                last_viewed_at: Some(1659087323),
-            },
+        let series = PlexSeries {
+            rating_key: "10618".to_string(),
             seasons: vec![
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "29790".to_string(),
                     index: 0,
                     parent_title: "Overlord".to_string(),
-                    parent_year: None,
-                    watched_episodes: 13,
-                    episodes: 37,
-                    last_viewed_at: None,
+                    episodes: generate_episodes(37),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "10619".to_string(),
                     index: 1,
                     parent_title: "Overlord".to_string(),
-                    parent_year: None,
-                    watched_episodes: 13,
-                    episodes: 13,
-                    last_viewed_at: Some(1656434507),
+                    episodes: generate_episodes(13),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "10647".to_string(),
                     index: 2,
                     parent_title: "Overlord".to_string(),
-                    parent_year: None,
-                    watched_episodes: 13,
-                    episodes: 13,
-                    last_viewed_at: Some(1659087323),
+                    episodes: generate_episodes(13),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "10663".to_string(),
                     index: 3,
                     parent_title: "Overlord".to_string(),
-                    parent_year: None,
-                    watched_episodes: 13,
-                    episodes: 13,
-                    last_viewed_at: Some(1609995008),
+                    episodes: generate_episodes(13),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "43158".to_string(),
                     index: 4,
                     parent_title: "Overlord".to_string(),
-                    parent_year: Some(2015),
-                    watched_episodes: 0,
-                    episodes: 13,
-                    last_viewed_at: None,
+                    episodes: generate_episodes(13),
                 },
             ],
         };
 
         let result = mapper
-            .create_mapping(series)
+            .create_mapping(&series)
             .await
             .expect("Faied to get result for complex name mapping");
 
@@ -545,63 +555,44 @@ mod tests {
     async fn series_with_two_anilist_entries_for_one_plex_season() {
         let mapper = init().await;
 
-        let series = SeriesWithSeason {
-            series: ResponsePlexSeries {
-                rating_key: "17456".to_string(),
-                title: "Attack on Titan".to_string(),
-                last_viewed_at: Some(1682194387),
-            },
+        let series = PlexSeries {
+            rating_key: "17456".to_string(),
             seasons: vec![
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "30037".to_string(),
                     index: 0,
                     parent_title: "Attack on Titan".to_string(),
-                    parent_year: None,
-                    watched_episodes: 8,
-                    episodes: 8,
-                    last_viewed_at: None,
+                    episodes: generate_episodes(8),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "17457".to_string(),
                     index: 1,
                     parent_title: "Attack on Titan".to_string(),
-                    parent_year: None,
-                    watched_episodes: 25,
-                    episodes: 25,
-                    last_viewed_at: Some(1682194387),
+                    episodes: generate_episodes(25),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "17483".to_string(),
                     index: 2,
                     parent_title: "Attack on Titan".to_string(),
-                    parent_year: None,
-                    watched_episodes: 0,
-                    episodes: 12,
-                    last_viewed_at: Some(1639331438),
+                    episodes: generate_episodes(12),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "17496".to_string(),
                     index: 3,
                     parent_title: "Attack on Titan".to_string(),
-                    parent_year: None,
-                    watched_episodes: 0,
-                    episodes: 22,
-                    last_viewed_at: Some(1602543627),
+                    episodes: generate_episodes(22),
                 },
-                ResponsePlexSeason {
+                PlexSeason {
                     rating_key: "22191".to_string(),
                     index: 4,
                     parent_title: "Attack on Titan".to_string(),
-                    parent_year: None,
-                    watched_episodes: 29,
-                    episodes: 29,
-                    last_viewed_at: Some(1678324708),
+                    episodes: generate_episodes(29),
                 },
             ],
         };
 
         let result = mapper
-            .create_mapping(series)
+            .create_mapping(&series)
             .await
             .expect("Faied to get result for complex name mapping");
 
@@ -616,5 +607,6 @@ mod tests {
         assert_eq!("146984".to_string(), result[6].anime_list_id);
     }
 
-    // Write test for way of the house husband because of an indexing error
+    // TODO: Write test for way of the house husband because of an indexing error
+    // TODO: Add test for maken ki
 }
