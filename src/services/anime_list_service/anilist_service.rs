@@ -59,6 +59,10 @@ where
         &self,
         data: D,
     ) -> Result<AnilistResponse<R>, anyhow::Error> {
+        // Sleep to avoid rate limit
+        let ten_millis = Duration::from_millis(1000);
+        thread::sleep(ten_millis);
+
         let response = self
             .http_client
             .post(&self.base_url)
@@ -86,14 +90,10 @@ where
             }
         };
 
-        // Sleep to avoid rate limit
-        let ten_millis = Duration::from_millis(1000);
-        thread::sleep(ten_millis);
-
         Ok(response)
     }
 
-    async fn get_user(&self) -> Result<AnilistUser, anyhow::Error> {
+    pub async fn get_user(&self) -> Result<AnilistUser, anyhow::Error> {
         let query = r#"query {
                         Viewer {
                             id
@@ -119,9 +119,9 @@ struct AnilistUserResponse {
 }
 
 #[derive(Deserialize)]
-struct AnilistUser {
-    id: u32,
-    name: String,
+pub struct AnilistUser {
+    pub id: u32,
+    pub name: String,
 }
 
 #[derive(Serialize)]
@@ -232,7 +232,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
 
         if result.is_some() {
             info!(
-                "Found cached anilist anime response for anime_i: {}",
+                "Found cached anilist anime response for anime_id: {}",
                 anime_id
             );
             return Ok(result);
@@ -251,20 +251,20 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         year
         month
         day
-      }
+        }
       startDate {
         year
         month
         day
-      }
+        }
       title {
         english
         romaji
-      }
+        }
       relations {
         edges {
           relationType
-        }
+            }
         nodes {
           id
           format
@@ -272,9 +272,16 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
             year
             month
             day
-          }
-          startDate {
-  }"#;
+                }
+            startDate {
+                year
+                month
+                day
+                }
+            }
+        }
+    }
+}"#;
 
         let vars = GetAnimeVars {
             anime_id: anime_id.to_string(),
@@ -648,7 +655,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_anilist_get_anime() {
+    async fn test_get_anime() {
         init_logger();
 
         let response = get_response("get_anime");
@@ -665,6 +672,7 @@ mod tests {
                 "anime_id": anime_id
             }
         });
+        // TODO: Test the rest of the body with the query as well
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/"))

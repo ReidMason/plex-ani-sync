@@ -120,6 +120,15 @@ pub struct AnimeResult {
     pub relations: Relations,
 }
 
+impl AnimeResult {
+    pub fn get_title(&self) -> &str {
+        match &self.title.english {
+            Some(x) => &x,
+            None => &self.title.romaji,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Date {

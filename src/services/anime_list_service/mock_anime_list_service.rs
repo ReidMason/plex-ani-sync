@@ -47,26 +47,23 @@ impl AnimeListService for MockAnimeListService {
         return Ok(result.data.page.media);
     }
 
-    async fn get_anime(&self, anime_id: &str) -> Result<Option<AnimeResult>, anyhow::Error> {
+    async fn get_anime(&self, _: &str) -> Result<Option<AnimeResult>, anyhow::Error> {
         todo!()
     }
 
-    async fn find_sequel(
-        &self,
-        anime_result: AnimeResult,
-    ) -> Result<Option<AnimeResult>, anyhow::Error> {
+    async fn find_sequel(&self, _: AnimeResult) -> Result<Option<AnimeResult>, anyhow::Error> {
         todo!()
     }
 
-    async fn get_list(&self, user_id: u32) -> Result<Vec<AnimeListEntry>, anyhow::Error> {
+    async fn get_list(&self, _: u32) -> Result<Vec<AnimeListEntry>, anyhow::Error> {
         todo!()
     }
 
     async fn update_list_entry(
         &self,
-        media_id: u32,
-        status: AnilistWatchStatus,
-        progress: u16,
+        _: u32,
+        _: AnilistWatchStatus,
+        _: u16,
     ) -> Result<SaveMediaListEntry, anyhow::Error> {
         todo!()
     }
