@@ -34,6 +34,8 @@ impl From<ResponsePlexSeries> for PlexSeries {
 
 pub struct PlexSeason {
     pub rating_key: String,
+    pub index: u8,
+    pub parent_title: String,
     pub episodes: Vec<PlexEpisode>,
 }
 
@@ -41,8 +43,16 @@ impl From<ResponsePlexSeason> for PlexSeason {
     fn from(season: ResponsePlexSeason) -> Self {
         Self {
             rating_key: season.rating_key,
+            parent_title: season.parent_title,
+            index: season.index,
             episodes: vec![],
         }
+    }
+}
+
+impl PlexSeason {
+    pub fn get_episode_count(&self) -> u32 {
+        return u32::try_from(self.episodes.len()).unwrap();
     }
 }
 
@@ -50,6 +60,7 @@ impl From<ResponsePlexSeason> for PlexSeason {
 pub struct PlexEpisode {
     pub rating_key: String,
     pub last_viewed_at: Option<i64>,
+    pub view_count: i32,
 }
 
 impl From<ResponsePlexEpisode> for PlexEpisode {
@@ -57,6 +68,7 @@ impl From<ResponsePlexEpisode> for PlexEpisode {
         Self {
             rating_key: episode.rating_key,
             last_viewed_at: episode.last_viewed_at,
+            view_count: episode.view_count,
         }
     }
 }
@@ -68,6 +80,9 @@ pub struct ResponsePlexEpisode {
 
     #[serde(rename = "lastViewedAt")]
     pub last_viewed_at: Option<i64>,
+
+    #[serde(rename = "viewCount")]
+    pub view_count: i32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -131,12 +146,6 @@ pub struct ResponsePlexSeries {
 pub struct SeriesWithSeason {
     pub series: ResponsePlexSeries,
     pub seasons: Vec<ResponsePlexSeason>,
-}
-
-impl SeriesWithSeason {
-    pub fn new(series: ResponsePlexSeries, seasons: Vec<ResponsePlexSeason>) -> Self {
-        Self { series, seasons }
-    }
 }
 
 impl Default for BaseResponse<DirectoryResponse<ResponsePlexLibrary>> {
