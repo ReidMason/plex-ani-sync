@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqliteError, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     ConnectOptions, FromRow, Pool,
 };
 
@@ -161,6 +161,12 @@ impl DbStore for Sqlite {
             .await
     }
 
+    async fn get_all_mappings(&self) -> Result<Vec<Mapping>, sqlx::Error> {
+        sqlx::query_as::<_, Mapping>("SELECT * FROM mapping")
+            .fetch_all(&__self.pool)
+            .await
+    }
+
     async fn save_mapping(&self, mapping: &Mapping) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO mapping (list_provider_id, plex_id, plex_series_id, plex_episode_start, season_length, anime_list_id, episode_start, enabled, ignored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(mapping.list_provider_id)
@@ -206,7 +212,7 @@ pub struct ListProvider {
     pub name: String,
 }
 
-#[derive(FromRow, Clone, Serialize, Deserialize)]
+#[derive(FromRow, Clone, Serialize, Deserialize, Debug)]
 pub struct Mapping {
     pub id: u32,
     pub list_provider_id: u32,

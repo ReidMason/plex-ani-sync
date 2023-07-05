@@ -18,4 +18,5 @@ pub trait DbStore: Sync + Send {
         &self,
         plex_series_id: &str,
     ) -> Result<Vec<Mapping>, sqlx::Error>;
+    async fn get_all_mappings(&self) -> Result<Vec<Mapping>, sqlx::Error>;
 }
