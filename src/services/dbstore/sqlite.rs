@@ -155,16 +155,18 @@ impl DbStore for Sqlite {
         &self,
         plex_series_id: &str,
     ) -> Result<Vec<Mapping>, sqlx::Error> {
-        sqlx::query_as::<_, Mapping>("SELECT * FROM mapping WHERE plex_series_id = ?")
+        sqlx::query_as::<_, Mapping>("SELECT *, a.episodes FROM mapping INNER JOIN anime a on anime_id = anime_list_id WHERE plex_series_id = ?")
             .bind(plex_series_id)
             .fetch_all(&self.pool)
             .await
     }
 
     async fn get_all_mappings(&self) -> Result<Vec<Mapping>, sqlx::Error> {
-        sqlx::query_as::<_, Mapping>("SELECT * FROM mapping")
-            .fetch_all(&__self.pool)
-            .await
+        sqlx::query_as::<_, Mapping>(
+            "SELECT *, a.episodes FROM mapping INNER JOIN anime a on anime_id = anime_list_id;",
+        )
+        .fetch_all(&__self.pool)
+        .await
     }
 
     async fn save_mapping(&self, mapping: &Mapping) -> Result<(), sqlx::Error> {
@@ -224,6 +226,7 @@ pub struct Mapping {
     pub episode_start: u32,
     pub enabled: bool,
     pub ignored: bool,
+    pub episodes: Option<u16>,
 }
 
 #[cfg(test)]

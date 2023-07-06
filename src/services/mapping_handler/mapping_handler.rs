@@ -287,6 +287,7 @@ where
                     episode_start: 1,
                     enabled: true,
                     ignored: false,
+                    episodes: found_match.episodes,
                 };
                 mappings.push(mapping);
             }
@@ -380,6 +381,7 @@ where
                         episode_start: 1,
                         enabled: true,
                         ignored: false,
+                        episodes: sequel.episodes,
                     };
                     // println!("Added mapping: {:?}", mapping);
                     mappings.push(mapping);
@@ -594,7 +596,7 @@ mod tests {
         let result = mapper
             .create_mapping(&series)
             .await
-            .expect("Faied to get result for complex name mapping");
+            .expect("Faied to get result for two anilist entries for one plex season");
 
         // println!("{:?}", result);
         assert_eq!(7, result.len());
