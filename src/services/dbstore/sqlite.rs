@@ -170,7 +170,9 @@ impl DbStore for Sqlite {
     }
 
     async fn save_mapping(&self, mapping: &Mapping) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT INTO mapping (list_provider_id, plex_id, plex_series_id, plex_episode_start, season_length, anime_list_id, episode_start, enabled, ignored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT OR REPLACE INTO anime (anime_id, episodes) VALUES (?, ?); INSERT INTO mapping (list_provider_id, plex_id, plex_series_id, plex_episode_start, season_length, anime_list_id, episode_start, enabled, ignored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(&mapping.anime_list_id)
+        .bind(mapping.episodes)
             .bind(mapping.list_provider_id)
             .bind(&mapping.plex_id)
             .bind(&mapping.plex_series_id)
@@ -180,7 +182,7 @@ impl DbStore for Sqlite {
             .bind(mapping.episode_start)
             .bind(mapping.enabled)
             .bind(mapping.ignored)
-            .fetch_one(&self.pool)
+            .execute(&self.pool)
             .await?;
         Ok(())
     }
@@ -325,5 +327,36 @@ mod tests {
             .expect("Failed to get cached data");
 
         assert_eq!(cached_data[0].id, 2);
+    }
+
+    #[tokio::test]
+    async fn test_save_new_mapping() {
+        init_logger();
+
+        let mapping = Mapping {
+            id: 0,
+            list_provider_id: 1,
+            plex_id: "17457".to_string(),
+            plex_series_id: "".to_string(),
+            plex_episode_start: 1,
+            season_length: 1,
+            anime_list_id: "16498".to_string(),
+            episode_start: 1,
+            enabled: true,
+            ignored: false,
+            episodes: Some(2),
+        };
+
+        let mut dbstore = Sqlite::new("sqlite::memory:").await;
+        dbstore.migrate().await;
+
+        let result = dbstore.save_mapping(&mapping).await;
+
+        match result {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("Failed to insert mapping: {}", e)
+            }
+        }
     }
 }
