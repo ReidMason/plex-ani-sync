@@ -1,11 +1,10 @@
 use async_trait::async_trait;
-use log::error;
 use std::vec;
 
 use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
-use crate::services::plex::plex_api::{PlexSeason, PlexSeries, ResponsePlexSeason};
+use crate::services::plex::plex_api::{PlexSeason, PlexSeries};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
@@ -14,10 +13,7 @@ pub trait MappingHandlerInterface {
         &self,
         season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
-    async fn get_all_relevant_mappings(
-        &self,
-        all_series: &Vec<PlexSeries>,
-    ) -> Vec<MappingWithListData>;
+    async fn get_all_relevant_mappings(&self, all_series: &Vec<PlexSeries>) -> Vec<Mapping>;
     async fn get_all_mappings(&self) -> Vec<Mapping>;
 }
 
@@ -177,45 +173,16 @@ where
         return Ok(find_match(results, season));
     }
 
-    async fn get_all_relevant_mappings(
-        &self,
-        all_series: &Vec<PlexSeries>,
-    ) -> Vec<MappingWithListData> {
-        let mut mappings: Vec<MappingWithListData> = vec![];
+    async fn get_all_relevant_mappings(&self, all_series: &Vec<PlexSeries>) -> Vec<Mapping> {
+        let mut mappings: Vec<Mapping> = vec![];
         for series in all_series {
-            let series_mappings = self
+            let mut series_mappings = self
                 .db_store
                 .get_mapping_for_series(&series.rating_key)
                 .await
                 .unwrap();
 
-            for mapping in series_mappings {
-                let anilist_series = self
-                    .anime_list_service
-                    .get_anime(&mapping.anime_list_id)
-                    .await;
-                let anilist_series = match anilist_series {
-                    Ok(x) => x,
-                    Err(_) => {
-                        error!("Failed to request anilist entry");
-                        continue;
-                    }
-                };
-
-                let anilist_series = match anilist_series {
-                    Some(x) => x,
-                    None => {
-                        error!("Failed to find anilist entry for mapping");
-                        continue;
-                    }
-                };
-
-                let mapping_with_data = MappingWithListData {
-                    mapping,
-                    anilist_series,
-                };
-                mappings.push(mapping_with_data);
-            }
+            mappings.append(&mut series_mappings);
         }
 
         mappings
@@ -283,7 +250,7 @@ where
                         .episodes
                         .unwrap_or(season.episodes.len().try_into().unwrap())
                         .into(),
-                    anime_list_id: found_match.id.to_string(),
+                    anime_list_id: found_match.id,
                     episode_start: 1,
                     enabled: true,
                     ignored: false,
@@ -323,7 +290,7 @@ where
 
                     let prev_mapping_entry = self
                         .anime_list_service
-                        .get_anime(&prev_mapping.anime_list_id)
+                        .get_anime(prev_mapping.anime_list_id)
                         .await?;
 
                     let prev_mapping_entry = match prev_mapping_entry {
@@ -345,10 +312,12 @@ where
 
                     let current_mapped_episodes =
                         get_mapped_episode_count(&mappings, &season.rating_key);
-                    // TODO: Don't just use 0 if the episode number isn't known This likely means it's still releasing but we need to check
-                    if current_mapped_episodes + u32::from(sequel.episodes.unwrap_or(0))
-                        != season.get_episode_count()
-                    {
+                    // TODO: Don't just use 0 if the episode number isn't known
+                    // This likely means it's still releasing but we need to check
+
+                    let new_mapped_episodes =
+                        current_mapped_episodes + u32::from(sequel.episodes.unwrap_or(0));
+                    if new_mapped_episodes != season.get_episode_count() {
                         let found_match = find_match(vec![sequel], season);
                         let found_match = match found_match {
                             Some(x) => x,
@@ -377,7 +346,7 @@ where
                             .episodes
                             .unwrap_or(season.episodes.len().try_into().unwrap())
                             .into(),
-                        anime_list_id: sequel.id.to_string(),
+                        anime_list_id: sequel.id,
                         episode_start: 1,
                         enabled: true,
                         ignored: false,
@@ -405,7 +374,7 @@ mod tests {
             anime_list_service::anilist_service::AnilistService,
             config::config::ConfigService,
             dbstore::{dbstore::DbStore, sqlite::Sqlite},
-            plex::plex_api::{PlexEpisode, ResponsePlexSeason, ResponsePlexSeries},
+            plex::plex_api::PlexEpisode,
         },
         utils::{get_db_file_location, init_logger},
     };
@@ -466,7 +435,7 @@ mod tests {
         }
 
         assert_eq!(1, result.len());
-        assert_eq!("12467".to_string(), result[0].anime_list_id)
+        assert_eq!(12467, result[0].anime_list_id)
     }
 
     #[tokio::test]
@@ -497,8 +466,8 @@ mod tests {
             .expect("Faied to get result for two season mapping");
 
         assert_eq!(2, result.len());
-        assert_eq!("101348".to_string(), result[0].anime_list_id);
-        assert_eq!("136430".to_string(), result[1].anime_list_id);
+        assert_eq!(101348, result[0].anime_list_id);
+        assert_eq!(136430, result[1].anime_list_id);
     }
 
     #[tokio::test]
@@ -547,10 +516,10 @@ mod tests {
             .expect("Faied to get result for complex name mapping");
 
         assert_eq!(4, result.len());
-        assert_eq!("20832".to_string(), result[0].anime_list_id);
-        assert_eq!("98437".to_string(), result[1].anime_list_id);
-        assert_eq!("101474".to_string(), result[2].anime_list_id);
-        assert_eq!("133844".to_string(), result[3].anime_list_id);
+        assert_eq!(20832, result[0].anime_list_id);
+        assert_eq!(98437, result[1].anime_list_id);
+        assert_eq!(101474, result[2].anime_list_id);
+        assert_eq!(133844, result[3].anime_list_id);
     }
 
     #[tokio::test]
@@ -596,17 +565,17 @@ mod tests {
         let result = mapper
             .create_mapping(&series)
             .await
-            .expect("Faied to get result for two anilist entries for one plex season");
+            .expect("Faied to get result for up to three anilist entries for one plex season");
 
         // println!("{:?}", result);
         assert_eq!(7, result.len());
-        assert_eq!("16498".to_string(), result[0].anime_list_id);
-        assert_eq!("20958".to_string(), result[1].anime_list_id);
-        assert_eq!("99147".to_string(), result[2].anime_list_id);
-        assert_eq!("104578".to_string(), result[3].anime_list_id);
-        assert_eq!("110277".to_string(), result[4].anime_list_id);
-        assert_eq!("131681".to_string(), result[5].anime_list_id);
-        assert_eq!("146984".to_string(), result[6].anime_list_id);
+        assert_eq!(16498, result[0].anime_list_id);
+        assert_eq!(20958, result[1].anime_list_id);
+        assert_eq!(99147, result[2].anime_list_id);
+        assert_eq!(104578, result[3].anime_list_id);
+        assert_eq!(110277, result[4].anime_list_id);
+        assert_eq!(131681, result[5].anime_list_id);
+        assert_eq!(146984, result[6].anime_list_id);
     }
 
     // TODO: Write test for way of the house husband because of an indexing error

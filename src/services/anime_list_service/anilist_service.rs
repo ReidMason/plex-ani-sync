@@ -136,7 +136,7 @@ struct SearchAnimeVars {
 
 #[derive(Serialize)]
 struct GetAnimeVars {
-    anime_id: String,
+    anime_id: u32,
 }
 
 #[derive(Serialize)]
@@ -227,8 +227,8 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         return Ok(result.data.page.media);
     }
 
-    async fn get_anime(&self, anime_id: &str) -> Result<Option<AnimeResult>, anyhow::Error> {
-        let result = self.dbstore.get_cached_anime_result(&anime_id).await;
+    async fn get_anime(&self, anime_id: u32) -> Result<Option<AnimeResult>, anyhow::Error> {
+        let result = self.dbstore.get_cached_anime_result(anime_id).await;
 
         if result.is_some() {
             info!(
@@ -283,9 +283,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
     }
 }"#;
 
-        let vars = GetAnimeVars {
-            anime_id: anime_id.to_string(),
-        };
+        let vars = GetAnimeVars { anime_id };
         let data = GraphQlBody {
             query: String::from(query),
             variables: json!(vars),
@@ -294,7 +292,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         let result: AnilistResponse<GetAnimeRequestResult> = self.make_request(data).await?;
 
         self.dbstore
-            .save_cached_anime_result(&anime_id, result.data.media.clone())
+            .save_cached_anime_result(anime_id, result.data.media.clone())
             .await;
 
         return Ok(Some(result.data.media));
@@ -308,7 +306,7 @@ impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
         let edges = anime_result.relations.edges;
         for (edge, node) in edges.iter().zip(nodes) {
             if edge.relation_type == RelationType::Sequel {
-                return self.get_anime(&node.id.to_string()).await;
+                return self.get_anime(node.id).await;
             }
         }
 
@@ -666,7 +664,7 @@ mod tests {
         config.anilist_token = "testToken123".to_string();
         let config_service = ConfigService::new(config);
 
-        let anime_id = "11757";
+        let anime_id = 11757;
         let expected_body = json!({
             "variables": {
                 "anime_id": anime_id

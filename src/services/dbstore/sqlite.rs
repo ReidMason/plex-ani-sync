@@ -102,7 +102,7 @@ impl DbStore for Sqlite {
         };
     }
 
-    async fn get_cached_anime_result(&self, anime_id: &str) -> Option<AnimeResult> {
+    async fn get_cached_anime_result(&self, anime_id: u32) -> Option<AnimeResult> {
         let search_result =
             sqlx::query_as::<_, CachedAnime>("SELECT * FROM anime_cache WHERE anime_id = ?")
                 .bind(anime_id)
@@ -124,7 +124,7 @@ impl DbStore for Sqlite {
         return Some(anime_data);
     }
 
-    async fn save_cached_anime_result(&self, anime_id: &str, data: AnimeResult) {
+    async fn save_cached_anime_result(&self, anime_id: u32, data: AnimeResult) {
         let string_data = serde_json::to_string(&data).unwrap();
 
         sqlx::query_as::<_, CachedAnime>(
@@ -224,7 +224,7 @@ pub struct Mapping {
     pub plex_series_id: String,
     pub plex_episode_start: u32,
     pub season_length: u32,
-    pub anime_list_id: String,
+    pub anime_list_id: u32,
     pub episode_start: u32,
     pub enabled: bool,
     pub ignored: bool,
@@ -340,7 +340,7 @@ mod tests {
             plex_series_id: "".to_string(),
             plex_episode_start: 1,
             season_length: 1,
-            anime_list_id: "16498".to_string(),
+            anime_list_id: 16498,
             episode_start: 1,
             enabled: true,
             ignored: false,

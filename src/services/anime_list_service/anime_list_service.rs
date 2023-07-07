@@ -6,7 +6,7 @@ use super::anilist_service::SaveMediaListEntry;
 #[async_trait]
 pub trait AnimeListService {
     async fn search_anime(&self, search_term: &str) -> Result<Vec<AnimeResult>, anyhow::Error>;
-    async fn get_anime(&self, anime_id: &str) -> Result<Option<AnimeResult>, anyhow::Error>;
+    async fn get_anime(&self, anime_id: u32) -> Result<Option<AnimeResult>, anyhow::Error>;
     async fn find_sequel(
         &self,
         anime_result: AnimeResult,
@@ -160,7 +160,7 @@ pub struct Edge {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Node {
-    pub id: i64,
+    pub id: u32,
     pub format: Option<MediaFormat>,
     pub episodes: Option<u16>,
     pub end_date: Date,

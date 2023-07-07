@@ -47,7 +47,7 @@ impl AnimeListService for MockAnimeListService {
         return Ok(result.data.page.media);
     }
 
-    async fn get_anime(&self, _: &str) -> Result<Option<AnimeResult>, anyhow::Error> {
+    async fn get_anime(&self, _: u32) -> Result<Option<AnimeResult>, anyhow::Error> {
         todo!()
     }
 

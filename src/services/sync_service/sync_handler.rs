@@ -3,7 +3,7 @@ use std::cmp::min;
 use chrono::{Duration, Utc};
 
 use crate::services::{
-    anime_list_service::anime_list_service::{AnilistWatchStatus, AnimeListEntry, AnimeResult},
+    anime_list_service::anime_list_service::{AnilistWatchStatus, AnimeListEntry},
     dbstore::sqlite::Mapping,
     plex::plex_api::{PlexEpisode, PlexSeries},
 };
@@ -18,29 +18,30 @@ pub fn plex_series_to_animelist_entry(
         .count() as u16;
 
     AnimeListEntry {
-        media_id: plex_anime_entry.anime_result.id,
+        media_id: plex_anime_entry.anime_list_id,
         status: get_watch_status(plex_anime_entry),
         progress: watched_episodes,
     }
 }
 
 pub struct AnimeEntryPlexRepresentation {
-    anime_result: AnimeResult,
+    anime_list_id: u32,
+    episodes: Option<u16>,
     plex_episodes: Vec<PlexEpisode>,
 }
 
 pub fn get_plex_episodes_for_anime_list_id(
     all_plex_series: &Vec<PlexSeries>,
     all_mappings: &Vec<Mapping>,
-    anime_result: AnimeResult,
+    anime_list_id: u32,
 ) -> AnimeEntryPlexRepresentation {
     let mut plex_episodes: Vec<PlexEpisode> = vec![];
     let relevant_mappings: Vec<&Mapping> = all_mappings
         .into_iter()
-        .filter(|x| x.anime_list_id == anime_result.id.to_string())
+        .filter(|x| x.anime_list_id == anime_list_id)
         .collect();
 
-    for mapping in relevant_mappings {
+    for mapping in relevant_mappings.iter() {
         for series in all_plex_series {
             for season in series.seasons.iter() {
                 if season.rating_key != mapping.plex_id {
@@ -65,9 +66,15 @@ pub fn get_plex_episodes_for_anime_list_id(
         }
     }
 
+    let episodes = match relevant_mappings.get(0) {
+        Some(x) => x.episodes,
+        None => None,
+    };
+
     return AnimeEntryPlexRepresentation {
-        anime_result,
         plex_episodes,
+        episodes,
+        anime_list_id,
     };
 }
 
@@ -81,7 +88,7 @@ fn get_watch_status(
         .count();
     let episodes_watched: u16 = u16::try_from(episodes_watched).unwrap();
 
-    let total_episodes = anime_entry_representation.anime_result.episodes;
+    let total_episodes = anime_entry_representation.episodes;
 
     if total_episodes == Some(episodes_watched) {
         return AnilistWatchStatus::Completed;
@@ -120,51 +127,21 @@ fn get_watch_status(
 
 #[cfg(test)]
 mod tests {
+    use crate::services::plex::plex_api::PlexSeason;
     use chrono::{Duration, Utc};
 
-    use crate::services::{
-        anime_list_service::anime_list_service::{Date, MediaStatus, Relations, Title},
-        plex::plex_api::PlexSeason,
-    };
-
     use super::*;
-
-    const ANIME_RESULT: AnimeResult = AnimeResult {
-        id: 16498,
-        format: None,
-        episodes: Some(3),
-        synonyms: vec![],
-        status: MediaStatus::Finished,
-        end_date: Date {
-            year: None,
-            month: None,
-            day: None,
-        },
-        start_date: Date {
-            year: None,
-            month: None,
-            day: None,
-        },
-        title: Title {
-            english: None,
-            romaji: String::new(),
-        },
-        relations: Relations {
-            edges: vec![],
-            nodes: vec![],
-        },
-    };
 
     #[test]
     fn test_anime_list_entry_equality_when_not_equal_media_id() {
         let current = AnimeListEntry {
-            media_id: ANIME_RESULT.id + 1,
+            media_id: 1234567,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
 
         let new = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
@@ -175,13 +152,13 @@ mod tests {
     #[test]
     fn test_anime_list_entry_equality_when_not_equal_status() {
         let current = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Planning,
         };
 
         let new = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
@@ -192,13 +169,13 @@ mod tests {
     #[test]
     fn test_anime_list_entry_equality_when_not_equal_progress() {
         let current = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
 
         let new = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 4,
             status: AnilistWatchStatus::Completed,
         };
@@ -209,13 +186,13 @@ mod tests {
     #[test]
     fn test_anime_list_entry_equality_when_equal() {
         let current = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
 
         let new = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
@@ -226,7 +203,8 @@ mod tests {
     #[test]
     fn test_plex_series_to_animelist_entry() {
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 16498,
             plex_episodes: vec![
                 PlexEpisode {
                     view_count: 1,
@@ -247,7 +225,7 @@ mod tests {
         };
 
         let expected = AnimeListEntry {
-            media_id: ANIME_RESULT.id,
+            media_id: 16498,
             progress: 3,
             status: AnilistWatchStatus::Completed,
         };
@@ -259,7 +237,8 @@ mod tests {
     #[test]
     fn test_get_watch_status_complete() {
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 6789,
             plex_episodes: vec![
                 PlexEpisode {
                     view_count: 1,
@@ -286,7 +265,8 @@ mod tests {
     #[test]
     fn test_get_watch_status_planning() {
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 6789,
             plex_episodes: vec![
                 PlexEpisode {
                     view_count: 0,
@@ -315,7 +295,8 @@ mod tests {
         let a_month_ago = Utc::now() - Duration::days(30);
 
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 6789,
             plex_episodes: vec![
                 PlexEpisode {
                     view_count: 1,
@@ -346,7 +327,8 @@ mod tests {
         let a_month_ago = now - Duration::days(30);
 
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 6789,
             plex_episodes: vec![
                 PlexEpisode {
                     rating_key: "1".to_string(),
@@ -375,7 +357,8 @@ mod tests {
         let now = Utc::now();
 
         let anime_entry_representation = AnimeEntryPlexRepresentation {
-            anime_result: ANIME_RESULT,
+            episodes: Some(3),
+            anime_list_id: 6789,
             plex_episodes: vec![
                 PlexEpisode {
                     rating_key: "1".to_string(),
@@ -448,10 +431,11 @@ mod tests {
                 plex_series_id: "".to_string(),
                 plex_episode_start: 1,
                 season_length: 1,
-                anime_list_id: "16498".to_string(),
+                anime_list_id: 16498,
                 episode_start: 1,
                 enabled: true,
                 ignored: false,
+                episodes: Some(2),
             },
             Mapping {
                 id: 2,
@@ -460,15 +444,15 @@ mod tests {
                 plex_series_id: "".to_string(),
                 plex_episode_start: 1,
                 season_length: 2,
-                anime_list_id: "16498".to_string(),
+                anime_list_id: 16498,
                 episode_start: 1,
                 enabled: true,
                 ignored: false,
+                episodes: Some(2),
             },
         ];
 
-        let result =
-            get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
+        let result = get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, 16498);
 
         assert_eq!(3, result.plex_episodes.len());
         assert_eq!("1", &result.plex_episodes[0].rating_key);
@@ -505,13 +489,13 @@ mod tests {
             plex_series_id: "17456".to_string(),
             plex_episode_start: 1,
             season_length: 2,
-            anime_list_id: "16498".to_string(),
+            anime_list_id: 16498,
             episode_start: 1,
             enabled: true,
             ignored: false,
+            episodes: Some(2),
         }];
-        let result =
-            get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
+        let result = get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, 16498);
 
         assert_eq!(2, result.plex_episodes.len());
         assert_eq!("1", &result.plex_episodes[0].rating_key);
@@ -547,14 +531,14 @@ mod tests {
             plex_series_id: "17456".to_string(),
             plex_episode_start: 1,
             season_length: 1,
-            anime_list_id: "16498".to_string(),
+            anime_list_id: 16498,
             episode_start: 1,
             enabled: true,
             ignored: false,
+            episodes: Some(2),
         }];
 
-        let result =
-            get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
+        let result = get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, 16498);
 
         assert_eq!(1, result.plex_episodes.len());
         assert_eq!("1", &result.plex_episodes[0].rating_key);
@@ -582,14 +566,14 @@ mod tests {
             plex_series_id: "17456".to_string(),
             plex_episode_start: 1,
             season_length: 6,
-            anime_list_id: "16498".to_string(),
+            anime_list_id: 16498,
             episode_start: 1,
             enabled: true,
             ignored: false,
+            episodes: Some(2),
         }];
 
-        let result =
-            get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, ANIME_RESULT);
+        let result = get_plex_episodes_for_anime_list_id(&all_plex_series, &all_mappings, 16498);
 
         assert_eq!(1, result.plex_episodes.len());
     }
