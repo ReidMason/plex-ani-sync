@@ -18,7 +18,7 @@ CREATE TABLE mapping (
   plex_series_id TEXT NOT NULL,
   plex_episode_start INT NOT NULL,
   season_length INT NOT NULL,
-  anime_list_id TEXT NOT NULL,
+  anime_list_id INT NOT NULL,
   episode_start INT NOT NULL,
   enabled BOOLEAN NOT NULL,
   ignored BOOLEAN NOT NULL,
