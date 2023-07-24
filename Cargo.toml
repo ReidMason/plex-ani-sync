@@ -18,8 +18,8 @@ log = "0.4.17"
 url = "2.3.1"
 futures = "0.3.28"
 anyhow = "1.0.71"
-env_logger = "0.10.0"
 dotenv = "0.15.0"
+chrono = "0.4.26"
 
 [dev-dependencies]
 wiremock = "0.5.18"

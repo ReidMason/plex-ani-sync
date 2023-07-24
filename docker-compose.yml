@@ -1,0 +1,6 @@
+version: "3.8"
+services:
+  plex-ani-sync:
+    build:
+      context: .
+    tty: true
