@@ -3,4 +3,5 @@ services:
   plex-ani-sync:
     build:
       context: .
+      dockerfile: Dockerfile
     tty: true

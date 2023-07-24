@@ -1,18 +1,13 @@
-FROM rust:latest AS builder
+FROM rust:latest as builder
 
 WORKDIR /app
 
-copy . .
+ADD . .
 
 RUN cargo build --release
 
-RUN pwd
-
-# FROM rust:latest
-FROM debian:buster-slim
+FROM rust:latest
 
 COPY --from=builder /app/target/release/plex-ani-sync ./
 
-CMD ["ls"]
-
-CMD ["./plex-ani-sync"]
+ENTRYPOINT ["./plex-ani-sync"]
