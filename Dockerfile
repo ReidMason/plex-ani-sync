@@ -1,13 +1,13 @@
-FROM rust:latest as builder
+FROM messense/rust-musl-cross:x86_64-musl as builder
 
 WORKDIR /app
 
 ADD . .
 
-RUN cargo build --release
+RUN cargo build --release --target x86_64-unknown-linux-musl
 
-FROM rust:latest
+FROM scratch
 
-COPY --from=builder /app/target/release/plex-ani-sync ./
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/plex-ani-sync  ./
 
 ENTRYPOINT ["./plex-ani-sync"]
