@@ -3,6 +3,7 @@ use futures::{future::join_all, stream::FuturesUnordered};
 use log::{error, info};
 use reqwest::header::{self, HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use serde::de::DeserializeOwned;
+use tracing::instrument;
 use url::Url;
 
 use crate::services::{
@@ -15,9 +16,10 @@ use super::plex_api::{
     ResponsePlexSeries,
 };
 
+#[derive(Debug)]
 pub struct PlexApi<T>
 where
-    T: ConfigInterface,
+    T: ConfigInterface + std::fmt::Debug,
 {
     config: T,
     http_client: reqwest::Client,
@@ -26,7 +28,7 @@ where
 
 impl<T> PlexApi<T>
 where
-    T: ConfigInterface,
+    T: ConfigInterface + std::fmt::Debug,
 {
     pub fn new(config: T) -> Self {
         let mut header_map = header::HeaderMap::new();
@@ -82,7 +84,7 @@ where
 #[async_trait]
 impl<T> PlexInterface for PlexApi<T>
 where
-    T: ConfigInterface,
+    T: ConfigInterface + std::fmt::Debug,
 {
     async fn get_libraries(self) -> Result<Vec<ResponsePlexLibrary>, reqwest::Error> {
         let path = "/library/sections/";
@@ -95,6 +97,7 @@ where
         return Ok(response.media_container.directory);
     }
 
+    #[instrument(skip(self))]
     async fn get_series(&self, library_id: u8) -> Result<Vec<ResponsePlexSeries>, reqwest::Error> {
         let path = format!("/library/sections/{}/all", library_id);
 

@@ -188,6 +188,8 @@ impl DbStore for Sqlite {
     }
 }
 
+trait CustomTrait: Copy + Sync + Send {}
+
 #[derive(FromRow, Clone, Serialize, Deserialize)]
 pub struct CachedAnimeResult {
     id: u32,
@@ -202,7 +204,7 @@ pub struct CachedAnime {
     data: String,
 }
 
-#[derive(FromRow, Clone, Serialize, Deserialize)]
+#[derive(Debug, FromRow, Clone, Serialize, Deserialize)]
 pub struct Config {
     id: u32,
     pub plex_url: String,
