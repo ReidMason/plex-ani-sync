@@ -1,7 +1,5 @@
-use dotenv::dotenv;
-
 pub fn init_logger() {
-    tracing_subscriber::fmt::try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 pub fn get_db_file_location() -> String {
