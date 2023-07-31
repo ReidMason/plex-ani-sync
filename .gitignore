@@ -5,6 +5,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+docker-compose.yml
+test_data
+src/test_data
+
 # User-specific files
 *.rsuser
 *.suo
