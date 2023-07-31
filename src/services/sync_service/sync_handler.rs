@@ -385,6 +385,7 @@ mod tests {
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_multiple_mappings_across_multiple_plex_seasons() {
         let all_plex_series = vec![PlexSeries {
+            title: "".to_string(),
             rating_key: "1234".to_string(),
             seasons: vec![
                 PlexSeason {
@@ -463,6 +464,7 @@ mod tests {
     #[test]
     fn test_get_plex_episodes_for_anime_list_id() {
         let all_plex_series = vec![PlexSeries {
+            title: "".to_string(),
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
@@ -505,6 +507,7 @@ mod tests {
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_more_episodes_than_mapping() {
         let all_plex_series = vec![PlexSeries {
+            title: "".to_string(),
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
                 rating_key: "17457".to_string(),
@@ -547,6 +550,7 @@ mod tests {
     #[test]
     fn test_get_plex_episodes_for_anime_list_id_when_plex_season_has_less_episodes_than_mapping() {
         let all_plex_series = vec![PlexSeries {
+            title: "".to_string(),
             rating_key: "1234".to_string(),
             seasons: vec![PlexSeason {
                 index: 1,

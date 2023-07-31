@@ -348,6 +348,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use tracing::info;
+
     use crate::{
         services::{
             anime_list_service::anilist_service::AnilistService,
@@ -394,6 +396,7 @@ mod tests {
         let mapper = init().await;
 
         let series = PlexSeries {
+            title: "Mysterious Girlfriend X".to_string(),
             rating_key: "12345".to_string(),
             seasons: vec![PlexSeason {
                 rating_key: "12345".to_string(),
@@ -422,6 +425,7 @@ mod tests {
         let mapper = init().await;
 
         let series = PlexSeries {
+            title: "Vinland Saga".to_string(),
             rating_key: "12794".to_string(),
             seasons: vec![
                 PlexSeason {
@@ -454,6 +458,7 @@ mod tests {
         let mapper = init().await;
 
         let series = PlexSeries {
+            title: "Overlord".to_string(),
             rating_key: "10618".to_string(),
             seasons: vec![
                 PlexSeason {
@@ -506,6 +511,7 @@ mod tests {
         let mapper = init().await;
 
         let series = PlexSeries {
+            title: "Attack on Titan".to_string(),
             rating_key: "17456".to_string(),
             seasons: vec![
                 PlexSeason {
