@@ -1,12 +1,13 @@
 use std::env;
 
+use log::info;
 use services::{
     anime_list_service::{
         anilist_service::AnilistService,
         anime_list_service::{AnilistWatchStatus, AnimeListService},
     },
     config::config::ConfigService,
-    dbstore::sqlite::Sqlite,
+    dbstore::sqlite::{Config, Sqlite},
     mapping_handler::mapping_handler::{MappingHandler, MappingHandlerInterface},
     plex::{plex_api::PlexInterface, plex_api_service::PlexApi},
     sync_service::sync_handler::{
@@ -14,28 +15,29 @@ use services::{
     },
 };
 
-use crate::{services::dbstore::dbstore::DbStore, utils::get_db_file_location};
+use crate::utils::get_db_file_location;
 
 mod services;
 mod utils;
 
 #[tokio::main]
 async fn main() {
-    env::set_var("RUST_BACKTRACE", "1");
     utils::init_logger();
+    info!("Plex Ani Sync started");
 
     let mut db_store = Sqlite::new(&get_db_file_location()).await;
     db_store.migrate().await;
 
-    let db_config = db_store.get_config().await;
-
-    let config = ConfigService::new(db_config.clone());
-    let plex_service = PlexApi::new(config);
+    let config = Config::new(
+        env::var("PLEX_URL").expect("Failed to find plex url environment variable"),
+        env::var("PLEX_TOKEN").expect("Failed to find plex token environment variable"),
+        env::var("ANILIST_TOKEN").expect("Failed to find Anilist token environment variable"),
+    );
+    let config_service = ConfigService::new(config);
+    let plex_service = PlexApi::new(config_service.clone());
     // db_store.clear_anime_search_cache().await;
 
-    let db_store = Sqlite::new(&get_db_file_location()).await;
-    let config = ConfigService::new(db_config.clone());
-    let anilist_service = AnilistService::new(config, db_store, None);
+    let anilist_service = AnilistService::new(config_service.clone(), db_store, None);
 
     let anilist_user = anilist_service
         .get_user()
@@ -47,24 +49,28 @@ async fn main() {
         .expect("Failed to get anilist list");
 
     let db_store = Sqlite::new(&get_db_file_location()).await;
-    let mapping_handler = MappingHandler::new(anilist_service, db_store);
+    let mapping_handler = MappingHandler::new(anilist_service, db_store.clone());
 
-    let series = plex_service.get_full_series_data(1).await.unwrap();
+    let list_id = 1;
+    let series = plex_service.get_full_series_data(list_id).await.unwrap();
 
     for (i, s) in series.iter().enumerate() {
-        println!("Creating new mappings: {}/{}", i, series.len());
+        info!(
+            "Checking mappings for '{}': {}/{}",
+            s.title,
+            i,
+            series.len()
+        );
         let _ = mapping_handler.create_mapping(s).await;
     }
-    println!("Done creating mappings");
-
-    println!("something");
+    info!("Done checking mappings");
 
     let mappings = mapping_handler.get_all_relevant_mappings(&series).await;
     let ma = mapping_handler.get_all_mappings().await;
 
-    // We need the anilist id and the number of episodes
+    let anilist_service = AnilistService::new(config_service.clone(), db_store, None);
 
-    return;
+    // We need the anilist id and the number of episodes
     for mapping in mappings {
         let list_entry = anime_list
             .iter()
@@ -80,14 +86,14 @@ async fn main() {
 
         let anime_name = mapping.anime_list_id;
         if list_entry.is_none() {
-            println!(
+            info!(
                 "{} needs adding to list\n{:?}\n",
                 anime_name, new_anilist_entry
             );
         } else if list_entry.is_some() {
             let list_entry = list_entry.unwrap();
             if &new_anilist_entry != list_entry {
-                println!(
+                info!(
                     "{} needs updating in list\n{:?}\n",
                     anime_name, new_anilist_entry
                 );
@@ -96,18 +102,18 @@ async fn main() {
             }
         }
 
-        // let updated_entry = anilist_service
-        //     .update_list_entry(
-        //         new_anilist_entry.media_id,
-        //         new_anilist_entry.status,
-        //         new_anilist_entry.progress,
-        //     )
-        //     .await;
-        //
-        // match updated_entry {
-        //     Ok(_) => println!("Update successful"),
-        //     Err(e) => println!("Failed to update. Error: {}", e),
-        // }
+        let updated_entry = anilist_service
+            .update_list_entry(
+                new_anilist_entry.media_id,
+                new_anilist_entry.status,
+                new_anilist_entry.progress,
+            )
+            .await;
+
+        match updated_entry {
+            Ok(_) => info!("Update successful"),
+            Err(e) => info!("Failed to update. Error: {}", e),
+        }
     }
 
     return;
