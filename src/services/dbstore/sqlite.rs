@@ -212,6 +212,17 @@ pub struct Config {
     pub anilist_token: String,
 }
 
+impl Config {
+    pub fn new(plex_url: String, plex_token: String, anilist_token: String) -> Self {
+        Self {
+            id: 1,
+            plex_url,
+            plex_token,
+            anilist_token,
+        }
+    }
+}
+
 #[derive(FromRow, Serialize, Deserialize)]
 pub struct ListProvider {
     pub id: u32,
