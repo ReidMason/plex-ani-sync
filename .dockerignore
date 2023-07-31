@@ -1,9 +1,0 @@
-server/venv
-frontend/node_modules
-server/flaskApp/static/*
-
-# Keep the anime-mapping.json file
-server/data/*
-server/data/mapping/*
-!server/data/mapping/
-!server/data/mapping/anime-mapping.json
