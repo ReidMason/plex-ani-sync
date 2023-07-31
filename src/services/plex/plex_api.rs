@@ -21,6 +21,7 @@ pub trait PlexInterface {
 pub struct PlexSeries {
     pub rating_key: String,
     pub seasons: Vec<PlexSeason>,
+    pub title: String,
 }
 
 impl From<ResponsePlexSeries> for PlexSeries {
@@ -28,6 +29,7 @@ impl From<ResponsePlexSeries> for PlexSeries {
         Self {
             rating_key: series.rating_key,
             seasons: vec![],
+            title: series.title,
         }
     }
 }

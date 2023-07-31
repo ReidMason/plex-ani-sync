@@ -100,9 +100,9 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeRes
     });
 
     potential_matches.sort_by_key(|x| x.score);
-    // println!("Looking for: '{} {}'", target.parent_title, target.index,);
+    // info!("Looking for: '{} {}'", target.parent_title, target.index,);
     // potential_matches.clone().into_iter().for_each(|x| {
-    //     println!(
+    //     info!(
     //         "  - {} - Score: {}",
     //         x.result.title.english.unwrap_or(x.result.title.romaji),
     //         x.score
@@ -212,17 +212,6 @@ where
         }
 
         for (i, season) in series.seasons.iter().enumerate() {
-            // let mappings = match result {
-            //     Ok(x) => x,
-            //     Err(e) => {
-            //         error!(
-            //             "Failed to get existing mappings for {} season {}",
-            //             season.parent_title, season.index
-            //         );
-            //         return Err(e).into();
-            //     }
-            // };
-
             let is_specials_season = season.index == 0;
             if is_specials_season {
                 continue;
@@ -283,11 +272,6 @@ where
                         None => return Ok(mappings),
                     };
 
-                    // println!(
-                    //     "Plex season {} previous mapping '{:?}'",
-                    //     season.index, prev_mapping
-                    // );
-
                     let prev_mapping_entry = self
                         .anime_list_service
                         .get_anime(prev_mapping.anime_list_id)
@@ -308,8 +292,6 @@ where
                         None => return Ok(mappings),
                     };
 
-                    // println!("Found sequel '{}'", sequel.title.english.as_ref().unwrap());
-
                     let current_mapped_episodes =
                         get_mapped_episode_count(&mappings, &season.rating_key);
                     // TODO: Don't just use 0 if the episode number isn't known
@@ -322,7 +304,6 @@ where
                         let found_match = match found_match {
                             Some(x) => x,
                             None => {
-                                // println!("Didn't find a good match for the season");
                                 return Ok(mappings);
                             }
                         };
@@ -331,7 +312,6 @@ where
 
                     let mut plex_episode_start = 0;
                     if mutli_entry_season {
-                        // println!("It's a multi season!");
                         plex_episode_start =
                             prev_mapping.plex_episode_start + prev_mapping.season_length;
                     }
@@ -352,7 +332,6 @@ where
                         ignored: false,
                         episodes: sequel.episodes,
                     };
-                    // println!("Added mapping: {:?}", mapping);
                     mappings.push(mapping);
                 }
             }
@@ -429,9 +408,9 @@ mod tests {
             .await
             .expect("Faied to get result for one to one mapping");
 
-        println!("{}", series.seasons[0].episodes.len());
+        info!("{}", series.seasons[0].episodes.len());
         for res in result.iter() {
-            println!("{}", res.anime_list_id);
+            info!("{}", res.anime_list_id);
         }
 
         assert_eq!(1, result.len());
@@ -567,7 +546,6 @@ mod tests {
             .await
             .expect("Faied to get result for up to three anilist entries for one plex season");
 
-        // println!("{:?}", result);
         assert_eq!(7, result.len());
         assert_eq!(16498, result[0].anime_list_id);
         assert_eq!(20958, result[1].anime_list_id);
