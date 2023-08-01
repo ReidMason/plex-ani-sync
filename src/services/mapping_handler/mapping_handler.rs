@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::vec;
 
 use crate::services::anime_list_service::anime_list_service::{
-    AnimeListService, AnimeResult, RelationType,
+    AnimeListService, AnimeResult, MediaFormat, RelationType,
 };
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
@@ -55,12 +55,12 @@ struct ResultScore {
     score: u16,
 }
 
-fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeResult> {
+fn find_match(results: Vec<AnimeResult>, target: &PlexSeason, offset: u16) -> Option<AnimeResult> {
     let mut potential_matches: Vec<ResultScore> = results
         .into_iter()
         .map(|x| ResultScore {
             result: x,
-            score: 0,
+            score: offset,
         })
         .collect();
 
@@ -178,7 +178,7 @@ where
             return Ok(None);
         }
 
-        return Ok(find_match(results, season));
+        return Ok(find_match(results, season, 0));
     }
 
     async fn get_all_relevant_mappings(&self, all_series: &Vec<PlexSeries>) -> Vec<Mapping> {
@@ -292,7 +292,7 @@ where
 
                     let sequel = self
                         .anime_list_service
-                        .find_sequel(prev_mapping_entry)
+                        .find_sequel(prev_mapping_entry.clone())
                         .await?;
 
                     let mut sequel = match sequel {
@@ -308,7 +308,14 @@ where
                     let new_mapped_episodes =
                         current_mapped_episodes + u32::from(sequel.episodes.unwrap_or(0));
                     if new_mapped_episodes != season.get_episode_count() {
-                        let found_match = find_match(vec![sequel], season);
+                        // We only want to offset if the format is the same as the previous mapping, this is to avoid ovas
+                        let mut offset = 0;
+                        if sequel.format == prev_mapping_entry.format {
+                            // Some(MediaFormat::TV) {
+                            offset = 10;
+                        }
+                        let found_match = find_match(vec![sequel], season, offset);
+
                         let found_match = match found_match {
                             Some(x) => x,
                             None => {
