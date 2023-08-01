@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use std::vec;
 
-use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
+use crate::services::anime_list_service::anime_list_service::{
+    AnimeListService, AnimeResult, RelationType,
+};
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
 use crate::services::plex::plex_api::{PlexSeason, PlexSeries};
@@ -47,7 +49,7 @@ fn compare_strings(string1: &str, string2: &str) -> bool {
     cleanup_string(string1) == cleanup_string(string2)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ResultScore {
     result: AnimeResult,
     score: u16,
@@ -97,17 +99,21 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason) -> Option<AnimeRes
                 }
             }
         }
+
+        let has_no_prequel = potential_match
+            .result
+            .relations
+            .edges
+            .iter()
+            .filter(|x| x.relation_type == RelationType::Prequel)
+            .count()
+            == 0;
+        if has_no_prequel && target.index == 1 {
+            potential_match.score += 50;
+        }
     });
 
     potential_matches.sort_by_key(|x| x.score);
-    // info!("Looking for: '{} {}'", target.parent_title, target.index,);
-    // potential_matches.clone().into_iter().for_each(|x| {
-    //     info!(
-    //         "  - {} - Score: {}",
-    //         x.result.title.english.unwrap_or(x.result.title.romaji),
-    //         x.score
-    //     );
-    // });
 
     let min_score = 0;
     potential_matches.retain(|x| x.score > min_score);
@@ -161,10 +167,12 @@ where
         &self,
         season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error> {
-        let results = self
+        let mut results = self
             .anime_list_service
             .search_anime(&season.parent_title)
             .await?;
+
+        results.sort_by_key(|x| x.start_date.year);
 
         if results.is_empty() {
             return Ok(None);
@@ -562,6 +570,55 @@ mod tests {
         assert_eq!(146984, result[6].anime_list_id);
     }
 
+    #[tokio::test]
+    async fn test_matching_jojo() {
+        let mapper = init().await;
+
+        let series = PlexSeries {
+            title: "JoJo's Bizarre Adventure".to_string(),
+            rating_key: "28602".to_string(),
+            seasons: vec![
+                PlexSeason {
+                    rating_key: "28603".to_string(),
+                    index: 1,
+                    parent_title: "JoJo's Bizarre Adventure".to_string(),
+                    episodes: generate_episodes(26),
+                },
+                PlexSeason {
+                    rating_key: "28630".to_string(),
+                    index: 2,
+                    parent_title: "JoJo's Bizarre Adventure".to_string(),
+                    episodes: generate_episodes(48),
+                },
+                PlexSeason {
+                    rating_key: "28719".to_string(),
+                    index: 3,
+                    parent_title: "JoJo's Bizarre Adventure".to_string(),
+                    episodes: generate_episodes(39),
+                },
+                PlexSeason {
+                    rating_key: "28679".to_string(),
+                    index: 4,
+                    parent_title: "JoJo's Bizarre Adventure".to_string(),
+                    episodes: generate_episodes(39),
+                },
+                PlexSeason {
+                    rating_key: "37904".to_string(),
+                    index: 5,
+                    parent_title: "JoJo's Bizarre Adventure".to_string(),
+                    episodes: generate_episodes(24),
+                },
+            ],
+        };
+
+        let result = mapper
+            .create_mapping(&series)
+            .await
+            .expect("Faied to get result for up to three anilist entries for one plex season");
+
+        // assert_eq!(1, result.len());
+        assert_eq!(14719, result[0].anime_list_id);
+    }
     // TODO: Write test for way of the house husband because of an indexing error
     // TODO: Add test for maken ki
 }
