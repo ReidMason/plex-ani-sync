@@ -8,6 +8,7 @@
 docker-compose.yml
 test_data
 src/test_data
+.DS_store
 
 # User-specific files
 *.rsuser
