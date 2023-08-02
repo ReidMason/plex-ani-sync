@@ -53,4 +53,12 @@ mod tests {
 
         assert_eq!(10, result)
     }
+
+    #[tokio::test]
+    async fn test_cleanup_string() {
+        let input = ":Some:String line ";
+        let result = cleanup_string(input);
+
+        assert_eq!("somestringline", result)
+    }
 }
