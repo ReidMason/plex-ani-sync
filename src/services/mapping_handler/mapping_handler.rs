@@ -8,6 +8,8 @@ use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
 use crate::services::plex::plex_api::{PlexSeason, PlexSeries};
 
+use super::mapping_utils::{compare_strings, get_mapped_episode_count};
+
 #[async_trait]
 pub trait MappingHandlerInterface {
     async fn create_mapping(&self, series: &PlexSeries) -> Result<Vec<Mapping>, anyhow::Error>;
@@ -39,14 +41,6 @@ where
             db_store,
         }
     }
-}
-
-fn cleanup_string(string: &str) -> String {
-    string.replace([':', ' '], "").trim().to_lowercase()
-}
-
-fn compare_strings(string1: &str, string2: &str) -> bool {
-    cleanup_string(string1) == cleanup_string(string2)
 }
 
 #[derive(Clone, Debug)]
@@ -122,18 +116,6 @@ fn find_match(results: Vec<AnimeResult>, target: &PlexSeason, offset: u16) -> Op
         Some(x) => Some(x.result),
         None => None,
     }
-}
-
-fn get_mapped_episode_count(mappings: &[Mapping], rating_key: &str) -> u32 {
-    mappings
-        .iter()
-        .filter_map(|x| {
-            if x.plex_id == rating_key {
-                return Some(x.season_length);
-            }
-            None
-        })
-        .sum::<u32>()
 }
 
 fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping> {
