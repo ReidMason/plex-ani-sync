@@ -2,13 +2,15 @@ use async_trait::async_trait;
 use std::vec;
 
 use crate::services::anime_list_service::anime_list_service::{
-    AnimeListService, AnimeResult, MediaFormat, RelationType,
+    AnimeListService, AnimeResult, RelationType,
 };
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
 use crate::services::plex::plex_api::{PlexSeason, PlexSeries};
 
-use super::mapping_utils::{compare_strings, get_mapped_episode_count};
+use super::mapping_utils::{
+    compare_strings, find_match, get_mapped_episode_count, get_prev_mapping,
+};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
@@ -44,96 +46,6 @@ where
 }
 
 #[derive(Clone, Debug)]
-struct ResultScore {
-    result: AnimeResult,
-    score: u16,
-}
-
-fn find_match(results: Vec<AnimeResult>, target: &PlexSeason, offset: u16) -> Option<AnimeResult> {
-    let mut potential_matches: Vec<ResultScore> = results
-        .into_iter()
-        .map(|x| ResultScore {
-            result: x,
-            score: offset,
-        })
-        .collect();
-
-    potential_matches.iter_mut().for_each(|potential_match| {
-        // Match episode count
-        let potential_match_episodes: usize = potential_match.result.episodes.unwrap_or(0).into();
-        if potential_match_episodes == target.episodes.len() {
-            potential_match.score += 100;
-        }
-
-        // Match title
-        let mut potential_titles = [
-            &format!("{} season {}", target.parent_title, target.index),
-            &format!("{} {}", target.parent_title, target.index),
-        ];
-
-        let is_first_season = target.index == 1;
-        if is_first_season {
-            potential_titles[0] = &target.parent_title;
-        }
-
-        for potential_title in potential_titles {
-            if let Some(english_title) = &potential_match.result.title.english {
-                if compare_strings(english_title, potential_title) {
-                    potential_match.score += 50;
-                }
-            }
-
-            if compare_strings(&potential_match.result.title.romaji, potential_title) {
-                potential_match.score += 50;
-            }
-
-            for synonym in potential_match.result.synonyms.clone() {
-                if compare_strings(&synonym, potential_title) {
-                    potential_match.score += 10;
-                }
-            }
-        }
-
-        let has_no_prequel = potential_match
-            .result
-            .relations
-            .edges
-            .iter()
-            .filter(|x| x.relation_type == RelationType::Prequel)
-            .count()
-            == 0;
-        if has_no_prequel && target.index == 1 {
-            potential_match.score += 50;
-        }
-    });
-
-    potential_matches.sort_by_key(|x| x.score);
-
-    let min_score = 0;
-    potential_matches.retain(|x| x.score > min_score);
-
-    match potential_matches.pop() {
-        Some(x) => Some(x.result),
-        None => None,
-    }
-}
-
-fn get_prev_mapping(mappings: &[Mapping], season: &PlexSeason) -> Option<Mapping> {
-    let mut prev_mappings: Vec<&Mapping> = mappings
-        .iter()
-        .filter(|x| x.plex_id == season.rating_key)
-        .collect();
-
-    if !prev_mappings.is_empty() {
-        prev_mappings.sort_by_key(|x| x.plex_episode_start);
-        prev_mappings.reverse();
-        return Some(prev_mappings[0].to_owned());
-    }
-
-    None
-}
-
-#[derive(Debug)]
 pub struct MappingWithListData {
     pub mapping: Mapping,
     pub anilist_series: AnimeResult,
@@ -247,14 +159,14 @@ where
                         < season.episodes.len().try_into().unwrap()
                 {
                     counter += 1;
-                    let mut prev_mapping = get_prev_mapping(&mappings, season);
+                    let mut prev_mapping = get_prev_mapping(&mappings, &season.rating_key);
                     // If we got a prev mapping matching the current season this is a multi entry
                     // season
 
                     let mutli_entry_season = prev_mapping.is_some();
                     if prev_mapping.is_none() && i > 0 {
                         let prev_plex_season = &series.seasons[i - 1];
-                        prev_mapping = get_prev_mapping(&mappings, prev_plex_season);
+                        prev_mapping = get_prev_mapping(&mappings, &prev_plex_season.rating_key);
                     }
 
                     let prev_mapping = match prev_mapping {
