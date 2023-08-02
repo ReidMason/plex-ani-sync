@@ -61,4 +61,22 @@ mod tests {
 
         assert_eq!("somestringline", result)
     }
+
+    #[tokio::test]
+    async fn test_compare_strings() {
+        let input1 = ":Some:String line ";
+        let input2 = " some String: line";
+        let result = compare_strings(input1, input2);
+
+        assert!(result)
+    }
+
+    #[tokio::test]
+    async fn test_compare_strings_returns_false_when_not_the_same() {
+        let input1 = ":Some:String line ";
+        let input2 = " some String: line1";
+        let result = compare_strings(input1, input2);
+
+        assert!(!result)
+    }
 }
