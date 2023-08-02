@@ -1,16 +1,12 @@
 use async_trait::async_trait;
 use std::vec;
 
-use crate::services::anime_list_service::anime_list_service::{
-    AnimeListService, AnimeResult, RelationType,
-};
+use crate::services::anime_list_service::anime_list_service::{AnimeListService, AnimeResult};
 use crate::services::dbstore::dbstore::DbStore;
 use crate::services::dbstore::sqlite::Mapping;
 use crate::services::plex::plex_api::{PlexSeason, PlexSeries};
 
-use super::mapping_utils::{
-    compare_strings, find_match, get_mapped_episode_count, get_prev_mapping,
-};
+use super::mapping_utils::{find_match, get_mapped_episode_count, get_prev_mapping};
 
 #[async_trait]
 pub trait MappingHandlerInterface {
