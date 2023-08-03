@@ -28,81 +28,55 @@ pub struct AnimeListEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AnilistWatchStatus {
-    #[serde(rename = "PLANNING")]
     Planning,
-    #[serde(rename = "CURRENT")]
     Current,
-    #[serde(rename = "PAUSED")]
     Paused,
-    #[serde(rename = "DROPPED")]
     Dropped,
-    #[serde(rename = "COMPLETED")]
     Completed,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MediaFormat {
-    TV,
-    #[serde(rename = "TV_SHORT")]
+    Tv,
     TvShort,
-    #[serde(rename = "MOVIE")]
     Movie,
-    #[serde(rename = "SPECIAL")]
     Special,
-    OVA,
-    ONA,
-    #[serde(rename = "MUSIC")]
+    Ova,
+    Ona,
     Music,
-    #[serde(rename = "MANGA")]
     Manga,
-    #[serde(rename = "NOVEL")]
     Novel,
-    #[serde(rename = "ONE_SHOT")]
     OneShot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MediaStatus {
-    #[serde(rename = "FINISHED")]
     Finished,
-    #[serde(rename = "RELEASING")]
     Releasing,
-    #[serde(rename = "NOT_YET_RELEASED")]
     NotYetReleased,
-    #[serde(rename = "CANCELLED")]
     Cancelled,
-    #[serde(rename = "HIATUS")]
     Hiatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum RelationType {
-    #[serde(rename = "ADAPTATION")]
     Adaptation,
-    #[serde(rename = "PREQUEL")]
     Prequel,
-    #[serde(rename = "SEQUEL")]
     Sequel,
-    #[serde(rename = "PARENT")]
     Parent,
-    #[serde(rename = "SIDE_STORY")]
     SideStory,
-    #[serde(rename = "CHARACTER")]
     Character,
-    #[serde(rename = "SUMMARY")]
     Summary,
-    #[serde(rename = "ALTERNATIVE")]
     Alternative,
-    #[serde(rename = "SPIN_OFF")]
     SpinOff,
-    #[serde(rename = "OTHER")]
     Other,
-    #[serde(rename = "SOURCE")]
     Source,
-    #[serde(rename = "COMPILATION")]
     Compilation,
-    #[serde(rename = "CONTAINS")]
     Contains,
 }
 
