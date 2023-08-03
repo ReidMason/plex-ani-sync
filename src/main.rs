@@ -20,26 +20,33 @@ mod utils;
 #[tokio::main]
 async fn main() {
     utils::init_logger();
-    info!("Plex Ani Sync started");
+    info!("----- Plex Ani Sync started -----");
 
+    info!("Performing database migrations");
     let mut db_store = Sqlite::new(&get_db_file_location()).await;
     db_store.migrate().await;
 
+    info!("Creating Plex service");
     let config = db_store.get_config().await;
     let plex_service = PlexApi::new(config.plex_url.clone(), config.plex_token.clone());
     // db_store.clear_anime_search_cache().await;
 
+    info!("Creating Anilist service");
     let anilist_service = AnilistService::new(config.anilist_token.clone(), db_store, None);
 
+    info!("Getting Anilist user");
     let anilist_user = anilist_service
         .get_user()
         .await
         .expect("Failed to get anilist user");
+
+    info!("Getting Anilist list");
     let anime_list = anilist_service
         .get_list(anilist_user.id)
         .await
         .expect("Failed to get anilist list");
 
+    info!("Checking mappings for all series");
     let db_store = Sqlite::new(&get_db_file_location()).await;
     let mapping_handler = MappingHandler::new(anilist_service, db_store.clone());
 
