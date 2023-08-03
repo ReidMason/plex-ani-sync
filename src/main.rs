@@ -4,7 +4,6 @@ use services::{
         anilist_service::AnilistService,
         anime_list_service::{AnilistWatchStatus, AnimeListService},
     },
-    config::config::ConfigService,
     dbstore::sqlite::Sqlite,
     mapping_handler::mapping_handler::{MappingHandler, MappingHandlerInterface},
     plex::{plex_api::PlexInterface, plex_api_service::PlexApi},
@@ -26,17 +25,11 @@ async fn main() {
     let mut db_store = Sqlite::new(&get_db_file_location()).await;
     db_store.migrate().await;
 
-    // let config = Config::new(
-    //     env::var("PLEX_URL").expect("Failed to find plex url environment variable"),
-    //     env::var("PLEX_TOKEN").expect("Failed to find plex token environment variable"),
-    //     env::var("ANILIST_TOKEN").expect("Failed to find Anilist token environment variable"),
-    // );
     let config = db_store.get_config().await;
     let plex_service = PlexApi::new(config.plex_url.clone(), config.plex_token.clone());
     // db_store.clear_anime_search_cache().await;
 
-    let config_service = ConfigService::new(config);
-    let anilist_service = AnilistService::new(config_service.clone(), db_store, None);
+    let anilist_service = AnilistService::new(config.anilist_token.clone(), db_store, None);
 
     let anilist_user = anilist_service
         .get_user()
@@ -67,7 +60,7 @@ async fn main() {
     let mappings = mapping_handler.get_all_relevant_mappings(&series).await;
     let ma = mapping_handler.get_all_mappings().await;
 
-    let anilist_service = AnilistService::new(config_service.clone(), db_store, None);
+    let anilist_service = AnilistService::new(config.anilist_token.clone(), db_store, None);
 
     // We need the anilist id and the number of episodes
     for mapping in mappings {
@@ -101,18 +94,18 @@ async fn main() {
             }
         }
 
-        // let updated_entry = anilist_service
-        //     .update_list_entry(
-        //         new_anilist_entry.media_id,
-        //         new_anilist_entry.status,
-        //         new_anilist_entry.progress,
-        //     )
-        //     .await;
-        //
-        // match updated_entry {
-        //     Ok(_) => info!("Update successful"),
-        //     Err(e) => info!("Failed to update. Error: {}", e),
-        // }
+        let updated_entry = anilist_service
+            .update_list_entry(
+                new_anilist_entry.media_id,
+                new_anilist_entry.status,
+                new_anilist_entry.progress,
+            )
+            .await;
+
+        match updated_entry {
+            Ok(_) => info!("Update successful"),
+            Err(e) => info!("Failed to update. Error: {}", e),
+        }
     }
 
     return;
