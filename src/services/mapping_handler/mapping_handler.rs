@@ -258,7 +258,6 @@ mod tests {
     use crate::{
         services::{
             anime_list_service::anilist_service::AnilistService,
-            config::config::ConfigService,
             dbstore::{dbstore::DbStore, sqlite::Sqlite},
             plex::plex_api::PlexEpisode,
         },
@@ -267,16 +266,14 @@ mod tests {
 
     use super::*;
 
-    async fn init() -> MappingHandler<AnilistService<ConfigService, Sqlite>, Sqlite> {
+    async fn init() -> MappingHandler<AnilistService<Sqlite>, Sqlite> {
         init_logger();
 
         let mut db_store = Sqlite::new(&get_db_file_location()).await;
         db_store.migrate().await;
 
         let config = db_store.get_config().await;
-        let config_service = ConfigService::new(config);
-
-        let list_service = AnilistService::new(config_service, db_store, None);
+        let list_service = AnilistService::new(config.anilist_token, db_store, None);
 
         let db_store = Sqlite::new(&get_db_file_location()).await;
         MappingHandler::new(list_service, db_store)

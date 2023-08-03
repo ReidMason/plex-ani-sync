@@ -6,7 +6,7 @@ use reqwest::header::{self, HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTE
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
-use crate::services::{config::config::ConfigInterface, dbstore::dbstore::DbStore};
+use crate::services::dbstore::dbstore::DbStore;
 
 use super::anime_list_service::{
     AnilistWatchStatus, AnimeListEntry, AnimeListService, AnimeResult, RelationType,
@@ -15,8 +15,8 @@ use super::anime_list_service::{
 // We need to use to visit this page then we'll redirect them back to the main page to get the auth
 // code token thing https://anilist.gitbook.io/anilist-apiv2-docs/overview/oauth/implicit-grant
 // https://anilist.co/api/v2/oauth/authorize?client_id=4688&response_type=token
-pub struct AnilistService<J: ConfigInterface, K: DbStore> {
-    config: J,
+pub struct AnilistService<K: DbStore> {
+    anilist_token: String,
     dbstore: K,
     http_client: reqwest::Client,
     base_url: String,
@@ -28,14 +28,13 @@ struct GraphQlBody {
     variables: serde_json::Value,
 }
 
-impl<T, J> AnilistService<T, J>
+impl<J> AnilistService<J>
 where
-    T: ConfigInterface,
     J: DbStore,
 {
-    pub fn new(config: T, dbstore: J, base_url: Option<String>) -> Self {
+    pub fn new(anilist_token: String, dbstore: J, base_url: Option<String>) -> Self {
         AnilistService {
-            config,
+            anilist_token,
             dbstore,
             http_client: reqwest::Client::new(),
             base_url: base_url.unwrap_or(String::from("https://graphql.anilist.co/")),
@@ -43,7 +42,7 @@ where
     }
 
     fn get_headers(&self) -> HeaderMap {
-        let auth_value = format!("Bearer {}", self.config.get_anilist_token());
+        let auth_value = format!("Bearer {}", self.anilist_token);
 
         let mut headers = header::HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -147,7 +146,7 @@ struct UpdateAnimeListEntryVars {
 }
 
 #[async_trait]
-impl<T: ConfigInterface, J: DbStore> AnimeListService for AnilistService<T, J> {
+impl<J: DbStore> AnimeListService for AnilistService<J> {
     async fn search_anime(&self, search_term: &str) -> Result<Vec<AnimeResult>, anyhow::Error> {
         let result = self
             .dbstore
@@ -456,10 +455,7 @@ pub struct Page {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        services::{config::config::ConfigService, dbstore::sqlite::Sqlite},
-        utils::init_logger,
-    };
+    use crate::{services::dbstore::sqlite::Sqlite, utils::init_logger};
     use serde::Deserialize;
     use std::fs;
     use wiremock::{
@@ -515,20 +511,19 @@ mod tests {
         let mut config = db_store.get_config().await;
         config.anilist_token = "testToken123".to_string();
 
-        let config_service = ConfigService::new(config);
-
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(bearer_token(config_service.get_anilist_token()))
+            .and(bearer_token(&config.anilist_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+        let list_service =
+            AnilistService::new(config.anilist_token, db_store, Some(mock_server.uri()));
 
         let response = list_service
             .update_list_entry(12345, AnilistWatchStatus::Planning, 5)
@@ -549,20 +544,19 @@ mod tests {
         let mut config = db_store.get_config().await;
         config.anilist_token = "testToken123".to_string();
 
-        let config_service = ConfigService::new(config);
-
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(bearer_token(config_service.get_anilist_token()))
+            .and(bearer_token(&config.anilist_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+        let list_service =
+            AnilistService::new(config.anilist_token, db_store, Some(mock_server.uri()));
 
         let response = list_service
             .get_list(12345)
@@ -586,22 +580,19 @@ mod tests {
         let mut config = db_store.get_config().await;
         config.anilist_token = "testToken123".to_string();
 
-        // let db_config = db_store.get_config().await;
-        // let config_service = ConfigService::new(db_config.clone());
-        let config_service = ConfigService::new(config);
-
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(bearer_token(config_service.get_anilist_token()))
+            .and(bearer_token(&config.anilist_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+        let list_service =
+            AnilistService::new(config.anilist_token, db_store, Some(mock_server.uri()));
 
         let response = list_service
             .get_user()
@@ -622,7 +613,6 @@ mod tests {
 
         let mut config = db_store.get_config().await;
         config.anilist_token = "testToken123".to_string();
-        let config_service = ConfigService::new(config);
 
         let search_term = "Sword Art Online";
         let expected_body = json!({
@@ -636,13 +626,14 @@ mod tests {
             .and(body_partial_json(expected_body))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(bearer_token(config_service.get_anilist_token()))
+            .and(bearer_token(&config.anilist_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+        let list_service =
+            AnilistService::new(config.anilist_token, db_store, Some(mock_server.uri()));
 
         let response = list_service
             .search_anime(search_term)
@@ -662,7 +653,6 @@ mod tests {
 
         let mut config = db_store.get_config().await;
         config.anilist_token = "testToken123".to_string();
-        let config_service = ConfigService::new(config);
 
         let anime_id = 11757;
         let expected_body = json!({
@@ -677,12 +667,13 @@ mod tests {
             .and(body_partial_json(expected_body))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(bearer_token(config_service.get_anilist_token()))
+            .and(bearer_token(&config.anilist_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .mount(&mock_server)
             .await;
 
-        let list_service = AnilistService::new(config_service, db_store, Some(mock_server.uri()));
+        let list_service =
+            AnilistService::new(config.anilist_token, db_store, Some(mock_server.uri()));
 
         let response = list_service
             .get_anime(anime_id)

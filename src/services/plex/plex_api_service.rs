@@ -179,7 +179,7 @@ mod tests {
         Mock, MockServer, ResponseTemplate,
     };
 
-    use crate::{services::config::config::MockConfig, utils::init_logger};
+    use crate::utils::init_logger;
 
     use super::*;
 
