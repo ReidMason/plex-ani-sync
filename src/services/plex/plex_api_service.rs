@@ -6,9 +6,8 @@ use serde::de::DeserializeOwned;
 use tracing::instrument;
 use url::Url;
 
-use crate::services::{
-    config::config::ConfigInterface,
-    plex::plex_api::{PlexLibraryResponse, PlexSeasonResponse, PlexSeriesResponse},
+use crate::services::plex::plex_api::{
+    PlexLibraryResponse, PlexSeasonResponse, PlexSeriesResponse,
 };
 
 use super::plex_api::{
@@ -17,33 +16,29 @@ use super::plex_api::{
 };
 
 #[derive(Debug)]
-pub struct PlexApi<T>
-where
-    T: ConfigInterface + std::fmt::Debug,
-{
-    config: T,
+pub struct PlexApi {
+    plex_url: String,
+    plex_token: String,
     http_client: reqwest::Client,
     headers: header::HeaderMap,
 }
 
-impl<T> PlexApi<T>
-where
-    T: ConfigInterface + std::fmt::Debug,
-{
-    pub fn new(config: T) -> Self {
+impl PlexApi {
+    pub fn new(plex_url: String, plex_token: String) -> Self {
         let mut header_map = header::HeaderMap::new();
         header_map.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         header_map.insert(ACCEPT, HeaderValue::from_static("application/json"));
 
         Self {
-            config,
+            plex_url,
+            plex_token,
             http_client: reqwest::Client::new(),
             headers: header_map,
         }
     }
 
     fn get_headers(&self) -> HeaderMap {
-        let auth_value = format!("Bearer {}", self.config.get_plex_token());
+        let auth_value = format!("Bearer {}", self.plex_token);
         let mut headers = self.headers.clone();
         headers.insert(
             AUTHORIZATION,
@@ -52,9 +47,9 @@ where
         headers
     }
 
-    async fn make_request<R>(&self, path: &str) -> Result<R, reqwest::Error>
+    async fn make_request<T>(&self, path: &str) -> Result<T, reqwest::Error>
     where
-        R: DeserializeOwned,
+        T: DeserializeOwned,
     {
         let url = self.build_request_url(path);
         self.http_client
@@ -62,13 +57,13 @@ where
             .headers(self.get_headers())
             .send()
             .await?
-            .json::<R>()
+            .json::<T>()
             .await
     }
 
     fn build_request_url(&self, path: &str) -> String {
-        let base_url = self.config.get_plex_base_url();
-        let token = self.config.get_plex_token();
+        let base_url = &self.plex_url;
+        let token = &self.plex_token;
 
         let url_builder = Url::parse(base_url).expect("Failed to parse Plex base url");
         let mut url_builder = url_builder
@@ -82,10 +77,7 @@ where
 }
 
 #[async_trait]
-impl<T> PlexInterface for PlexApi<T>
-where
-    T: ConfigInterface + std::fmt::Debug,
-{
+impl PlexInterface for PlexApi {
     async fn get_libraries(self) -> Result<Vec<ResponsePlexLibrary>, reqwest::Error> {
         let path = "/library/sections/";
 
@@ -220,21 +212,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_full_series_data() {
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
+        let plex_token = "123abc".to_string();
         let mock_server = MockServer::start().await;
         let series_response = get_response("series");
         Mock::given(method("GET"))
             .and(path("/library/sections/1/all"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
+            .and(query_param("X-Plex-Token".to_string(), &plex_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(series_response))
             .expect(1)
             .mount(&mock_server)
@@ -245,10 +230,7 @@ mod tests {
             .and(path("/library/metadata/17456/children"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
+            .and(query_param("X-Plex-Token".to_string(), &plex_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(seasons_response))
             .expect(1)
             .mount(&mock_server)
@@ -259,17 +241,13 @@ mod tests {
             .and(path("/library/metadata/30037/children"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
+            .and(query_param("X-Plex-Token".to_string(), &plex_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(episodes_response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        config_service.plex_base_url = mock_server.uri();
-        let plex_service = PlexApi::new(config_service);
+        let plex_service = PlexApi::new(mock_server.uri(), plex_token);
 
         let data = plex_service.get_full_series_data(1).await.unwrap();
         assert_eq!(1, data.len());
@@ -284,29 +262,20 @@ mod tests {
         init_logger();
 
         let response = get_response("library");
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
+        let plex_token = "123abc".to_string();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/library/sections/"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
+            .and(query_param("X-Plex-Token".to_string(), &plex_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
+        let plex_api = PlexApi::new(mock_server.uri(), plex_token);
 
         let libraries = plex_api.get_libraries().await.unwrap();
 
@@ -319,11 +288,7 @@ mod tests {
     async fn test_get_libraries_404_error_response() {
         init_logger();
 
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
+        let plex_token = "123abc".to_string();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -332,9 +297,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
+        let plex_api = PlexApi::new(mock_server.uri(), plex_token);
 
         assert!(plex_api.get_libraries().await.is_err());
     }
@@ -344,29 +307,20 @@ mod tests {
         init_logger();
 
         let response = get_response("series");
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
+        let plex_token = "123abc".to_string();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/library/sections/1/all"))
             .and(headers(CONTENT_TYPE, vec!["application/json"]))
             .and(headers(ACCEPT, vec!["application/json"]))
-            .and(query_param(
-                "X-Plex-Token".to_string(),
-                config_service.get_plex_token(),
-            ))
+            .and(query_param("X-Plex-Token".to_string(), &plex_token))
             .respond_with(ResponseTemplate::new(200).set_body_string(response))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
+        let plex_api = PlexApi::new(mock_server.uri(), plex_token);
 
         let series = plex_api.get_series(1).await.unwrap();
 
@@ -378,11 +332,7 @@ mod tests {
     async fn test_get_series_404_error_response() {
         init_logger();
 
-        let mut config_service = MockConfig {
-            plex_token: "123abc".to_string(),
-            plex_base_url: "".to_string(),
-            anilist_token: "".to_string(),
-        };
+        let plex_token = "123abc".to_string();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -391,9 +341,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        config_service.plex_base_url = mock_server.uri();
-
-        let plex_api = PlexApi::new(config_service);
+        let plex_api = PlexApi::new(mock_server.uri(), plex_token);
 
         assert!(plex_api.get_series(1).await.is_err());
     }
