@@ -6,13 +6,16 @@ use services::{
     },
     dbstore::sqlite::Sqlite,
     mapping_handler::mapping_handler::{MappingHandler, MappingHandlerInterface},
-    plex::{plex_api::PlexInterface, plex_api_service::PlexApi},
+    plex::plex_api_service::PlexApi,
     sync_service::sync_handler::{
         get_plex_episodes_for_anime_list_id, plex_series_to_animelist_entry,
     },
 };
 
-use crate::{services::dbstore::dbstore::DbStore, utils::get_db_file_location};
+use crate::{
+    services::{dbstore::dbstore::DbStore, plex::plex_api_service::get_full_series_data},
+    utils::get_db_file_location,
+};
 
 mod services;
 mod utils;
@@ -51,7 +54,7 @@ async fn main() {
     let mapping_handler = MappingHandler::new(anilist_service, db_store.clone());
 
     let list_id = 1;
-    let series = plex_service.get_full_series_data(list_id).await.unwrap();
+    let series = get_full_series_data(&plex_service, list_id).await.unwrap();
 
     for (i, s) in series.iter().enumerate() {
         info!(

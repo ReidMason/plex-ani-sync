@@ -145,28 +145,28 @@ impl PlexInterface for PlexApi {
         series.seasons = seasons;
         Ok(())
     }
+}
 
-    async fn get_full_series_data(
-        &self,
-        library_id: u8,
-    ) -> Result<Vec<PlexSeries>, reqwest::Error> {
-        let all_series = self.get_series(library_id).await?;
-        let mut all_series: Vec<PlexSeries> = all_series
-            .into_iter()
-            .map(|x| PlexSeries::from(x))
-            .collect();
+pub async fn get_full_series_data(
+    plex_service: &impl PlexInterface,
+    library_id: u8,
+) -> Result<Vec<PlexSeries>, reqwest::Error> {
+    let all_series = plex_service.get_series(library_id).await?;
+    let mut all_series: Vec<PlexSeries> = all_series
+        .into_iter()
+        .map(|x| PlexSeries::from(x))
+        .collect();
 
-        for chunk in all_series.chunks_mut(50) {
-            info!("Processing chunk");
-            let futures = FuturesUnordered::new();
-            for series in chunk.iter_mut() {
-                futures.push(self.populate_seasons(series));
-            }
-            join_all(futures).await;
+    for chunk in all_series.chunks_mut(50) {
+        info!("Processing chunk");
+        let futures = FuturesUnordered::new();
+        for series in chunk.iter_mut() {
+            futures.push(plex_service.populate_seasons(series));
         }
-
-        return Ok(all_series);
+        join_all(futures).await;
     }
+
+    return Ok(all_series);
 }
 
 #[cfg(test)]
@@ -249,7 +249,7 @@ mod tests {
 
         let plex_service = PlexApi::new(mock_server.uri(), plex_token);
 
-        let data = plex_service.get_full_series_data(1).await.unwrap();
+        let data = get_full_series_data(&plex_service, 1).await.unwrap();
         assert_eq!(1, data.len());
         let series = &data[0];
         assert_eq!(5, series.seasons.len());

@@ -14,8 +14,6 @@ pub trait PlexInterface {
     async fn get_series(&self, library_id: u8) -> Result<Vec<ResponsePlexSeries>, reqwest::Error>;
     async fn populate_episodes(&self, season: &mut PlexSeason) -> Result<(), reqwest::Error>;
     async fn populate_seasons(&self, series: &mut PlexSeries) -> Result<(), reqwest::Error>;
-    async fn get_full_series_data(&self, library_id: u8)
-        -> Result<Vec<PlexSeries>, reqwest::Error>;
 }
 
 pub struct PlexSeries {
