@@ -31,7 +31,7 @@ async fn main() {
 
     info!("Creating Plex service");
     let config = db_store.get_config().await;
-    let plex_service = PlexApi::new(config.plex_url.clone(), config.plex_token.clone());
+    let plex_service = PlexApi::new(config.plex_url, config.plex_token);
     // db_store.clear_anime_search_cache().await;
 
     info!("Creating Anilist service");

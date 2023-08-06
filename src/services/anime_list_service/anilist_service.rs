@@ -33,7 +33,7 @@ where
     J: DbStore,
 {
     pub fn new(anilist_token: String, dbstore: J, base_url: Option<String>) -> Self {
-        AnilistService {
+        Self {
             anilist_token,
             dbstore,
             http_client: reqwest::Client::new(),
