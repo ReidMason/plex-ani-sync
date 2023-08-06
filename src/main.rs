@@ -35,7 +35,7 @@ async fn main() {
     // db_store.clear_anime_search_cache().await;
 
     info!("Creating Anilist service");
-    let anilist_service = AnilistService::new(config.anilist_token.clone(), db_store, None);
+    let anilist_service = AnilistService::new(config.anilist_token, db_store.clone(), None);
 
     info!("Getting Anilist user");
     let anilist_user = anilist_service
@@ -50,7 +50,6 @@ async fn main() {
         .expect("Failed to get anilist list");
 
     info!("Checking mappings for all series");
-    let db_store = Sqlite::new(&get_db_file_location()).await;
     let mapping_handler = MappingHandler::new(db_store.clone());
 
     let list_id = 1;
