@@ -51,7 +51,7 @@ async fn main() {
 
     info!("Checking mappings for all series");
     let db_store = Sqlite::new(&get_db_file_location()).await;
-    let mapping_handler = MappingHandler::new(anilist_service, db_store.clone());
+    let mapping_handler = MappingHandler::new(db_store.clone());
 
     let list_id = 1;
     let series = get_full_series_data(&plex_service, list_id).await.unwrap();
@@ -63,14 +63,12 @@ async fn main() {
             i,
             series.len()
         );
-        let _ = mapping_handler.create_mapping(s).await;
+        let _ = mapping_handler.create_mapping(&anilist_service, s).await;
     }
     info!("Done checking mappings");
 
     let mappings = mapping_handler.get_all_relevant_mappings(&series).await;
     let ma = mapping_handler.get_all_mappings().await;
-
-    let anilist_service = AnilistService::new(config.anilist_token.clone(), db_store, None);
 
     // We need the anilist id and the number of episodes
     for mapping in mappings {

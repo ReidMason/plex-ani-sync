@@ -10,34 +10,33 @@ use super::mapping_utils::{find_match, get_mapped_episode_count, get_prev_mappin
 
 #[async_trait]
 pub trait MappingHandlerInterface {
-    async fn create_mapping(&self, series: &PlexSeries) -> Result<Vec<Mapping>, anyhow::Error>;
+    async fn create_mapping(
+        &self,
+        anime_list_service: &impl AnimeListService,
+        series: &PlexSeries,
+    ) -> Result<Vec<Mapping>, anyhow::Error>;
     async fn find_match_for_season(
         &self,
+        anime_list_service: &impl AnimeListService,
         season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error>;
     async fn get_all_relevant_mappings(&self, all_series: &Vec<PlexSeries>) -> Vec<Mapping>;
     async fn get_all_mappings(&self) -> Vec<Mapping>;
 }
 
-pub struct MappingHandler<T, J>
+pub struct MappingHandler<J>
 where
-    T: AnimeListService,
     J: DbStore,
 {
-    anime_list_service: T,
     db_store: J,
 }
 
-impl<T, J> MappingHandler<T, J>
+impl<J> MappingHandler<J>
 where
-    T: AnimeListService,
     J: DbStore,
 {
-    pub fn new(anime_list_service: T, db_store: J) -> Self {
-        Self {
-            anime_list_service,
-            db_store,
-        }
+    pub fn new(db_store: J) -> Self {
+        Self { db_store }
     }
 }
 
@@ -48,17 +47,16 @@ pub struct MappingWithListData {
 }
 
 #[async_trait]
-impl<T, J> MappingHandlerInterface for MappingHandler<T, J>
+impl<J> MappingHandlerInterface for MappingHandler<J>
 where
-    T: AnimeListService + Sync + Send,
     J: DbStore,
 {
     async fn find_match_for_season(
         &self,
+        anime_list_service: &impl AnimeListService,
         season: &PlexSeason,
     ) -> Result<Option<AnimeResult>, anyhow::Error> {
-        let mut results = self
-            .anime_list_service
+        let mut results = anime_list_service
             .search_anime(&season.parent_title)
             .await?;
 
@@ -94,7 +92,11 @@ where
         }
     }
 
-    async fn create_mapping(&self, series: &PlexSeries) -> Result<Vec<Mapping>, anyhow::Error> {
+    async fn create_mapping(
+        &self,
+        anime_list_service: &impl AnimeListService,
+        series: &PlexSeries,
+    ) -> Result<Vec<Mapping>, anyhow::Error> {
         // TODO: Reduce the chance of mapping errors by building up a vec of mappings for one
         // season then only push them if all the episodes are covered
 
@@ -121,7 +123,9 @@ where
                 && get_mapped_episode_count(&mappings, &season.rating_key)
                     < season.episodes.len().try_into().unwrap()
             {
-                let found_match = self.find_match_for_season(season).await?;
+                let found_match = self
+                    .find_match_for_season(anime_list_service, season)
+                    .await?;
                 let found_match = match found_match {
                     Some(x) => x,
                     None => return Ok(mappings),
@@ -170,8 +174,7 @@ where
                         None => return Ok(mappings),
                     };
 
-                    let prev_mapping_entry = self
-                        .anime_list_service
+                    let prev_mapping_entry = anime_list_service
                         .get_anime(prev_mapping.anime_list_id)
                         .await?;
 
@@ -180,8 +183,7 @@ where
                         None => return Ok(mappings),
                     };
 
-                    let sequel = self
-                        .anime_list_service
+                    let sequel = anime_list_service
                         .find_sequel(prev_mapping_entry.clone())
                         .await?;
 
@@ -266,17 +268,19 @@ mod tests {
 
     use super::*;
 
-    async fn init() -> MappingHandler<AnilistService<Sqlite>, Sqlite> {
+    async fn init() -> (MappingHandler<Sqlite>, AnilistService<Sqlite>) {
         init_logger();
 
         let mut db_store = Sqlite::new(&get_db_file_location()).await;
         db_store.migrate().await;
 
         let config = db_store.get_config().await;
+
         let list_service = AnilistService::new(config.anilist_token, db_store, None);
 
         let db_store = Sqlite::new(&get_db_file_location()).await;
-        MappingHandler::new(list_service, db_store)
+
+        (MappingHandler::new(db_store), list_service)
     }
 
     fn generate_episodes(num_episodes: u16) -> Vec<PlexEpisode> {
@@ -295,7 +299,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_one_to_one_mapping() {
-        let mapper = init().await;
+        let (mapper, list_service) = init().await;
 
         let series = PlexSeries {
             title: "Mysterious Girlfriend X".to_string(),
@@ -309,7 +313,7 @@ mod tests {
         };
 
         let result = mapper
-            .create_mapping(&series)
+            .create_mapping(&list_service, &series)
             .await
             .expect("Faied to get result for one to one mapping");
 
@@ -324,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn two_season_mapping() {
-        let mapper = init().await;
+        let (mapper, list_service) = init().await;
 
         let series = PlexSeries {
             title: "Vinland Saga".to_string(),
@@ -346,7 +350,7 @@ mod tests {
         };
 
         let result = mapper
-            .create_mapping(&series)
+            .create_mapping(&list_service, &series)
             .await
             .expect("Faied to get result for two season mapping");
 
@@ -357,7 +361,7 @@ mod tests {
 
     #[tokio::test]
     async fn overlord_series_with_difficult_name() {
-        let mapper = init().await;
+        let (mapper, list_service) = init().await;
 
         let series = PlexSeries {
             title: "Overlord".to_string(),
@@ -397,7 +401,7 @@ mod tests {
         };
 
         let result = mapper
-            .create_mapping(&series)
+            .create_mapping(&list_service, &series)
             .await
             .expect("Faied to get result for complex name mapping");
 
@@ -410,7 +414,7 @@ mod tests {
 
     #[tokio::test]
     async fn series_with_two_anilist_entries_for_one_plex_season() {
-        let mapper = init().await;
+        let (mapper, list_service) = init().await;
 
         let series = PlexSeries {
             title: "Attack on Titan".to_string(),
@@ -450,7 +454,7 @@ mod tests {
         };
 
         let result = mapper
-            .create_mapping(&series)
+            .create_mapping(&list_service, &series)
             .await
             .expect("Faied to get result for up to three anilist entries for one plex season");
 
@@ -466,7 +470,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_matching_jojo() {
-        let mapper = init().await;
+        let (mapper, list_service) = init().await;
 
         let series = PlexSeries {
             title: "JoJo's Bizarre Adventure".to_string(),
@@ -506,7 +510,7 @@ mod tests {
         };
 
         let result = mapper
-            .create_mapping(&series)
+            .create_mapping(&list_service, &series)
             .await
             .expect("Faied to get result for up to three anilist entries for one plex season");
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::anilist_service::SaveMediaListEntry;
 
 #[async_trait]
-pub trait AnimeListService {
+pub trait AnimeListService: Sync + Send {
     async fn search_anime(&self, search_term: &str) -> Result<Vec<AnimeResult>, anyhow::Error>;
     async fn get_anime(&self, anime_id: u32) -> Result<Option<AnimeResult>, anyhow::Error>;
     async fn find_sequel(
