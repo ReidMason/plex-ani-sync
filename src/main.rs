@@ -1,3 +1,10 @@
+use std::thread;
+use std::time::Duration;
+
+use clokwerk::AsyncScheduler;
+use clokwerk::Job;
+use clokwerk::TimeUnits;
+
 use log::info;
 use services::{
     anime_list_service::{
@@ -23,6 +30,17 @@ mod utils;
 #[tokio::main]
 async fn main() {
     utils::init_logger();
+
+    let mut scheduler = AsyncScheduler::new();
+    scheduler.every(1.days()).at("11:00 pm").run(|| run_sync());
+
+    loop {
+        scheduler.run_pending().await;
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+async fn run_sync() {
     info!("----- Plex Ani Sync started -----");
 
     info!("Performing database migrations");
@@ -114,8 +132,6 @@ async fn main() {
             Err(e) => info!("Failed to update. Error: {}", e),
         }
     }
-
-    return;
 
     // ulimit changed with "ulimit -n 256" to go back to default
     // use command "ulimit -n"
