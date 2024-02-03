@@ -8,8 +8,11 @@ import (
 	"net/http"
 )
 
-func GenerateAuthCode(clientIdentifier, appName string) pinResponse {
-	req, err := http.NewRequest("POST", "https://plex.tv/api/v2/pins?strong=true", nil)
+const PLEX_BASE_URL = "https://plex.tv"
+const PLEX_APP_BASE_URL = "https://app.plex.tv"
+
+func BuildAuthRequestUrl(clientIdentifier, appName string) string {
+	req, err := http.NewRequest("POST", PLEX_BASE_URL+"/api/v2/pins", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -17,7 +20,17 @@ func GenerateAuthCode(clientIdentifier, appName string) pinResponse {
 	q := req.URL.Query()
 	q.Add("X-Plex-Client-Identifier", clientIdentifier)
 	q.Add("X-Plex-Product", appName)
+	q.Add("strong", "true")
 	req.URL.RawQuery = q.Encode()
+
+	return req.URL.String()
+}
+
+func GenerateAuthCode(authRequestUrl string) pinResponse {
+	req, err := http.NewRequest("POST", authRequestUrl, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	req.Header.Add("accept", "application/json")
 
@@ -42,7 +55,7 @@ func GenerateAuthCode(clientIdentifier, appName string) pinResponse {
 }
 
 func CreateForwardUrl(code, clientIdentifier, appName string) string {
-	req, err := http.NewRequest("GET", "https://app.plex.tv/auth/", nil)
+	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,7 +71,7 @@ func CreateForwardUrl(code, clientIdentifier, appName string) string {
 
 func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) string {
 
-	req, err := http.NewRequest("GET", "https://plex.tv/api/v2/pins/"+fmt.Sprint(pinId), nil)
+	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
 		log.Fatal(err)
 	}
