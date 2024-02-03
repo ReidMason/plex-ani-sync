@@ -26,7 +26,7 @@ func BuildAuthRequestUrl(clientIdentifier, appName string) string {
 	return req.URL.String()
 }
 
-func GenerateAuthCode(authRequestUrl string) pinResponse {
+func GetAuthData(authRequestUrl string) pinResponse {
 	req, err := http.NewRequest("POST", authRequestUrl, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -54,7 +54,7 @@ func GenerateAuthCode(authRequestUrl string) pinResponse {
 	return result
 }
 
-func CreateForwardUrl(code, clientIdentifier, appName string) string {
+func BuildAuthUrl(code, clientIdentifier, appName string) string {
 	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
 		log.Fatal(err)
