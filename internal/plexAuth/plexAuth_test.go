@@ -1,4 +1,4 @@
-package plex
+package plexAuth
 
 import (
 	"fmt"
