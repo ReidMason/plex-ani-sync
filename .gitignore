@@ -7,3 +7,4 @@ server/flaskApp/static
 failed_tvdb_id_mappings.json
 .pytest_cache
 .DS_Store
+coverage.out
