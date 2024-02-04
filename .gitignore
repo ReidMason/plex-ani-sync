@@ -6,10 +6,4 @@ config.json
 server/flaskApp/static
 failed_tvdb_id_mappings.json
 .pytest_cache
-
-# Keep the anime-mapping.json file
-server/data/*
-server/data/mapping/*
-!server/data/mapping/
-!server/data/mapping/anime-mapping.json
-test.py
+.DS_Store
