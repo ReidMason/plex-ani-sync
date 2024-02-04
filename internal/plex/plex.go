@@ -2,9 +2,11 @@ package plex
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 const PLEX_BASE_URL = "https://plex.tv"
@@ -25,8 +27,8 @@ func BuildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	return req.URL.String(), nil
 }
 
-func GetAuthData(authRequestUrl string) (pinResponse, error) {
-	var result pinResponse
+func GetAuthData(authRequestUrl string) (authResponse, error) {
+	var result authResponse
 
 	req, err := http.NewRequest("POST", authRequestUrl, nil)
 	if err != nil {
@@ -70,7 +72,6 @@ func BuildAuthUrl(code, clientIdentifier, appName string) (string, error) {
 }
 
 func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, error) {
-
 	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
 		return "", err
@@ -83,6 +84,41 @@ func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, er
 	req.URL.RawQuery = q.Encode()
 
 	return req.URL.String(), nil
+}
+
+func PollForAuthToken(pollingLink string) (authResponse, error) {
+	var result authResponse
+
+	req, err := http.NewRequest("GET", pollingLink, nil)
+	if err != nil {
+		return result, err
+	}
+
+	req.Header.Add("accept", "application/json")
+
+	iterLimit := 60
+	for i := 0; i < iterLimit; i++ {
+		time.Sleep(1 * time.Second)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			continue
+		}
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+
+		if err := json.Unmarshal(body, &result); err != nil {
+			continue
+		}
+
+		if result.AuthToken != nil {
+			return result, nil
+		}
+	}
+
+	return result, errors.New("Failed to get auth token")
 }
 
 type location struct {
@@ -98,8 +134,8 @@ type location struct {
 	inPrivacyRestrictedCountry bool
 }
 
-type pinResponse struct {
-	authToken        *string
+type authResponse struct {
+	AuthToken        *string
 	newRegistration  *string
 	Code             string
 	product          string
