@@ -4,17 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
 const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
 
-func BuildAuthRequestUrl(clientIdentifier, appName string) string {
+func BuildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("POST", PLEX_BASE_URL+"/api/v2/pins", nil)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	q := req.URL.Query()
@@ -23,41 +22,42 @@ func BuildAuthRequestUrl(clientIdentifier, appName string) string {
 	q.Add("strong", "true")
 	req.URL.RawQuery = q.Encode()
 
-	return req.URL.String()
+	return req.URL.String(), nil
 }
 
-func GetAuthData(authRequestUrl string) pinResponse {
+func GetAuthData(authRequestUrl string) (pinResponse, error) {
+	var result pinResponse
+
 	req, err := http.NewRequest("POST", authRequestUrl, nil)
 	if err != nil {
-		log.Fatal(err)
+		return result, err
 	}
 
 	req.Header.Add("accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return result, err
 	}
 
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return result, err
 	}
 
-	var result pinResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		log.Fatal(err)
+		return result, err
 	}
 
-	return result
+	return result, nil
 }
 
-func BuildAuthUrl(code, clientIdentifier, appName string) string {
+func BuildAuthUrl(code, clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	q := req.URL.Query()
@@ -66,14 +66,14 @@ func BuildAuthUrl(code, clientIdentifier, appName string) string {
 	q.Add("context[device][product]", appName)
 	// q.Add("forwardUrl", "https://app.plex.tv/auth/forward")
 
-	return req.URL.String() + "#?" + q.Encode()
+	return req.URL.String() + "#?" + q.Encode(), nil
 }
 
-func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) string {
+func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, error) {
 
 	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	q := req.URL.Query()
@@ -82,7 +82,7 @@ func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) string {
 
 	req.URL.RawQuery = q.Encode()
 
-	return req.URL.String()
+	return req.URL.String(), nil
 }
 
 type location struct {
