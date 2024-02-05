@@ -3,7 +3,7 @@
 //   sqlc v1.20.0
 // source: queries.sql
 
-package db
+package plexAnilistSyncDb
 
 import (
 	"context"
@@ -22,7 +22,7 @@ type CreateConfigParams struct {
 	PlexServerToken  string
 }
 
-// statement: |
+// This is a SQL query that inserts a new row into the config table and returns the newly inserted row.
 func (q *Queries) CreateConfig(ctx context.Context, arg CreateConfigParams) (Config, error) {
 	row := q.db.QueryRow(ctx, createConfig,
 		arg.AppName,
