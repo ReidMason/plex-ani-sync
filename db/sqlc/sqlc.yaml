@@ -5,6 +5,6 @@ sql:
     schema: "../migrations"
     gen:
       go:
-        package: "db"
-        out: "../../internal/db/postgres"
+        package: "plexAnilistSyncDb"
+        out: "../../internal/plexAnilistSyncDb/postgres"
         sql_package: "pgx/v5"
