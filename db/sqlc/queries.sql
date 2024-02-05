@@ -1,5 +1,18 @@
--- name: CreateConfig :one
--- This is a SQL query that inserts a new row into the config table and returns the newly inserted row.
-  INSERT INTO config (app_name, client_identifier, plex_server_url, plex_server_token)
-  VALUES ($1, $2, $3, $4)
-  RETURNING id, app_name, client_identifier, plex_server_url, plex_server_token;
+-- name: CreateUser :one
+-- CreateUser creates a new user.
+  INSERT INTO users (name, plex_token)
+  VALUES ($1, $2)
+  RETURNING *;
+
+-- name: GetUser :one
+-- GetUser retrieves a user by ID.
+  SELECT * FROM users WHERE id = $1;
+
+  -- name: UpdateUser :one
+-- UpdateUser updates a user's information.
+  UPDATE users
+  SET name = COALESCE($1, name),
+      plex_token = COALESCE($2, plex_token),
+      updated_at = NOW()
+  WHERE id = $3
+  RETURNING *;

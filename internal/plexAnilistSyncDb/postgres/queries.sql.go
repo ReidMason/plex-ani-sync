@@ -7,36 +7,78 @@ package plexAnilistSyncDb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createConfig = `-- name: CreateConfig :one
-  INSERT INTO config (app_name, client_identifier, plex_server_url, plex_server_token)
-  VALUES ($1, $2, $3, $4)
-  RETURNING id, app_name, client_identifier, plex_server_url, plex_server_token
+const createUser = `-- name: CreateUser :one
+  INSERT INTO users (name, plex_token)
+  VALUES ($1, $2)
+  RETURNING id, name, plex_token, created_at, updated_at
 `
 
-type CreateConfigParams struct {
-	AppName          string
-	ClientIdentifier string
-	PlexServerUrl    string
-	PlexServerToken  string
+type CreateUserParams struct {
+	Name      string
+	PlexToken pgtype.Text
 }
 
-// This is a SQL query that inserts a new row into the config table and returns the newly inserted row.
-func (q *Queries) CreateConfig(ctx context.Context, arg CreateConfigParams) (Config, error) {
-	row := q.db.QueryRow(ctx, createConfig,
-		arg.AppName,
-		arg.ClientIdentifier,
-		arg.PlexServerUrl,
-		arg.PlexServerToken,
-	)
-	var i Config
+// CreateUser creates a new user.
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.PlexToken)
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.AppName,
-		&i.ClientIdentifier,
-		&i.PlexServerUrl,
-		&i.PlexServerToken,
+		&i.Name,
+		&i.PlexToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUser = `-- name: GetUser :one
+  SELECT id, name, plex_token, created_at, updated_at FROM users WHERE id = $1
+`
+
+// GetUser retrieves a user by ID.
+func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
+	row := q.db.QueryRow(ctx, getUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PlexToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUser = `-- name: UpdateUser :one
+  UPDATE users
+  SET name = COALESCE($1, name),
+      plex_token = COALESCE($2, plex_token),
+      updated_at = NOW()
+  WHERE id = $3
+  RETURNING id, name, plex_token, created_at, updated_at
+`
+
+type UpdateUserParams struct {
+	Name      string
+	PlexToken pgtype.Text
+	ID        int32
+}
+
+// UpdateUser updates a user's information.
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser, arg.Name, arg.PlexToken, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PlexToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
