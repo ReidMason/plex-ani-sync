@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -12,7 +13,37 @@ import (
 const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
 
-func BuildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
+func AuthPlex(client_identifier, app_name string) (authResponse, error) {
+	var authResponse authResponse
+
+	log.Print("Authenticating with Plex")
+	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
+	if err != nil {
+		return authResponse, err
+	}
+
+	authData, err := getAuthData(requestUrl)
+	if err != nil {
+		return authResponse, err
+	}
+
+	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
+	if err != nil {
+		return authResponse, err
+	}
+
+	log.Printf("Visit this URL to authenticate: %v", authUrl)
+
+	pollingUrl, err := buildPollingLink(authData.Id, authData.Code, client_identifier)
+	if err != nil {
+		return authResponse, err
+	}
+
+	log.Print("Polling for authentication")
+	return pollForAuthToken(pollingUrl)
+}
+
+func buildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("POST", PLEX_BASE_URL+"/api/v2/pins", nil)
 	if err != nil {
 		return "", err
@@ -27,7 +58,7 @@ func BuildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	return req.URL.String(), nil
 }
 
-func GetAuthData(authRequestUrl string) (authResponse, error) {
+func getAuthData(authRequestUrl string) (authResponse, error) {
 	var result authResponse
 
 	req, err := http.NewRequest("POST", authRequestUrl, nil)
@@ -56,7 +87,7 @@ func GetAuthData(authRequestUrl string) (authResponse, error) {
 	return result, nil
 }
 
-func BuildAuthUrl(code, clientIdentifier, appName string) (string, error) {
+func buildAuthUrl(code, clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
 		return "", err
@@ -71,7 +102,7 @@ func BuildAuthUrl(code, clientIdentifier, appName string) (string, error) {
 	return req.URL.String() + "#?" + q.Encode(), nil
 }
 
-func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, error) {
+func buildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
 		return "", err
@@ -86,7 +117,7 @@ func BuildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, er
 	return req.URL.String(), nil
 }
 
-func PollForAuthToken(pollingLink string) (authResponse, error) {
+func pollForAuthToken(pollingLink string) (authResponse, error) {
 	var result authResponse
 
 	req, err := http.NewRequest("GET", pollingLink, nil)
