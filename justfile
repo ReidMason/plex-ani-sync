@@ -3,3 +3,6 @@ test-cover:
 
 sqlc-generate:
   cd db/sqlc && sqlc generate 
+
+migrate-up:
+  migrate -source file://db/migrations -database pgx://testuser:testpass@localhost:5432/plexAnilistSync up
