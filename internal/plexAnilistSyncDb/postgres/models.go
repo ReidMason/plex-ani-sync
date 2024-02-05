@@ -4,12 +4,14 @@
 
 package plexAnilistSyncDb
 
-import ()
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
 
-type Config struct {
-	ID               int32
-	AppName          string
-	ClientIdentifier string
-	PlexServerUrl    string
-	PlexServerToken  string
+type User struct {
+	ID        int32
+	Name      string
+	PlexToken pgtype.Text
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
