@@ -2,17 +2,18 @@ package users
 
 import (
 	"context"
+	"log"
 
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	plexAnilistSyncDb "github.com/ReidMason/plex-ani-sync/internal/plexAnilistSyncDb/postgres"
 )
 
 type CreateUserParams struct {
-	Name      string
 	PlexToken string
+	Name      string
 }
 
-func CreateUser(newUser CreateUserParams) (plexAnilistSyncDb.User, error) {
+func CreateUser(newUser plexAnilistSyncDb.User) (plexAnilistSyncDb.User, error) {
 	var user plexAnilistSyncDb.User
 
 	connectionString := db.BuildConnectionString("testuser", "testpass", "localhost", "5432", "plexAnilistSync")
@@ -25,7 +26,7 @@ func CreateUser(newUser CreateUserParams) (plexAnilistSyncDb.User, error) {
 	ctx := context.Background()
 	return queries.CreateUser(ctx, plexAnilistSyncDb.CreateUserParams{
 		Name:      newUser.Name,
-		PlexToken: db.StringToPgTypeText(newUser.PlexToken),
+		PlexToken: newUser.PlexToken,
 	})
 }
 
@@ -35,7 +36,7 @@ type UpdateUserParams struct {
 	Id        int32
 }
 
-func UpdateUser(user UpdateUserParams) (plexAnilistSyncDb.User, error) {
+func UpdateUser(user plexAnilistSyncDb.User) (plexAnilistSyncDb.User, error) {
 	var updatedUser plexAnilistSyncDb.User
 
 	connectionString := db.BuildConnectionString("testuser", "testpass", "localhost", "5432", "plexAnilistSync")
@@ -46,9 +47,25 @@ func UpdateUser(user UpdateUserParams) (plexAnilistSyncDb.User, error) {
 
 	queries := plexAnilistSyncDb.New(driver)
 	ctx := context.Background()
-	return queries.UpdateUser(ctx, plexAnilistSyncDb.UpdateUserParams{
-		ID:        user.Id,
+	obj := plexAnilistSyncDb.UpdateUserParams{
+		ID:        user.ID,
 		Name:      user.Name,
-		PlexToken: db.StringToPgTypeText(user.PlexToken),
-	})
+		PlexToken: user.PlexToken,
+	}
+	log.Println(obj)
+	return queries.UpdateUser(ctx, obj)
+}
+
+func GetUser(id int32) (plexAnilistSyncDb.User, error) {
+	var user plexAnilistSyncDb.User
+
+	connectionString := db.BuildConnectionString("testuser", "testpass", "localhost", "5432", "plexAnilistSync")
+	driver, err := db.ConnectToDatabase(connectionString)
+	if err != nil {
+		return user, err
+	}
+
+	queries := plexAnilistSyncDb.New(driver)
+	ctx := context.Background()
+	return queries.GetUser(ctx, id)
 }
