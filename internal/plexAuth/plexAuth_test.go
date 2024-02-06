@@ -20,7 +20,7 @@ func TestBuildAuthRequestUrl(t *testing.T) {
 		t.Run(fmt.Sprintf("BuildAuthRequestUrl(%s, %s)", tc.clientIdentifier, tc.appName), func(t *testing.T) {
 			t.Parallel()
 
-			result, err := BuildAuthRequestUrl(tc.clientIdentifier, tc.appName)
+			result, err := buildAuthRequestUrl(tc.clientIdentifier, tc.appName)
 			if err != nil {
 				t.Errorf("BuildAuthRequestUrl(%s, %s) threw an error", tc.clientIdentifier, tc.appName)
 			}
@@ -50,7 +50,7 @@ func TestBuildAuthUrl(t *testing.T) {
 		t.Run(fmt.Sprintf("BuildAuthUrl(%s, %s, %s)", tc.code, tc.clientIdentifier, tc.appName), func(t *testing.T) {
 			t.Parallel()
 
-			result, err := BuildAuthUrl(tc.code, tc.clientIdentifier, tc.appName)
+			result, err := buildAuthUrl(tc.code, tc.clientIdentifier, tc.appName)
 
 			if err != nil {
 				t.Errorf("BuildAuthUrl(%s, %s, %s) threw an error", tc.code, tc.clientIdentifier, tc.appName)
@@ -81,7 +81,7 @@ func TestBuildPollingLink(t *testing.T) {
 		t.Run(fmt.Sprintf("BuildPollingLink(%d, %s, %s)", tc.pinId, tc.pinCode, tc.clientIdentifier), func(t *testing.T) {
 			t.Parallel()
 
-			result, err := BuildPollingLink(tc.pinId, tc.pinCode, tc.clientIdentifier)
+			result, err := buildPollingLink(tc.pinId, tc.pinCode, tc.clientIdentifier)
 
 			if err != nil {
 				t.Errorf("BuildPollingLink(%d, %s, %s) threw an error", tc.pinId, tc.pinCode, tc.clientIdentifier)
