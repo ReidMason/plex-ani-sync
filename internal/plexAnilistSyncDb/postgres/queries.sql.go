@@ -56,8 +56,8 @@ func (q *Queries) GetUser(ctx context.Context, id int32) (User, error) {
 
 const updateUser = `-- name: UpdateUser :one
   UPDATE users
-  SET name = COALESCE($1, name),
-      plex_token = COALESCE($2, plex_token),
+  SET name = $1,
+      plex_token = $2,
       updated_at = NOW()
   WHERE id = $3
   RETURNING id, name, plex_token, created_at, updated_at
