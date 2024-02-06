@@ -14,29 +14,29 @@ const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
 
 func AuthPlex(client_identifier, app_name string) (authResponse, error) {
-	var authResponse authResponse
+	var response authResponse
 
 	log.Print("Authenticating with Plex")
 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
 	if err != nil {
-		return authResponse, err
+		return response, err
 	}
 
 	authData, err := getAuthData(requestUrl)
 	if err != nil {
-		return authResponse, err
+		return response, err
 	}
 
 	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
 	if err != nil {
-		return authResponse, err
+		return response, err
 	}
 
 	log.Printf("Visit this URL to authenticate: %v", authUrl)
 
 	pollingUrl, err := buildPollingLink(authData.Id, authData.Code, client_identifier)
 	if err != nil {
-		return authResponse, err
+		return response, err
 	}
 
 	log.Print("Polling for authentication")
