@@ -8,12 +8,17 @@ import (
 )
 
 type Plex struct {
-	token string
-	host  string
+	client HttpClient
+	token  string
+	host   string
 }
 
-func New(token string, host string) Plex {
-	return Plex{token: token, host: host}
+type HttpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func New(token string, host string, client HttpClient) Plex {
+	return Plex{token: token, host: host, client: client}
 }
 
 func buildRequest(method, url, token string) (*http.Request, error) {
@@ -38,7 +43,7 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 		return plexUser, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return plexUser, err
 	}
