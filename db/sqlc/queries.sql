@@ -4,7 +4,7 @@
   VALUES ($1, $2)
   RETURNING *;
 
--- name: GetUser :one
+-- name: GetUserById :one
 -- GetUser retrieves a user by ID.
   SELECT * FROM users WHERE id = $1;
 
