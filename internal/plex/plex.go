@@ -36,6 +36,35 @@ func buildRequest(method, url, token string) (*http.Request, error) {
 	return req, nil
 }
 
+func makeRequest[T any](client HttpClient, request *http.Request) (T, error) {
+	var result T
+	resp, err := client.Do(request)
+	if err != nil {
+		return result, err
+	}
+
+	if resp.StatusCode >= 400 {
+		return result, fmt.Errorf("Request failed: %s", resp.Status)
+	}
+
+	defer resp.Body.Close()
+	return parseResponse[T](resp.Body)
+}
+
+func parseResponse[T any](responseBody io.ReadCloser) (T, error) {
+	var result T
+	body, err := io.ReadAll(responseBody)
+	if err != nil {
+		return result, err
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 func (p Plex) GetCurrentUser() (PlexUser, error) {
 	var plexUser PlexUser
 	req, err := buildRequest("GET", "https://plex.tv/api/v2/user", p.token)
@@ -43,27 +72,7 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 		return plexUser, err
 	}
 
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return plexUser, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return plexUser, fmt.Errorf("Failed to get current Plex user: %s", resp.Status)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return plexUser, err
-	}
-
-	if err := json.Unmarshal(body, &plexUser); err != nil {
-		return plexUser, err
-	}
-
-	return plexUser, nil
+	return makeRequest[PlexUser](p.client, req)
 }
 
 type PlexUser struct {
