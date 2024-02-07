@@ -43,7 +43,7 @@ func (um UserManager) UpdateUser(user plexAnilistSyncDb.User) (plexAnilistSyncDb
 	return um.queries.UpdateUser(ctx, obj)
 }
 
-func (um UserManager) GetUser(id int32) (plexAnilistSyncDb.User, error) {
+func (um UserManager) GetUserById(id int32) (plexAnilistSyncDb.User, error) {
 	ctx := context.Background()
-	return um.queries.GetUser(ctx, id)
+	return um.queries.GetUserById(ctx, id)
 }
