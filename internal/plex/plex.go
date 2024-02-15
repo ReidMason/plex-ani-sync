@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 type Plex struct {
-	client HttpClient
-	token  string
-	host   string
+	client  HttpClient
+	token   string
+	hostUrl *url.URL
 }
 
 type HttpClient interface {
@@ -18,7 +19,12 @@ type HttpClient interface {
 }
 
 func New(token string, host string, client HttpClient) Plex {
-	return Plex{token: token, host: host, client: client}
+	hostUrl, err := url.Parse(host)
+	if err != nil {
+		panic("Invalid host URL")
+	}
+
+	return Plex{token: token, hostUrl: hostUrl, client: client}
 }
 
 func buildRequest(method, url, token string) (*http.Request, error) {
@@ -65,6 +71,29 @@ func parseResponse[T any](responseBody io.ReadCloser) (T, error) {
 	return result, nil
 }
 
+func (p Plex) buildHostUrl(path string) (string, error) {
+	return url.JoinPath(p.hostUrl.String(), path)
+}
+
+func (p Plex) GetLibraries() ([]Library, error) {
+	url, err := p.buildHostUrl("library/sections")
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := buildRequest("GET", url, p.token)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := makeRequest[PlexResponse[[]Library]](p.client, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.MediaContainer.Directory, nil
+}
+
 func (p Plex) GetCurrentUser() (PlexUser, error) {
 	var plexUser PlexUser
 	req, err := buildRequest("GET", "https://plex.tv/api/v2/user", p.token)
@@ -73,6 +102,46 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 	}
 
 	return makeRequest[PlexUser](p.client, req)
+}
+
+type PlexResponse[T any] struct {
+	MediaContainer MediaContainer[T] `json:"MediaContainer"`
+}
+
+type MediaContainer[T any] struct {
+	Directory T      `json:"Directory"`
+	Title1    string `json:"title1"`
+	Size      int    `json:"size"`
+	AllowSync bool   `json:"allowSync"`
+}
+
+type Library struct {
+	Scanner          string     `json:"scanner"`
+	Type             string     `json:"type"`
+	Art              string     `json:"art"`
+	UUID             string     `json:"uuid"`
+	Language         string     `json:"language"`
+	Thumb            string     `json:"thumb"`
+	Key              string     `json:"key"`
+	Composite        string     `json:"composite"`
+	Title            string     `json:"title"`
+	Agent            string     `json:"agent"`
+	Locations        []Location `json:"Location"`
+	ContentChangedAt int        `json:"contentChangedAt"`
+	Hidden           int        `json:"hidden"`
+	UpdatedAt        int        `json:"updatedAt"`
+	CreatedAt        int        `json:"createdAt"`
+	ScannedAt        int        `json:"scannedAt"`
+	Refreshing       bool       `json:"refreshing"`
+	Directory        bool       `json:"directory"`
+	Content          bool       `json:"content"`
+	Filters          bool       `json:"filters"`
+	AllowSync        bool       `json:"allowSync"`
+}
+
+type Location struct {
+	Path string `json:"path"`
+	ID   int    `json:"id"`
 }
 
 type PlexUser struct {
