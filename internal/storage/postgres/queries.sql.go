@@ -3,7 +3,7 @@
 //   sqlc v1.20.0
 // source: queries.sql
 
-package plexAnilistSyncDb
+package storage
 
 import (
 	"context"
