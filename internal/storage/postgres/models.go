@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.20.0
 
-package plexAnilistSyncDb
+package storage
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
