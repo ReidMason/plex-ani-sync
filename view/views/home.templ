@@ -1,0 +1,11 @@
+package views
+
+import "github.com/ReidMason/plex-ani-sync/view/layouts"
+
+templ Home(name string) {
+  @layouts.Main() {
+    <div>
+      <h1 class="text-red-500 mt-24">Hello, {name}!</h1>
+    </div>
+  }
+}
