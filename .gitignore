@@ -9,3 +9,4 @@ failed_tvdb_id_mappings.json
 .DS_Store
 coverage.out
 docker/data
+tmp
