@@ -5,7 +5,7 @@ import (
 )
 
 type Storage interface {
-	GetUserById(id int32) (storage.User, error)
+	GetUser() (storage.User, error)
 	CreateUser(newUser storage.User) (storage.User, error)
 	UpdateUser(user storage.User) (storage.User, error)
 }
