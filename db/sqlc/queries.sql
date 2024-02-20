@@ -4,9 +4,10 @@
   VALUES ($1, $2)
   RETURNING *;
 
--- name: GetUserById :one
--- GetUser retrieves a user by ID.
-  SELECT * FROM users WHERE id = $1;
+-- name: GetUser :one
+-- GetUser retrieves the user.
+  SELECT * FROM users 
+  LIMIT 1;
 
   -- name: UpdateUser :one
 -- UpdateUser updates a user's information.

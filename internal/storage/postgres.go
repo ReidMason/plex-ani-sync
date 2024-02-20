@@ -14,9 +14,9 @@ func NewPostgresStorage(queries *storage.Queries) Postgres {
 	return Postgres{queries: queries}
 }
 
-func (p Postgres) GetUserById(id int32) (storage.User, error) {
+func (p Postgres) GetUser() (storage.User, error) {
 	ctx := context.Background()
-	return p.queries.GetUserById(ctx, id)
+	return p.queries.GetUser(ctx)
 }
 
 func (p Postgres) CreateUser(newUser storage.User) (storage.User, error) {
