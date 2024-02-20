@@ -10,3 +10,5 @@ failed_tvdb_id_mappings.json
 coverage.out
 docker/data
 tmp
+node_modules
+public/assets/css/style.css
