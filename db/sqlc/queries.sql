@@ -9,7 +9,12 @@
   SELECT * FROM users 
   LIMIT 1;
 
-  -- name: UpdateUser :one
+-- name: DeleteUser :one
+-- DeleteUser deletes the user
+  DELETE FROM users
+  RETURNING *;
+
+-- name: UpdateUser :one
 -- UpdateUser updates a user's information.
   UPDATE users
   SET name = $1,

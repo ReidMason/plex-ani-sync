@@ -19,6 +19,11 @@ func (p Postgres) GetUser() (storage.User, error) {
 	return p.queries.GetUser(ctx)
 }
 
+func (p Postgres) DeleteUser() (storage.User, error) {
+	ctx := context.Background()
+	return p.queries.DeleteUser(ctx)
+}
+
 func (p Postgres) CreateUser(newUser storage.User) (storage.User, error) {
 	ctx := context.Background()
 	return p.queries.CreateUser(ctx, storage.CreateUserParams{

@@ -36,6 +36,25 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteUser = `-- name: DeleteUser :one
+  DELETE FROM users
+  RETURNING id, name, plex_token, created_at, updated_at
+`
+
+// DeleteUser deletes the user
+func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
+	row := q.db.QueryRow(ctx, deleteUser)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PlexToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
   SELECT id, name, plex_token, created_at, updated_at FROM users 
   LIMIT 1
