@@ -2,16 +2,17 @@
 // versions:
 //   sqlc v1.20.0
 
-package storage
+package postgresStorage
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type User struct {
-	ID        int32
-	Name      string
-	PlexToken pgtype.Text
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID               int32
+	Name             string
+	PlexToken        pgtype.Text
+	ClientIdentifier string
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
 }
