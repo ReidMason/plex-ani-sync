@@ -3,41 +3,97 @@ package storage
 import (
 	"context"
 
-	storage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
+	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Postgres struct {
-	queries *storage.Queries
+	queries *postgresStorage.Queries
 }
 
-func NewPostgresStorage(queries *storage.Queries) Postgres {
+func NewPostgresStorage(queries *postgresStorage.Queries) Postgres {
 	return Postgres{queries: queries}
 }
 
-func (p Postgres) GetUser() (storage.User, error) {
+func (p Postgres) GetUser() (User, error) {
 	ctx := context.Background()
-	return p.queries.GetUser(ctx)
-}
-
-func (p Postgres) DeleteUser() (storage.User, error) {
-	ctx := context.Background()
-	return p.queries.DeleteUser(ctx)
-}
-
-func (p Postgres) CreateUser(newUser storage.User) (storage.User, error) {
-	ctx := context.Background()
-	return p.queries.CreateUser(ctx, storage.CreateUserParams{
-		Name:      newUser.Name,
-		PlexToken: newUser.PlexToken,
-	})
-}
-
-func (p Postgres) UpdateUser(user storage.User) (storage.User, error) {
-	ctx := context.Background()
-	obj := storage.UpdateUserParams{
-		ID:        user.ID,
-		Name:      user.Name,
-		PlexToken: user.PlexToken,
+	user, err := p.queries.GetUser(ctx)
+	if err != nil {
+		return User{}, err
 	}
-	return p.queries.UpdateUser(ctx, obj)
+
+	return pgUserToUser(user), nil
+}
+
+func (p Postgres) DeleteUser() (User, error) {
+	ctx := context.Background()
+	user, err := p.queries.DeleteUser(ctx)
+	if err != nil {
+		return User{}, err
+	}
+
+	return pgUserToUser(user), nil
+}
+
+func (p Postgres) CreateUser(name string) (User, error) {
+	ctx := context.Background()
+	user, err := p.queries.CreateUser(ctx, postgresStorage.CreateUserParams{
+		Name:             name,
+		ClientIdentifier: uuid.New().String(),
+	})
+
+	if err != nil {
+		return User{}, err
+	}
+
+	return pgUserToUser(user), nil
+}
+
+func (p Postgres) UpdateUser(userUpdate UpdateUserParams) (User, error) {
+	ctx := context.Background()
+	obj := postgresStorage.UpdateUserParams{
+		ID:        userUpdate.Id,
+		Name:      userUpdate.Name,
+		PlexToken: stringToPgTypeText(userUpdate.PlexToken),
+	}
+	user, err := p.queries.UpdateUser(ctx, obj)
+	if err != nil {
+		return User{}, err
+	}
+
+	return pgUserToUser(user), nil
+}
+
+func pgTypeTextToString(text pgtype.Text) *string {
+	if text.Valid {
+		return &text.String
+	}
+
+	return nil
+}
+
+func stringToPgTypeText(stringValue *string) pgtype.Text {
+	if stringValue == nil {
+		return pgtype.Text{
+			String: "",
+			Valid:  false,
+		}
+	}
+
+	return pgtype.Text{
+		String: *stringValue,
+		Valid:  true,
+	}
+}
+
+func pgUserToUser(user postgresStorage.User) User {
+	return User{
+		Id:               user.ID,
+		Name:             user.Name,
+		PlexToken:        pgTypeTextToString(user.PlexToken),
+		ClientIdentifier: user.ClientIdentifier,
+		CreatedAt:        user.CreatedAt.Time,
+		UpdatedAt:        user.UpdatedAt.Time,
+	}
 }
