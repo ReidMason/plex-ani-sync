@@ -1,18 +1,27 @@
 package storage
 
 import (
-	storage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
+	"time"
 )
 
 type Storage interface {
-	GetUser() (storage.User, error)
-	DeleteUser() (storage.User, error)
-	CreateUser(newUser storage.User) (storage.User, error)
-	UpdateUser(user storage.User) (storage.User, error)
+	GetUser() (User, error)
+	DeleteUser() (User, error)
+	CreateUser(name string) (User, error)
+	UpdateUser(user UpdateUserParams) (User, error)
+}
+
+type User struct {
+	Id               int32
+	Name             string
+	PlexToken        *string
+	ClientIdentifier string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type UpdateUserParams struct {
 	Name      string
-	PlexToken string
+	PlexToken *string
 	Id        int32
 }
