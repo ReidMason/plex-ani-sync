@@ -1,7 +1,7 @@
 -- name: CreateUser :one
 -- CreateUser creates a new user.
-  INSERT INTO users (name, plex_token)
-  VALUES ($1, $2)
+  INSERT INTO users (name, plex_token, client_identifier)
+  VALUES ($1, $2, $3)
   RETURNING *;
 
 -- name: GetUser :one

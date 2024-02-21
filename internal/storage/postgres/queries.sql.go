@@ -3,7 +3,7 @@
 //   sqlc v1.20.0
 // source: queries.sql
 
-package storage
+package postgresStorage
 
 import (
 	"context"
@@ -12,24 +12,26 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-  INSERT INTO users (name, plex_token)
-  VALUES ($1, $2)
-  RETURNING id, name, plex_token, created_at, updated_at
+  INSERT INTO users (name, plex_token, client_identifier)
+  VALUES ($1, $2, $3)
+  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Name      string
-	PlexToken pgtype.Text
+	Name             string
+	PlexToken        pgtype.Text
+	ClientIdentifier string
 }
 
 // CreateUser creates a new user.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.PlexToken)
+	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.PlexToken, arg.ClientIdentifier)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.PlexToken,
+		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -38,7 +40,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 
 const deleteUser = `-- name: DeleteUser :one
   DELETE FROM users
-  RETURNING id, name, plex_token, created_at, updated_at
+  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
 `
 
 // DeleteUser deletes the user
@@ -49,6 +51,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.PlexToken,
+		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -56,7 +59,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 }
 
 const getUser = `-- name: GetUser :one
-  SELECT id, name, plex_token, created_at, updated_at FROM users 
+  SELECT id, name, plex_token, client_identifier, created_at, updated_at FROM users 
   LIMIT 1
 `
 
@@ -68,6 +71,7 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 		&i.ID,
 		&i.Name,
 		&i.PlexToken,
+		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -80,7 +84,7 @@ const updateUser = `-- name: UpdateUser :one
       plex_token = $2,
       updated_at = NOW()
   WHERE id = $3
-  RETURNING id, name, plex_token, created_at, updated_at
+  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
 `
 
 type UpdateUserParams struct {
@@ -97,6 +101,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.ID,
 		&i.Name,
 		&i.PlexToken,
+		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
