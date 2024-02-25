@@ -1,7 +1,7 @@
 -- name: CreateUser :one
 -- CreateUser creates a new user.
-  INSERT INTO users (name, plex_token, client_identifier)
-  VALUES ($1, $2, $3)
+  INSERT INTO users (name, plex_url, plex_token, client_identifier)
+  VALUES ($1, $2, $3, $4)
   RETURNING *;
 
 -- name: GetUser :one
@@ -18,7 +18,8 @@
 -- UpdateUser updates a user's information.
   UPDATE users
   SET name = $1,
-      plex_token = $2,
+      plex_url = $2,
+      plex_token = $3,
       updated_at = NOW()
-  WHERE id = $3
+  WHERE id = $4
   RETURNING *;
