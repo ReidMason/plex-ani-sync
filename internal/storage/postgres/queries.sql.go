@@ -12,24 +12,31 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-  INSERT INTO users (name, plex_token, client_identifier)
-  VALUES ($1, $2, $3)
-  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
+  INSERT INTO users (name, plex_url, plex_token, client_identifier)
+  VALUES ($1, $2, $3, $4)
+  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
 `
 
 type CreateUserParams struct {
 	Name             string
+	PlexUrl          string
 	PlexToken        pgtype.Text
 	ClientIdentifier string
 }
 
 // CreateUser creates a new user.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.PlexToken, arg.ClientIdentifier)
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Name,
+		arg.PlexUrl,
+		arg.PlexToken,
+		arg.ClientIdentifier,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.PlexUrl,
 		&i.PlexToken,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
@@ -40,7 +47,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 
 const deleteUser = `-- name: DeleteUser :one
   DELETE FROM users
-  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
+  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
 `
 
 // DeleteUser deletes the user
@@ -50,6 +57,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.PlexUrl,
 		&i.PlexToken,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
@@ -59,7 +67,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 }
 
 const getUser = `-- name: GetUser :one
-  SELECT id, name, plex_token, client_identifier, created_at, updated_at FROM users 
+  SELECT id, name, plex_url, plex_token, client_identifier, created_at, updated_at FROM users 
   LIMIT 1
 `
 
@@ -70,6 +78,7 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.PlexUrl,
 		&i.PlexToken,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
@@ -81,25 +90,33 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 const updateUser = `-- name: UpdateUser :one
   UPDATE users
   SET name = $1,
-      plex_token = $2,
+      plex_url = $2,
+      plex_token = $3,
       updated_at = NOW()
-  WHERE id = $3
-  RETURNING id, name, plex_token, client_identifier, created_at, updated_at
+  WHERE id = $4
+  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
 `
 
 type UpdateUserParams struct {
 	Name      string
+	PlexUrl   string
 	PlexToken pgtype.Text
 	ID        int32
 }
 
 // UpdateUser updates a user's information.
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser, arg.Name, arg.PlexToken, arg.ID)
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.Name,
+		arg.PlexUrl,
+		arg.PlexToken,
+		arg.ID,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.PlexUrl,
 		&i.PlexToken,
 		&i.ClientIdentifier,
 		&i.CreatedAt,

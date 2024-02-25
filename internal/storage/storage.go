@@ -7,7 +7,7 @@ import (
 type Storage interface {
 	GetUser() (User, error)
 	DeleteUser() (User, error)
-	CreateUser(name string) (User, error)
+	CreateUser(name, plexUrl string) (User, error)
 	UpdateUser(user UpdateUserParams) (User, error)
 }
 
@@ -22,6 +22,7 @@ type User struct {
 
 type UpdateUserParams struct {
 	Name      string
+	PlexUrl   string
 	PlexToken *string
 	Id        int32
 }

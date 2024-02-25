@@ -36,10 +36,11 @@ func (p Postgres) DeleteUser() (User, error) {
 	return pgUserToUser(user), nil
 }
 
-func (p Postgres) CreateUser(name string) (User, error) {
+func (p Postgres) CreateUser(name, plexUrl string) (User, error) {
 	ctx := context.Background()
 	user, err := p.queries.CreateUser(ctx, postgresStorage.CreateUserParams{
 		Name:             name,
+		PlexUrl:          plexUrl,
 		ClientIdentifier: uuid.New().String(),
 	})
 
@@ -55,6 +56,7 @@ func (p Postgres) UpdateUser(userUpdate UpdateUserParams) (User, error) {
 	obj := postgresStorage.UpdateUserParams{
 		ID:        userUpdate.Id,
 		Name:      userUpdate.Name,
+		PlexUrl:   userUpdate.PlexUrl,
 		PlexToken: stringToPgTypeText(userUpdate.PlexToken),
 	}
 	user, err := p.queries.UpdateUser(ctx, obj)

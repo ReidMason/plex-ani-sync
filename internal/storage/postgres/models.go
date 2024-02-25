@@ -11,6 +11,7 @@ import (
 type User struct {
 	ID               int32
 	Name             string
+	PlexUrl          string
 	PlexToken        pgtype.Text
 	ClientIdentifier string
 	CreatedAt        pgtype.Timestamptz
