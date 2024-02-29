@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -13,35 +12,55 @@ import (
 const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
 
-func AuthPlex(client_identifier, app_name string) (authResponse, error) {
-	var response authResponse
-
-	log.Print("Authenticating with Plex")
+func GetPlexAuthUrl(client_identifier, app_name string) (string, error) {
 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
 	if err != nil {
-		return response, err
+		return "", err
 	}
 
 	authData, err := getAuthData(requestUrl)
 	if err != nil {
-		return response, err
+		return "", err
 	}
 
 	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
 	if err != nil {
-		return response, err
+		return "", err
 	}
 
-	log.Printf("Visit this URL to authenticate: %v", authUrl)
-
-	pollingUrl, err := buildPollingLink(authData.Id, authData.Code, client_identifier)
-	if err != nil {
-		return response, err
-	}
-
-	log.Print("Polling for authentication")
-	return pollForAuthToken(pollingUrl)
+	return authUrl, nil
 }
+
+// TODO: Remove this function it's old
+// func AuthPlex(client_identifier, app_name string) (authResponse, error) {
+// 	var response authResponse
+//
+// 	log.Print("Authenticating with Plex")
+// 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
+// 	if err != nil {
+// 		return response, err
+// 	}
+//
+// 	authData, err := getAuthData(requestUrl)
+// 	if err != nil {
+// 		return response, err
+// 	}
+//
+// 	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
+// 	if err != nil {
+// 		return response, err
+// 	}
+//
+// 	log.Printf("Visit this URL to authenticate: %v", authUrl)
+//
+// 	pollingUrl, err := buildPollingLink(authData.Id, authData.Code, client_identifier)
+// 	if err != nil {
+// 		return response, err
+// 	}
+//
+// 	log.Print("Polling for authentication")
+// 	return pollForAuthToken(pollingUrl)
+// }
 
 func buildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("POST", PLEX_BASE_URL+"/api/v2/pins", nil)
