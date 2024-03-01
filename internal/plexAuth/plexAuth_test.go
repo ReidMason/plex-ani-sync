@@ -12,14 +12,14 @@ func TestBuildAuthRequestUrl(t *testing.T) {
 		expected         string
 	}{
 		{
-			clientIdentifier: "testClientIdentifier1",
-			appName:          "testAppName1",
-			expected:         "https://plex.tv/api/v2/pins?X-Plex-Client-Identifier=testClientIdentifier1&X-Plex-Product=testAppName1&strong=true",
+			clientIdentifier: "ci1",
+			appName:          "app1",
+			expected:         "https://plex.tv/api/v2/pins?X-Plex-Client-Identifier=ci1&X-Plex-Product=app1&strong=true",
 		},
 		{
-			clientIdentifier: "testClientIdentifier2",
-			appName:          "testAppName2",
-			expected:         "https://plex.tv/api/v2/pins?X-Plex-Client-Identifier=testClientIdentifier2&X-Plex-Product=testAppName2&strong=true",
+			clientIdentifier: "ci2",
+			appName:          "app2",
+			expected:         "https://plex.tv/api/v2/pins?X-Plex-Client-Identifier=ci2&X-Plex-Product=app2&strong=true",
 		},
 	}
 
@@ -54,18 +54,18 @@ func TestBuildAuthUrl(t *testing.T) {
 		{
 			pinId:            123,
 			hostUrl:          "http://site/",
-			code:             "testCode1",
+			code:             "code1",
 			clientIdentifier: "ci1",
-			appName:          "testAppName1",
-			expected:         "https://app.plex.tv/auth/#?clientID=ci1&code=testCode1&context%5Bdevice%5D%5Bproduct%5D=testAppName1&forwardUrl=http%3A%2F%2Fsite%2F%3FclientIdentifier%3Dci1%26code%3DtestCode1%26pinid%3D123",
+			appName:          "app1",
+			expected:         "https://app.plex.tv/auth/#?clientID=ci1&code=code1&context%5Bdevice%5D%5Bproduct%5D=app1&forwardUrl=http%3A%2F%2Fsite%2F%3FclientIdentifier%3Dci1%26code%3DtestCode1%26pinid%3D123",
 		},
 		{
 			pinId:            123,
 			hostUrl:          "http://site",
-			code:             "testCode2",
+			code:             "code2",
 			clientIdentifier: "ci2",
-			appName:          "testAppName2",
-			expected:         "https://app.plex.tv/auth/#?clientID=ci2&code=testCode2&context%5Bdevice%5D%5Bproduct%5D=testAppName2&forwardUrl=http%3A%2F%2Fsite%3FclientIdentifier%3Dci2%26code%3DtestCode2%26pinid%3D123",
+			appName:          "app2",
+			expected:         "https://app.plex.tv/auth/#?clientID=ci2&code=code2&context%5Bdevice%5D%5Bproduct%5D=app2&forwardUrl=http%3A%2F%2Fsite%3FclientIdentifier%3Dci2%26code%3DtestCode2%26pinid%3D123",
 		},
 	}
 
