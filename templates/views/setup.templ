@@ -1,0 +1,36 @@
+package views
+
+import (
+	"github.com/ReidMason/plex-ani-sync/templates/layouts"
+	"github.com/ReidMason/plex-ani-sync/templates/components"
+)
+
+type FormData struct {
+	Name          components.Field
+	HostUrl       components.Field
+	PlexUrl       components.Field
+	FormSubmitted string
+}
+
+templ Setup(formData FormData) {
+	@layouts.Main() {
+		<div class="bg-slate-700 p-8 h-full text-slate-100">
+			<h1 class="font-semibold text-xl">Setup</h1>
+			@SetupForm(formData)
+		</div>
+	}
+}
+
+templ SetupForm(formData FormData) {
+	<form hx-post="/user" class="flex flex-col gap-4" hx-swap="innerHTML">
+		@SetupFormContent(formData)
+	</form>
+}
+
+templ SetupFormContent(formData FormData) {
+	@components.Input(formData.Name, formData.FormSubmitted == "true")
+	@components.Input(formData.HostUrl, formData.FormSubmitted == "true")
+	@components.Input(formData.PlexUrl, formData.FormSubmitted == "true")
+	<input type="hidden" name="formSubmitted" value={ formData.FormSubmitted } class="text-black"/>
+	<button class="bg-slate-800 text-slate-100 p-2 rounded-md w-full mt-4 hover:bg-slate-800/60">Authorize Plex</button>
+}
