@@ -13,6 +13,7 @@ type User struct {
 	Name             string
 	PlexUrl          string
 	PlexToken        pgtype.Text
+	HostUrl          string
 	ClientIdentifier string
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
