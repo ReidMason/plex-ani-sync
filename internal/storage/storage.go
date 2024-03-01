@@ -16,6 +16,7 @@ type User struct {
 	UpdatedAt        time.Time
 	PlexToken        *string
 	PlexUrl          string
+	HostUrl          string
 	Name             string
 	ClientIdentifier string
 	Id               int32

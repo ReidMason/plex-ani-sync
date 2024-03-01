@@ -12,15 +12,16 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-  INSERT INTO users (name, plex_url, plex_token, client_identifier)
-  VALUES ($1, $2, $3, $4)
-  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
+  INSERT INTO users (name, plex_url, plex_token, host_url, client_identifier)
+  VALUES ($1, $2, $3, $4, $5)
+  RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `
 
 type CreateUserParams struct {
 	Name             string
 	PlexUrl          string
 	PlexToken        pgtype.Text
+	HostUrl          string
 	ClientIdentifier string
 }
 
@@ -30,6 +31,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Name,
 		arg.PlexUrl,
 		arg.PlexToken,
+		arg.HostUrl,
 		arg.ClientIdentifier,
 	)
 	var i User
@@ -38,6 +40,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Name,
 		&i.PlexUrl,
 		&i.PlexToken,
+		&i.HostUrl,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -47,7 +50,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 
 const deleteUser = `-- name: DeleteUser :one
   DELETE FROM users
-  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
+  RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `
 
 // DeleteUser deletes the user
@@ -59,6 +62,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 		&i.Name,
 		&i.PlexUrl,
 		&i.PlexToken,
+		&i.HostUrl,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -67,7 +71,7 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 }
 
 const getUser = `-- name: GetUser :one
-  SELECT id, name, plex_url, plex_token, client_identifier, created_at, updated_at FROM users 
+  SELECT id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at FROM users 
   LIMIT 1
 `
 
@@ -80,6 +84,7 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 		&i.Name,
 		&i.PlexUrl,
 		&i.PlexToken,
+		&i.HostUrl,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -92,15 +97,17 @@ const updateUser = `-- name: UpdateUser :one
   SET name = $1,
       plex_url = $2,
       plex_token = $3,
+      host_url = $4,
       updated_at = NOW()
-  WHERE id = $4
-  RETURNING id, name, plex_url, plex_token, client_identifier, created_at, updated_at
+  WHERE id = $5
+  RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `
 
 type UpdateUserParams struct {
 	Name      string
 	PlexUrl   string
 	PlexToken pgtype.Text
+	HostUrl   string
 	ID        int32
 }
 
@@ -110,6 +117,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Name,
 		arg.PlexUrl,
 		arg.PlexToken,
+		arg.HostUrl,
 		arg.ID,
 	)
 	var i User
@@ -118,6 +126,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Name,
 		&i.PlexUrl,
 		&i.PlexToken,
+		&i.HostUrl,
 		&i.ClientIdentifier,
 		&i.CreatedAt,
 		&i.UpdatedAt,
