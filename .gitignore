@@ -12,3 +12,4 @@ docker/data
 tmp
 node_modules
 public/assets/css/style.css
+templates/**/*.txt
