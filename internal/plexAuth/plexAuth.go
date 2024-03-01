@@ -11,6 +11,7 @@ import (
 
 const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
+const PLEX_FORWARD_URL = "http:///localhost:8000/setup/plex-auth"
 
 func GetPlexAuthUrl(client_identifier, app_name string) (string, error) {
 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
@@ -23,44 +24,13 @@ func GetPlexAuthUrl(client_identifier, app_name string) (string, error) {
 		return "", err
 	}
 
-	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
+	authUrl, err := buildAuthUrl(authData.Id, authData.Code, client_identifier, app_name)
 	if err != nil {
 		return "", err
 	}
 
 	return authUrl, nil
 }
-
-// TODO: Remove this function it's old
-// func AuthPlex(client_identifier, app_name string) (authResponse, error) {
-// 	var response authResponse
-//
-// 	log.Print("Authenticating with Plex")
-// 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
-// 	if err != nil {
-// 		return response, err
-// 	}
-//
-// 	authData, err := getAuthData(requestUrl)
-// 	if err != nil {
-// 		return response, err
-// 	}
-//
-// 	authUrl, err := buildAuthUrl(authData.Code, client_identifier, app_name)
-// 	if err != nil {
-// 		return response, err
-// 	}
-//
-// 	log.Printf("Visit this URL to authenticate: %v", authUrl)
-//
-// 	pollingUrl, err := buildPollingLink(authData.Id, authData.Code, client_identifier)
-// 	if err != nil {
-// 		return response, err
-// 	}
-//
-// 	log.Print("Polling for authentication")
-// 	return pollForAuthToken(pollingUrl)
-// }
 
 func buildAuthRequestUrl(clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("POST", PLEX_BASE_URL+"/api/v2/pins", nil)
@@ -106,7 +76,7 @@ func getAuthData(authRequestUrl string) (authResponse, error) {
 	return result, nil
 }
 
-func buildAuthUrl(code, clientIdentifier, appName string) (string, error) {
+func buildAuthUrl(id int64, code, clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
 		return "", err
@@ -116,12 +86,12 @@ func buildAuthUrl(code, clientIdentifier, appName string) (string, error) {
 	q.Add("clientID", clientIdentifier)
 	q.Add("code", code)
 	q.Add("context[device][product]", appName)
-	// q.Add("forwardUrl", "https://app.plex.tv/auth/forward")
+	q.Add("forwardUrl", PLEX_FORWARD_URL+"?id="+fmt.Sprint(id)+"&code="+code+"&clientIdentifier="+clientIdentifier)
 
 	return req.URL.String() + "#?" + q.Encode(), nil
 }
 
-func buildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, error) {
+func BuildAuthTokenPollingLink(pinId int, pinCode, clientIdentifier string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
 		return "", err
@@ -136,7 +106,7 @@ func buildPollingLink(pinId int64, pinCode, clientIdentifier string) (string, er
 	return req.URL.String(), nil
 }
 
-func pollForAuthToken(pollingLink string) (authResponse, error) {
+func PollForAuthToken(pollingLink string) (authResponse, error) {
 	var result authResponse
 
 	req, err := http.NewRequest("GET", pollingLink, nil)
