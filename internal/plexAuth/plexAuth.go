@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 const PLEX_BASE_URL = "https://plex.tv"
 const PLEX_APP_BASE_URL = "https://app.plex.tv"
-const PLEX_FORWARD_URL = "http:///localhost:8000/setup/plex-auth"
 
-func GetPlexAuthUrl(client_identifier, app_name string) (string, error) {
+func GetPlexAuthUrl(forwardUrl, client_identifier, app_name string) (string, error) {
 	requestUrl, err := buildAuthRequestUrl(client_identifier, app_name)
 	if err != nil {
 		return "", err
@@ -24,7 +24,7 @@ func GetPlexAuthUrl(client_identifier, app_name string) (string, error) {
 		return "", err
 	}
 
-	authUrl, err := buildAuthUrl(authData.Id, authData.Code, client_identifier, app_name)
+	authUrl, err := buildAuthUrl(forwardUrl, authData.Id, authData.Code, client_identifier, app_name)
 	if err != nil {
 		return "", err
 	}
@@ -76,7 +76,7 @@ func getAuthData(authRequestUrl string) (authResponse, error) {
 	return result, nil
 }
 
-func buildAuthUrl(id int64, code, clientIdentifier, appName string) (string, error) {
+func buildAuthUrl(forwardUrl string, pinId int64, code, clientIdentifier, appName string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_APP_BASE_URL+"/auth/", nil)
 	if err != nil {
 		return "", err
@@ -86,7 +86,17 @@ func buildAuthUrl(id int64, code, clientIdentifier, appName string) (string, err
 	q.Add("clientID", clientIdentifier)
 	q.Add("code", code)
 	q.Add("context[device][product]", appName)
-	q.Add("forwardUrl", PLEX_FORWARD_URL+"?id="+fmt.Sprint(id)+"&code="+code+"&clientIdentifier="+clientIdentifier)
+
+	u, err := url.Parse(forwardUrl)
+	if err != nil {
+		return "", err
+	}
+	forwardUrlQuery := u.Query()
+	forwardUrlQuery.Add("pinid", fmt.Sprint(pinId))
+	forwardUrlQuery.Add("code", code)
+	forwardUrlQuery.Add("clientIdentifier", clientIdentifier)
+	u.RawQuery = forwardUrlQuery.Encode()
+	q.Add("forwardUrl", u.String())
 
 	return req.URL.String() + "#?" + q.Encode(), nil
 }
