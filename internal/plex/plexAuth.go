@@ -1,4 +1,4 @@
-package plexAuth
+package plex
 
 import (
 	"encoding/json"

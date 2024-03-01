@@ -10,8 +10,8 @@ import (
 
 type Plex struct {
 	client  HttpClient
-	token   string
 	hostUrl *url.URL
+	token   string
 }
 
 type HttpClient interface {
