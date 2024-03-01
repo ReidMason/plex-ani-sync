@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"log"
 
 	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
 	"github.com/google/uuid"
@@ -51,8 +52,9 @@ func (p Postgres) CreateUser(name, plexUrl string) (User, error) {
 	return pgUserToUser(user), nil
 }
 
-func (p Postgres) UpdateUser(userUpdate UpdateUserParams) (User, error) {
+func (p Postgres) UpdateUser(userUpdate User) (User, error) {
 	ctx := context.Background()
+	log.Println("userUpdate", userUpdate.PlexUrl)
 	obj := postgresStorage.UpdateUserParams{
 		ID:        userUpdate.Id,
 		Name:      userUpdate.Name,
@@ -94,6 +96,7 @@ func pgUserToUser(user postgresStorage.User) User {
 		Id:               user.ID,
 		Name:             user.Name,
 		PlexToken:        pgTypeTextToString(user.PlexToken),
+		PlexUrl:          user.PlexUrl,
 		ClientIdentifier: user.ClientIdentifier,
 		CreatedAt:        user.CreatedAt.Time,
 		UpdatedAt:        user.UpdatedAt.Time,

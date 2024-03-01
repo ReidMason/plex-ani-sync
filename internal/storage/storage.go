@@ -8,21 +8,15 @@ type Storage interface {
 	GetUser() (User, error)
 	DeleteUser() (User, error)
 	CreateUser(name, plexUrl string) (User, error)
-	UpdateUser(user UpdateUserParams) (User, error)
+	UpdateUser(user User) (User, error)
 }
 
 type User struct {
-	Id               int32
-	Name             string
-	PlexToken        *string
-	ClientIdentifier string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-}
-
-type UpdateUserParams struct {
-	Name      string
-	PlexUrl   string
-	PlexToken *string
-	Id        int32
+	PlexToken        *string
+	PlexUrl          string
+	Name             string
+	ClientIdentifier string
+	Id               int32
 }
