@@ -2,11 +2,24 @@ package storage
 
 import (
 	"context"
+	"fmt"
 
 	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const MIGRATIONS_PATH = "file://db/migrations"
+
+func BuildConnectionString(username, password, host, port, dbName string) string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", username, password, host, port, dbName)
+}
+
+func ConnectToDatabase(connectionString string) (*pgx.Conn, error) {
+	return pgx.Connect(context.Background(), connectionString)
+}
 
 type Postgres struct {
 	queries *postgresStorage.Queries

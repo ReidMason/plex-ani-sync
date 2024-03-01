@@ -7,7 +7,7 @@ import (
 type Storage interface {
 	GetUser() (User, error)
 	DeleteUser() (User, error)
-	CreateUser(name, plexUrl string) (User, error)
+	CreateUser(name, plexUrl, hostUrl string) (User, error)
 	UpdateUser(user User) (User, error)
 }
 
