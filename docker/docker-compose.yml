@@ -8,7 +8,7 @@ services:
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=testpass
-      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_USER=admin
     volumes:
       - ./data/postgres/:/var/lib/postgresql/data
