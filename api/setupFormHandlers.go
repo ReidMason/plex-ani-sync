@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/ReidMason/plex-ani-sync/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
@@ -36,7 +37,7 @@ func (s *Server) handlePostUser(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to parse host url")
 	}
-	forwardUrl.Path = "/setup/plex-auth"
+	forwardUrl.Path = routes.SETUP_PLEX_AUTH
 
 	authUrl, err := plex.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
 	if err != nil {
@@ -75,7 +76,7 @@ func (s *Server) handlePlexAuth(c echo.Context) error {
 	log.Println(user.HostUrl)
 	s.store.UpdateUser(user)
 
-	return c.Redirect(http.StatusFound, "/")
+	return c.Redirect(http.StatusFound, routes.HOME)
 }
 
 func (s *Server) handleGetRoot(c echo.Context) error {
@@ -83,7 +84,7 @@ func (s *Server) handleGetRoot(c echo.Context) error {
 	_, err := s.store.GetUser()
 	if err != nil {
 		log.Println("Failed to find existing user redirecting to setup")
-		c.Redirect(http.StatusFound, "/setup/user")
+		c.Redirect(http.StatusFound, routes.SETUP_USER)
 		return nil
 	}
 
@@ -108,22 +109,25 @@ func getDefaultSetupFormData() views.FormData {
 	return views.FormData{
 		FormSubmitted: "false",
 		Name: components.Field{
-			Name:        "name",
-			Label:       "Name",
-			Placeholder: "Enter your name",
-			Valid:       true,
+			Name:          "name",
+			Label:         "Name",
+			Placeholder:   "Enter your name",
+			Valid:         true,
+			ValidateRoute: routes.SETUP_VALIDATE,
 		},
 		HostUrl: components.Field{
-			Name:        "hostUrl",
-			Label:       "Host url",
-			Placeholder: "Enter your PlexAnilistSync host url",
-			Valid:       true,
+			Name:          "hostUrl",
+			Label:         "Host url",
+			Placeholder:   "Enter your PlexAnilistSync host url",
+			Valid:         true,
+			ValidateRoute: routes.SETUP_VALIDATE,
 		},
 		PlexUrl: components.Field{
-			Name:        "plexUrl",
-			Label:       "Plex URL",
-			Placeholder: "Enter your Plex URL",
-			Valid:       true,
+			Name:          "plexUrl",
+			Label:         "Plex URL",
+			Placeholder:   "Enter your Plex URL",
+			Valid:         true,
+			ValidateRoute: routes.SETUP_VALIDATE,
 		},
 	}
 }
