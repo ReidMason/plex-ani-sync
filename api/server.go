@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/ReidMason/plex-ani-sync/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -19,14 +20,14 @@ func NewServer(listenAddr string, store storage.Storage) *Server {
 func (s *Server) Start() error {
 	e := echo.New()
 
-	e.Static("/public", "public")
+	e.Static(routes.PUBLIC, "public")
 
-	e.GET("/", s.handleGetRoot)
-	e.GET("/setup/user", s.handleGetSetupUser)
-	e.GET("/setup/plex-auth", s.handlePlexAuth)
-	e.POST("/setup/validate", s.handleValidateSetupForm)
+	e.GET(routes.HOME, s.handleGetRoot)
+	e.GET(routes.SETUP_USER, s.handleGetSetupUser)
+	e.GET(routes.SETUP_PLEX_AUTH, s.handlePlexAuth)
+	e.POST(routes.SETUP_VALIDATE, s.handleValidateSetupForm)
 
-	e.POST("/user", s.handlePostUser)
+	e.POST(routes.USER, s.handlePostUser)
 
 	e.Logger.Fatal(e.Start(":8000"))
 

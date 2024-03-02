@@ -3,6 +3,7 @@ package views
 import (
 	"github.com/ReidMason/plex-ani-sync/templates/layouts"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
+	"github.com/ReidMason/plex-ani-sync/api/routes"
 )
 
 type FormData struct {
@@ -22,7 +23,7 @@ templ Setup(formData FormData) {
 }
 
 templ SetupForm(formData FormData) {
-	<form hx-post="/user" class="flex flex-col gap-4" hx-swap="innerHTML">
+	<form hx-post={ routes.USER } class="flex flex-col gap-4" hx-swap="innerHTML">
 		@SetupFormContent(formData)
 	</form>
 }

@@ -1,12 +1,13 @@
 package components
 
 type Field struct {
-	Name        string
-	Value       string
-	Label       string
-	Placeholder string
-	Error       string
-	Valid       bool
+	Name          string
+	Value         string
+	Label         string
+	Placeholder   string
+	Error         string
+	ValidateRoute string
+	Valid         bool
 }
 
 templ Input(field Field, liveValidate bool) {
@@ -21,7 +22,7 @@ templ Input(field Field, liveValidate bool) {
 				placeholder={ field.Placeholder }
 				value={ field.Value }
 				if liveValidate {
-					hx-post="/setup/validate"
+					hx-post={ field.ValidateRoute }
 					hx-trigger="keyup delay:100ms"
 					hx-target="closest form"
 				}
