@@ -13,11 +13,11 @@ import (
 
 const MIGRATIONS_PATH = "file://db/migrations"
 
-func BuildConnectionString(username, password, host, port, dbName string) string {
+func buildConnectionString(username, password, host, port, dbName string) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", username, password, host, port, dbName)
 }
 
-func ConnectToDatabase(connectionString string) (*pgx.Conn, error) {
+func connectToDatabase(connectionString string) (*pgx.Conn, error) {
 	return pgx.Connect(context.Background(), connectionString)
 }
 
@@ -25,8 +25,15 @@ type Postgres struct {
 	queries *postgresStorage.Queries
 }
 
-func NewPostgresStorage(queries *postgresStorage.Queries) Postgres {
-	return Postgres{queries: queries}
+func NewPostgresStorage(username, password, host, port, database string) (*Postgres, error) {
+	connectionString := buildConnectionString(username, password, host, port, database)
+	driver, err := connectToDatabase(connectionString)
+	if err != nil {
+		return nil, err
+	}
+
+	queries := postgresStorage.New(driver)
+	return &Postgres{queries: queries}, nil
 }
 
 func (p Postgres) GetUser() (User, error) {
