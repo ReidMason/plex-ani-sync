@@ -5,7 +5,7 @@ sqlc-generate:
   cd db/sqlc && sqlc generate 
 
 migrate-up:
-  migrate -source file://db/migrations -database pgx://testuser:testpass@localhost:5432/plexAnilistSync up
+  migrate -source file://db/migrations -database pgx://admin:admin@localhost:5432/plexanilistsync up
 
 tailwind:
   npx tailwindcss -i ./templates/input.css -o ./public/assets/css/style.css --watch 
