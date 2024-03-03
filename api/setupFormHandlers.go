@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/ReidMason/plex-ani-sync/api/routes"
-	"github.com/ReidMason/plex-ani-sync/internal/plex"
+	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
 	"github.com/labstack/echo/v4"
@@ -39,7 +39,7 @@ func (s *Server) handlePostUser(c echo.Context) error {
 	}
 
 	forwardUrl.Path = routes.SETUP_PLEX_AUTH
-	authUrl, err := plex.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
+	authUrl, err := mediaHost.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to authorize with Plex")
 	}
@@ -57,12 +57,12 @@ func (s *Server) handlePlexAuth(c echo.Context) error {
 	clientIdentifier := c.Request().URL.Query().Get("clientIdentifier")
 	code := c.Request().URL.Query().Get("code")
 
-	pollingLink, err := plex.BuildAuthTokenPollingLink(pinId, code, clientIdentifier)
+	pollingLink, err := mediaHost.BuildAuthTokenPollingLink(pinId, code, clientIdentifier)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to build polling link")
 	}
 
-	authResponse, err := plex.PollForAuthToken(pollingLink)
+	authResponse, err := mediaHost.PollForAuthToken(pollingLink)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to poll for auth token")
 	}
@@ -72,9 +72,17 @@ func (s *Server) handlePlexAuth(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Failed to find user")
 	}
 
+	if authResponse.AuthToken == nil {
+		return c.String(http.StatusInternalServerError, "Failed to authenticate with Plex, no auth token found")
+	}
+
 	user.PlexToken = authResponse.AuthToken
-	log.Println(user.HostUrl)
 	s.store.UpdateUser(user)
+
+	err = s.mediaHost.Initialize(*user.PlexToken, user.PlexUrl, nil)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Failed to initialize media host")
+	}
 
 	return c.Redirect(http.StatusFound, routes.HOME)
 }
@@ -88,7 +96,13 @@ func (s *Server) handleGetRoot(c echo.Context) error {
 		return nil
 	}
 
-	component := views.Home()
+	user, err := s.mediaHost.GetCurrentUser()
+	if err != nil {
+		log.Println("Failed to get current user from media host", err)
+		return c.String(http.StatusInternalServerError, "Failed to get current user from media host")
+	}
+
+	component := views.Home(user)
 	return component.Render(c.Request().Context(), c.Response())
 }
 
