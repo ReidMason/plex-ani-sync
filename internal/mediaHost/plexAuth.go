@@ -1,4 +1,4 @@
-package plex
+package mediaHost
 
 import (
 	"encoding/json"
