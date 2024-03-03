@@ -22,7 +22,7 @@ func TestBuiildConnectionString(t *testing.T) {
 		t.Run(fmt.Sprintf("BuildConnectionString(%s, %s, %s, %s, %s)", tc.username, tc.password, tc.host, tc.port, tc.dbName), func(t *testing.T) {
 			t.Parallel()
 
-			result := BuildConnectionString(tc.username, tc.password, tc.host, tc.port, tc.dbName)
+			result := buildConnectionString(tc.username, tc.password, tc.host, tc.port, tc.dbName)
 
 			if result != tc.expected {
 				t.Errorf("BuildConnectionString(%s, %s, %s, %s, %s) = %s; want %s", tc.username, tc.password, tc.host, tc.port, tc.dbName, result, tc.expected)

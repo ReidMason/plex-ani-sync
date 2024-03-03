@@ -37,8 +37,8 @@ func (s *Server) handlePostUser(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to parse host url")
 	}
-	forwardUrl.Path = routes.SETUP_PLEX_AUTH
 
+	forwardUrl.Path = routes.SETUP_PLEX_AUTH
 	authUrl, err := plex.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to authorize with Plex")
