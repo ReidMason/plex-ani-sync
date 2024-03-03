@@ -1,9 +1,10 @@
-package plex
+package mediaHost
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 )
@@ -14,17 +15,21 @@ type Plex struct {
 	token   string
 }
 
-type HttpClient interface {
-	Do(req *http.Request) (*http.Response, error)
+func NewPlex() *Plex {
+	return &Plex{}
 }
 
-func New(token string, host string, client HttpClient) Plex {
+func (p *Plex) Initialize(token, host string, client HttpClient) error {
 	hostUrl, err := url.Parse(host)
 	if err != nil {
-		panic("Invalid host URL")
+		return err
 	}
 
-	return Plex{token: token, hostUrl: hostUrl, client: client}
+	p.token = token
+	p.hostUrl = hostUrl
+	p.client = client
+
+	return nil
 }
 
 func buildRequest(method, url, token string) (*http.Request, error) {
@@ -44,13 +49,21 @@ func buildRequest(method, url, token string) (*http.Request, error) {
 
 func makeRequest[T any](client HttpClient, request *http.Request) (T, error) {
 	var result T
+
+	if client == nil {
+		return result, errors.New("No client provided for Plex request")
+	}
+
+	log.Println("Making request to", request.URL.String())
 	resp, err := client.Do(request)
 	if err != nil {
+		log.Println("Failed to make request", err)
 		return result, err
 	}
 
 	if resp.StatusCode >= 400 {
-		return result, fmt.Errorf("Request failed: %s", resp.Status)
+		log.Printf("Request failed: %s", resp.Status)
+		return result, errors.New("Request failed with status: " + resp.Status)
 	}
 
 	defer resp.Body.Close()
@@ -98,6 +111,7 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 	var plexUser PlexUser
 	req, err := buildRequest("GET", "https://plex.tv/api/v2/user", p.token)
 	if err != nil {
+		log.Println("Failed to build request for GetCurrentUser", err)
 		return plexUser, err
 	}
 
