@@ -12,3 +12,6 @@ tailwind:
 
 templ:
   templ generate -watch -proxy="http://localhost:8000/"
+
+new-migration name:
+  migrate create -ext sql -dir ./db/migrations -seq "{{name}}"
