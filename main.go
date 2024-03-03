@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/ReidMason/plex-ani-sync/api"
+	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 )
 
@@ -23,6 +24,8 @@ func main() {
 		panic(err)
 	}
 
-	server := api.NewServer(*listenAddr, storage)
+	plex := mediaHost.NewPlex()
+
+	server := api.NewServer(*listenAddr, storage, plex)
 	log.Fatal(server.Start())
 }
