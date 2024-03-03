@@ -79,7 +79,7 @@ func (s *Server) handlePlexAuth(c echo.Context) error {
 	user.PlexToken = authResponse.AuthToken
 	s.store.UpdateUser(user)
 
-	err = s.mediaHost.Initialize(*user.PlexToken, user.PlexUrl, nil)
+	err = s.initialiseMediaHost()
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to initialize media host")
 	}
@@ -98,7 +98,7 @@ func (s *Server) handleGetRoot(c echo.Context) error {
 
 	user, err := s.mediaHost.GetCurrentUser()
 	if err != nil {
-		log.Println("Failed to get current user from media host", err)
+		log.Println("Failed to get current user from media host: ", err)
 		return c.String(http.StatusInternalServerError, "Failed to get current user from media host")
 	}
 
