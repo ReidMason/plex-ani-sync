@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 )
@@ -54,7 +55,7 @@ func makeRequest[T any](client HttpClient, request *http.Request) (T, error) {
 		return result, errors.New("No client provided for Plex request")
 	}
 
-	log.Println("Making request to", request.URL.String())
+	slog.Info("Making request", slog.String("url", request.URL.String()))
 	resp, err := client.Do(request)
 	if err != nil {
 		log.Println("Failed to make request", err)
