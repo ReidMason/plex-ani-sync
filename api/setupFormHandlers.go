@@ -175,8 +175,8 @@ func (s *Server) postLibraries(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Failed to add libraries")
 	}
 
-	c.Redirect(http.StatusFound, routes.HOME)
-	return nil
+	c.Response().Header().Set("HX-Redirect", routes.HOME)
+	return c.String(http.StatusOK, routes.HOME)
 }
 
 func getDefaultSetupFormData() views.FormData {
