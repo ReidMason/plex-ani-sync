@@ -121,6 +121,13 @@ func (s *Server) handleValidateSetupForm(c echo.Context) error {
 }
 
 func (s *Server) handleSetupLibraries(c echo.Context) error {
+	_, err := s.store.GetUser()
+	if err != nil {
+		slog.Error("Failed to get user", slog.Any("error", err))
+		c.Redirect(http.StatusFound, routes.SETUP_USER)
+		return nil
+	}
+
 	libraries, err := s.mediaHost.GetLibraries()
 	if err != nil {
 		slog.Error("Failed to get libraries", slog.Any("error", err))
