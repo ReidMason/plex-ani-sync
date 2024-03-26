@@ -2,6 +2,7 @@ package api
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -117,6 +118,58 @@ func (s *Server) handleValidateSetupForm(c echo.Context) error {
 
 	component := views.SetupFormContent(formData)
 	return component.Render(c.Request().Context(), c.Response())
+}
+
+func (s *Server) handleSetupLibraries(c echo.Context) error {
+	libraries, err := s.mediaHost.GetLibraries()
+	if err != nil {
+		slog.Error("Failed to get libraries", slog.Any("error", err))
+		return c.String(http.StatusInternalServerError, "Failed to get libraries")
+	}
+
+	filteredLibraries := make([]mediaHost.Library, 0)
+	for _, library := range libraries {
+		if library.Type == "show" {
+			filteredLibraries = append(filteredLibraries, library)
+		}
+	}
+
+	formData := views.SetupLibrariesFormData{
+		SelectedLibraries: []string{},
+	}
+	view := views.LibrarySelector(formData, filteredLibraries)
+	return view.Render(c.Request().Context(), c.Response())
+}
+
+func (s *Server) postLibraries(c echo.Context) error {
+	data, err := c.FormParams()
+	if err != nil {
+		slog.Error("Failed to get form params", slog.Any("error", err))
+		return c.String(http.StatusInternalServerError, "Failed to get form params")
+	}
+
+	selectedLibraries := make([]string, 0, len(data))
+	for key := range data {
+		selectedLibraries = append(selectedLibraries, key)
+	}
+
+	slog.Info("Selected libraries", slog.Any("libraries", selectedLibraries))
+
+	user, err := s.store.GetUser()
+	if err != nil {
+		slog.Error("Failed to get user", slog.Any("error", err))
+		c.Redirect(http.StatusFound, routes.SETUP_USER)
+		return nil
+	}
+
+	err = s.store.AddLibraries(user.Id, selectedLibraries)
+	if err != nil {
+		slog.Error("Failed to add libraries", slog.Any("error", err))
+		return c.String(http.StatusInternalServerError, "Failed to add libraries")
+	}
+
+	c.Redirect(http.StatusFound, routes.HOME)
+	return nil
 }
 
 func getDefaultSetupFormData() views.FormData {

@@ -38,6 +38,9 @@ func (s *Server) Start() error {
 	e.GET(routes.SETUP_PLEX_AUTH, s.handlePlexAuth)
 	e.POST(routes.SETUP_VALIDATE, s.handleValidateSetupForm)
 
+	e.GET(routes.SETUP_LIBRARIES, s.handleSetupLibraries)
+	e.POST(routes.LIBRARIES, s.postLibraries)
+
 	e.POST(routes.USER, s.handlePostUser)
 
 	e.Logger.Fatal(e.Start(":8000"))

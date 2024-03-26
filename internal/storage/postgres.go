@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -87,6 +88,26 @@ func (p Postgres) UpdateUser(userUpdate User) (User, error) {
 	}
 
 	return pgUserToUser(user), nil
+}
+
+func (p Postgres) AddLibraries(userId int32, libraryIds []string) error {
+	ctx := context.Background()
+	err := p.queries.DeleteSelectedLibraries(ctx, userId)
+	if err != nil {
+		slog.Error("error deleting selected libraries", slog.Any("error", err))
+		return err
+	}
+
+	libaries := make([]postgresStorage.AddLibrariesParams, 0)
+	for _, libraryKey := range libraryIds {
+		libaries = append(libaries, postgresStorage.AddLibrariesParams{
+			UserID:     userId,
+			LibraryKey: libraryKey,
+		})
+	}
+
+	_, err = p.queries.AddLibraries(ctx, libaries)
+	return err
 }
 
 func pgTypeTextToString(text pgtype.Text) *string {

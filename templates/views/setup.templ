@@ -15,10 +15,8 @@ type FormData struct {
 
 templ Setup(formData FormData) {
 	@layouts.Main() {
-		<div class="bg-slate-700 p-8 h-full text-slate-100">
-			<h1 class="font-semibold text-xl">Setup</h1>
-			@SetupForm(formData)
-		</div>
+		<h1 class="font-semibold text-xl">Setup</h1>
+		@SetupForm(formData)
 	}
 }
 
