@@ -86,6 +86,38 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 	return i, err
 }
 
+const getSelectedLibraries = `-- name: GetSelectedLibraries :many
+  SELECT id, user_id, library_key, created_at, updated_at FROM selected_plex_libraries
+  WHERE user_id = $1
+`
+
+// GetSelectedLibraries retrieves all selected libraries for a user.
+func (q *Queries) GetSelectedLibraries(ctx context.Context, userID int32) ([]SelectedPlexLibrary, error) {
+	rows, err := q.db.Query(ctx, getSelectedLibraries, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectedPlexLibrary
+	for rows.Next() {
+		var i SelectedPlexLibrary
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.LibraryKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUser = `-- name: GetUser :one
   SELECT id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at FROM users 
   LIMIT 1
