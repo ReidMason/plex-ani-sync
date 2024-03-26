@@ -85,7 +85,7 @@ func (s *Server) handlePlexAuth(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Failed to initialize media host")
 	}
 
-	return c.Redirect(http.StatusFound, routes.HOME)
+	return c.Redirect(http.StatusFound, routes.SETUP_LIBRARIES)
 }
 
 func (s *Server) handleGetRoot(c echo.Context) error {
