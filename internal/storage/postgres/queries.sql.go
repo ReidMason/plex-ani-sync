@@ -11,6 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AddLibrariesParams struct {
+	UserID     int32
+	LibraryKey string
+}
+
 const createUser = `-- name: CreateUser :one
   INSERT INTO users (name, plex_url, plex_token, host_url, client_identifier)
   VALUES ($1, $2, $3, $4, $5)
@@ -46,6 +51,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteSelectedLibraries = `-- name: DeleteSelectedLibraries :exec
+  DELETE FROM selected_plex_libraries
+  WHERE user_id = $1
+`
+
+// DeleteSelectedLibraries deletes all selected libraries for a user.
+func (q *Queries) DeleteSelectedLibraries(ctx context.Context, userID int32) error {
+	_, err := q.db.Exec(ctx, deleteSelectedLibraries, userID)
+	return err
 }
 
 const deleteUser = `-- name: DeleteUser :one

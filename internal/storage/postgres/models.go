@@ -8,6 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type SelectedPlexLibrary struct {
+	ID         int32
+	UserID     int32
+	LibraryKey string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
 type User struct {
 	ID               int32
 	Name             string
