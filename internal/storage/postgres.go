@@ -90,7 +90,28 @@ func (p Postgres) UpdateUser(userUpdate User) (User, error) {
 	return pgUserToUser(user), nil
 }
 
-func (p Postgres) AddLibraries(userId int32, libraryIds []string) error {
+func (p Postgres) GetSelectedLibraries(userId int32) ([]Library, error) {
+	ctx := context.Background()
+	libraries, err := p.queries.GetSelectedLibraries(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Library, 0)
+	for _, library := range libraries {
+		result = append(result, Library{
+			Id:         library.ID,
+			UserId:     library.UserID,
+			LibraryKey: library.LibraryKey,
+			CreatedAt:  library.CreatedAt.Time,
+			UpdatedAt:  library.UpdatedAt.Time,
+		})
+	}
+
+	return result, nil
+}
+
+func (p Postgres) AddSelectedLibraries(userId int32, libraryIds []string) error {
 	ctx := context.Background()
 	err := p.queries.DeleteSelectedLibraries(ctx, userId)
 	if err != nil {

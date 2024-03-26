@@ -121,7 +121,7 @@ func (s *Server) handleValidateSetupForm(c echo.Context) error {
 }
 
 func (s *Server) handleSetupLibraries(c echo.Context) error {
-	_, err := s.store.GetUser()
+	user, err := s.store.GetUser()
 	if err != nil {
 		slog.Error("Failed to get user", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
@@ -141,9 +141,21 @@ func (s *Server) handleSetupLibraries(c echo.Context) error {
 		}
 	}
 
-	formData := views.SetupLibrariesFormData{
-		SelectedLibraries: []string{},
+	selectedLibraries, err := s.store.GetSelectedLibraries(user.Id)
+	if err != nil {
+		slog.Error("Failed to get selected libraries", slog.Any("error", err))
+		return c.String(http.StatusInternalServerError, "Failed to get selected libraries")
 	}
+
+	selectedLibraryKeys := make([]string, 0, len(selectedLibraries))
+	for _, library := range selectedLibraries {
+		selectedLibraryKeys = append(selectedLibraryKeys, library.LibraryKey)
+	}
+
+	formData := views.SetupLibrariesFormData{
+		SelectedLibraries: selectedLibraryKeys,
+	}
+
 	view := views.LibrarySelector(formData, filteredLibraries)
 	return view.Render(c.Request().Context(), c.Response())
 }
@@ -169,7 +181,7 @@ func (s *Server) postLibraries(c echo.Context) error {
 		return nil
 	}
 
-	err = s.store.AddLibraries(user.Id, selectedLibraries)
+	err = s.store.AddSelectedLibraries(user.Id, selectedLibraries)
 	if err != nil {
 		slog.Error("Failed to add libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to add libraries")
