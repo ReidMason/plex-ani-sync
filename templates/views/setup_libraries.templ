@@ -1,0 +1,37 @@
+package views
+
+import (
+	"github.com/ReidMason/plex-ani-sync/templates/layouts"
+	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
+	"github.com/ReidMason/plex-ani-sync/api/routes"
+)
+
+type SetupLibrariesFormData struct {
+	SelectedLibraries []string
+}
+
+templ LibrarySelector(formData SetupLibrariesFormData, libraries []mediaHost.Library) {
+	@layouts.Main() {
+		<h1 class="font-semibold text-xl mb-4">Select libraries</h1>
+		<form hx-post={ routes.LIBRARIES }>
+			<fieldset class="mb-4">
+				<div class="space-y-5">
+					for _, library := range libraries {
+						<div class="relative flex tems-start">
+							<div class="flex h-6 items-center">
+								<input id={ library.Key } aria-describedby={ "library-" + library.Title } name={ library.Key } type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
+							</div>
+							<div class="ml-3 text-sm leading-6">
+								<label for={ library.Key } class="font-medium text-gray-900">{ library.Title }</label>
+							</div>
+						</div>
+					}
+				</div>
+			</fieldset>
+			@ui.Button() {
+				Submit
+			}
+		</form>
+	}
+}
