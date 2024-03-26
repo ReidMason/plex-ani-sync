@@ -3,5 +3,6 @@ CREATE TABLE selected_plex_libraries (
   user_id INTEGER NOT NULL REFERENCES users(id),
   library_key TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id, library_key)
 );
