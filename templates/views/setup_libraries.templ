@@ -5,6 +5,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/api/routes"
+	"github.com/ReidMason/plex-ani-sync/internal/utils"
 )
 
 type SetupLibrariesFormData struct {
@@ -20,7 +21,7 @@ templ LibrarySelector(formData SetupLibrariesFormData, libraries []mediaHost.Lib
 					for _, library := range libraries {
 						<div class="relative flex tems-start">
 							<div class="flex h-6 items-center">
-								<input id={ library.Key } aria-describedby={ "library-" + library.Title } name={ library.Key } type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
+								<input id={ library.Key } aria-describedby={ "library-" + library.Title } name={ library.Key } type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" checked?={ utils.Contains(formData.SelectedLibraries, library.Key) }/>
 							</div>
 							<div class="ml-3 text-sm leading-6">
 								<label for={ library.Key } class="font-medium text-gray-900">{ library.Title }</label>

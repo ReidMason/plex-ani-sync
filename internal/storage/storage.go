@@ -9,7 +9,8 @@ type Storage interface {
 	DeleteUser() (User, error)
 	CreateUser(name, plexUrl, hostUrl string) (User, error)
 	UpdateUser(user User) (User, error)
-	AddLibraries(userId int32, libraryIds []string) error
+	GetSelectedLibraries(userId int32) ([]Library, error)
+	AddSelectedLibraries(userId int32, libraryIds []string) error
 }
 
 type User struct {
@@ -21,4 +22,12 @@ type User struct {
 	Name             string
 	ClientIdentifier string
 	Id               int32
+}
+
+type Library struct {
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	LibraryKey string
+	Id         int32
+	UserId     int32
 }
