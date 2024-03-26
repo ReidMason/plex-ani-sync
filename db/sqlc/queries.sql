@@ -24,3 +24,13 @@
       updated_at = NOW()
   WHERE id = $5
   RETURNING *;
+
+-- name: DeleteSelectedLibraries :exec
+-- DeleteSelectedLibraries deletes all selected libraries for a user.
+  DELETE FROM selected_plex_libraries
+  WHERE user_id = $1;
+
+-- name: AddLibraries :copyfrom
+-- AddLibraries adds selected libraries for a user.
+  INSERT INTO selected_plex_libraries (user_id, library_key)
+  VALUES ($1, $2);
