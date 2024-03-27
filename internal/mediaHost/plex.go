@@ -3,6 +3,7 @@ package mediaHost
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -89,6 +90,25 @@ func (p Plex) buildHostUrl(path string) (string, error) {
 	return url.JoinPath(p.hostUrl.String(), path)
 }
 
+func (p Plex) GetSeries(libraryKey string) ([]PlexSeries, error) {
+	url, err := p.buildHostUrl(fmt.Sprintf("/library/sections/%s/all", libraryKey))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := buildRequest("GET", url, p.token)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeries]]](p.client, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.MediaContainer.Metadata, nil
+}
+
 func (p Plex) GetLibraries() ([]Library, error) {
 	url, err := p.buildHostUrl("library/sections")
 	if err != nil {
@@ -100,7 +120,7 @@ func (p Plex) GetLibraries() ([]Library, error) {
 		return nil, err
 	}
 
-	response, err := makeRequest[PlexResponse[[]Library]](p.client, req)
+	response, err := makeRequest[PlexResponse[DirectoryMediaContainer[[]Library]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -120,10 +140,30 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 }
 
 type PlexResponse[T any] struct {
-	MediaContainer MediaContainer[T] `json:"MediaContainer"`
+	MediaContainer T `json:"MediaContainer"`
 }
 
-type MediaContainer[T any] struct {
+// TODO: Add the rest of the fields
+type PlexSeries struct {
+	RatingKey       string `json:"ratingKey"`
+	Type            string `json:"type"`
+	Title           string `json:"title"`
+	TitleSort       string `json:"titleSort"`
+	ViewCount       int    `json:"viewCount"`
+	LastViewedAt    int    `json:"lastViewedAt"`
+	LeafCount       int    `json:"leafCount"`
+	ViewedLeafCount int    `json:"viewedLeafCount"`
+	ChildCount      int    `json:"childCount"`
+}
+
+type MetadataMediaContainer[T any] struct {
+	Metadata  T      `json:"metadata"`
+	Title1    string `json:"title1"`
+	Size      int    `json:"size"`
+	AllowSync bool   `json:"allowSync"`
+}
+
+type DirectoryMediaContainer[T any] struct {
 	Directory T      `json:"Directory"`
 	Title1    string `json:"title1"`
 	Size      int    `json:"size"`
