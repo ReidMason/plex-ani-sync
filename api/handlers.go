@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"log/slog"
 	"net/http"
 
@@ -14,26 +13,26 @@ func (s *Server) getIndex(c echo.Context) error {
 	// Redirect to setup if user doesn't exist
 	_, err := s.userManager.GetUser()
 	if err != nil {
-		log.Println("Failed to find existing user redirecting to setup")
+		slog.Warn("Failed to find existing user redirecting to setup", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
 		return nil
 	}
 
 	user, err := s.mediaHost.GetCurrentUser()
 	if err != nil {
-		log.Println("Failed to get current user from media host: ", err)
+		slog.Error("Failed to get current user from media host", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get current user from media host")
 	}
 
 	slog.Info("Got user", slog.Any("user", user))
 
-	series, err := s.mediaHost.GetSeries("1")
-	if err != nil {
-		slog.Error("Failed to get series from media host", slog.Any("error", err))
-		return c.String(http.StatusInternalServerError, "Failed to get series from media host")
-	}
+	// series, err := s.mediaHost.GetSeries("1")
+	// if err != nil {
+	// 	slog.Error("Failed to get series from media host", slog.Any("error", err))
+	// 	return c.String(http.StatusInternalServerError, "Failed to get series from media host")
+	// }
 
-	slog.Info("Got series", slog.Any("series", series))
+	// slog.Info("Got series", slog.Any("series", series))
 
 	component := views.Index(user)
 	return component.Render(c.Request().Context(), c.Response())
