@@ -115,7 +115,7 @@ func TestBuildPollingLink(t *testing.T) {
 		t.Run(fmt.Sprintf("BuildPollingLink(%d, %s, %s)", tc.pinId, tc.pinCode, tc.clientIdentifier), func(t *testing.T) {
 			t.Parallel()
 
-			result, err := BuildAuthTokenPollingLink(tc.pinId, tc.pinCode, tc.clientIdentifier)
+			result, err := buildAuthTokenPollingLink(tc.pinId, tc.pinCode, tc.clientIdentifier)
 
 			if err != nil {
 				t.Errorf("BuildPollingLink(%d, %s, %s) threw an error", tc.pinId, tc.pinCode, tc.clientIdentifier)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -101,7 +102,7 @@ func buildAuthUrl(forwardUrl string, pinId int64, code, clientIdentifier, appNam
 	return req.URL.String() + "#?" + q.Encode(), nil
 }
 
-func BuildAuthTokenPollingLink(pinId int, pinCode, clientIdentifier string) (string, error) {
+func buildAuthTokenPollingLink(pinId int, pinCode, clientIdentifier string) (string, error) {
 	req, err := http.NewRequest("GET", PLEX_BASE_URL+"/api/v2/pins/"+fmt.Sprint(pinId), nil)
 	if err != nil {
 		return "", err
@@ -116,7 +117,7 @@ func BuildAuthTokenPollingLink(pinId int, pinCode, clientIdentifier string) (str
 	return req.URL.String(), nil
 }
 
-func PollForAuthToken(pollingLink string) (authResponse, error) {
+func pollForAuthToken(pollingLink string) (authResponse, error) {
 	var result authResponse
 
 	req, err := http.NewRequest("GET", pollingLink, nil)
@@ -149,6 +150,27 @@ func PollForAuthToken(pollingLink string) (authResponse, error) {
 	}
 
 	return result, errors.New("Failed to get auth token")
+}
+
+func GetAuthResponse(pinId int, code string, clientIdentifier string) (authResponse, error) {
+	pollingLink, err := buildAuthTokenPollingLink(pinId, code, clientIdentifier)
+	if err != nil {
+		slog.Error("Failed to build polling link", slog.Any("error", err))
+		return authResponse{}, err
+	}
+
+	response, err := pollForAuthToken(pollingLink)
+	if err != nil {
+		slog.Error("Failed to poll for auth token", slog.Any("error", err))
+		return authResponse{}, err
+	}
+
+	if response.AuthToken == nil {
+		slog.Error("No Plex auth token found in response")
+		return authResponse{}, err
+	}
+
+	return response, nil
 }
 
 type location struct {

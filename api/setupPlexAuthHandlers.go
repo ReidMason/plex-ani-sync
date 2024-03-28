@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -12,29 +13,22 @@ import (
 func (s *Server) getSetupPlexAuth(c echo.Context) error {
 	pinId, err := strconv.Atoi(c.Request().URL.Query().Get("pinid"))
 	if err != nil {
+		slog.Error("Failed to parse pin id", slog.Any("error", err))
 		return c.String(http.StatusBadRequest, "Invalid pin id")
 	}
 
 	clientIdentifier := c.Request().URL.Query().Get("clientIdentifier")
 	code := c.Request().URL.Query().Get("code")
 
-	pollingLink, err := mediaHost.BuildAuthTokenPollingLink(pinId, code, clientIdentifier)
+	authResponse, err := mediaHost.GetAuthResponse(pinId, code, clientIdentifier)
 	if err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to build polling link")
-	}
-
-	authResponse, err := mediaHost.PollForAuthToken(pollingLink)
-	if err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to poll for auth token")
+		return c.String(http.StatusInternalServerError, "Failed to get auth response")
 	}
 
 	user, err := s.userManager.GetUser()
 	if err != nil {
+		slog.Error("Failed to find user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to find user")
-	}
-
-	if authResponse.AuthToken == nil {
-		return c.String(http.StatusInternalServerError, "Failed to authenticate with Plex, no auth token found")
 	}
 
 	user.PlexToken = authResponse.AuthToken

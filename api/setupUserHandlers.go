@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -31,17 +32,20 @@ func (s *Server) postSetupUser(c echo.Context) error {
 
 	user, err := s.userManager.SetupUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value)
 	if err != nil {
+		slog.Error("Failed to create user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to create user")
 	}
 
 	forwardUrl, err := url.Parse(formData.HostUrl.Value)
 	if err != nil {
+		slog.Error("Failed to parse host url", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to parse host url")
 	}
 
 	forwardUrl.Path = routes.SETUP_PLEX_AUTH
 	authUrl, err := mediaHost.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
 	if err != nil {
+		slog.Error("Failed to authorize with Plex", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to authorize with Plex")
 	}
 
