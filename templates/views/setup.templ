@@ -21,7 +21,7 @@ templ Setup(formData FormData) {
 }
 
 templ SetupForm(formData FormData) {
-	<form hx-post={ routes.USER } class="flex flex-col gap-4" hx-swap="innerHTML">
+	<form hx-post={ routes.SETUP_USER } class="flex flex-col gap-4" hx-swap="innerHTML">
 		@SetupFormContent(formData)
 	</form>
 }

@@ -15,7 +15,7 @@ type SetupLibrariesFormData struct {
 templ LibrarySelector(formData SetupLibrariesFormData, libraries []mediaHost.Library) {
 	@layouts.Main() {
 		<h1 class="font-semibold text-xl mb-4">Select libraries</h1>
-		<form hx-post={ routes.LIBRARIES }>
+		<form hx-post={ routes.SETUP_LIBRARIES }>
 			<fieldset class="mb-4">
 				<div class="space-y-5">
 					for _, library := range libraries {

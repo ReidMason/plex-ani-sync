@@ -33,15 +33,16 @@ func (s *Server) Start() error {
 		log.Warnf("Failed to initialise media host: %v", err)
 	}
 
-	e.GET(routes.HOME, s.handleGetRoot)
-	e.GET(routes.SETUP_USER, s.handleGetSetupUser)
-	e.GET(routes.SETUP_PLEX_AUTH, s.handlePlexAuth)
-	e.POST(routes.SETUP_VALIDATE, s.handleValidateSetupForm)
+	e.GET(routes.INDEX, s.getIndex)
 
-	e.GET(routes.SETUP_LIBRARIES, s.handleSetupLibraries)
-	e.POST(routes.LIBRARIES, s.postLibraries)
+	e.GET(routes.SETUP_USER, s.getSetupUser)
+	e.POST(routes.SETUP_USER, s.postSetupUser)
+	e.POST(routes.SETUP_USER_VALIDATE, s.postSetupUserValidate)
 
-	e.POST(routes.USER, s.handlePostUser)
+	e.GET(routes.SETUP_PLEX_AUTH, s.getSetupPlexAuth)
+
+	e.GET(routes.SETUP_LIBRARIES, s.getSetupLibraries)
+	e.POST(routes.SETUP_LIBRARIES, s.postSetupLibraries)
 
 	e.Logger.Fatal(e.Start(":8000"))
 
