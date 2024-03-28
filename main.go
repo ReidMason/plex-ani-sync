@@ -2,11 +2,14 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/ReidMason/plex-ani-sync/api"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
+	"github.com/ReidMason/plex-ani-sync/internal/userManager"
+	"github.com/charmbracelet/log"
 )
 
 func main() {
@@ -18,7 +21,12 @@ func main() {
 	dbName := flag.String("db-name", "plexanilistsync", "database name")
 	flag.Parse()
 
+	handler := log.New(os.Stdout)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
 	storage, err := storage.NewPostgresStorage(*dbUser, *dbPass, *dbHost, *dbPort, *dbName)
+	userManagerService := userManager.NewUserManager(storage)
 	if err != nil {
 		log.Fatalf("Failed to initialise storage: %v", err)
 		panic(err)
@@ -26,6 +34,6 @@ func main() {
 
 	plex := mediaHost.NewPlex()
 
-	server := api.NewServer(*listenAddr, storage, plex)
+	server := api.NewServer(*listenAddr, plex, userManagerService)
 	log.Fatal(server.Start())
 }
