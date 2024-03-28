@@ -28,7 +28,7 @@ func (s *Server) getSetupPlexAuth(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Failed to poll for auth token")
 	}
 
-	user, err := s.store.GetUser()
+	user, err := s.userManager.GetUser()
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to find user")
 	}
@@ -38,7 +38,7 @@ func (s *Server) getSetupPlexAuth(c echo.Context) error {
 	}
 
 	user.PlexToken = authResponse.AuthToken
-	s.store.UpdateUser(user)
+	s.userManager.UpdateUser(user)
 
 	err = s.initialiseMediaHost()
 	if err != nil {

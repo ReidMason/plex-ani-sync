@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) getSetupLibraries(c echo.Context) error {
-	user, err := s.store.GetUser()
+	user, err := s.userManager.GetUser()
 	if err != nil {
 		slog.Error("Failed to get user", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
@@ -31,7 +31,7 @@ func (s *Server) getSetupLibraries(c echo.Context) error {
 		}
 	}
 
-	selectedLibraries, err := s.store.GetSelectedLibraries(user.Id)
+	selectedLibraries, err := s.userManager.GetSelectedLibraries(user.Id)
 	if err != nil {
 		slog.Error("Failed to get selected libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get selected libraries")
@@ -64,14 +64,14 @@ func (s *Server) postSetupLibraries(c echo.Context) error {
 
 	slog.Info("Selected libraries", slog.Any("libraries", selectedLibraries))
 
-	user, err := s.store.GetUser()
+	user, err := s.userManager.GetUser()
 	if err != nil {
 		slog.Error("Failed to get user", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
 		return nil
 	}
 
-	err = s.store.AddSelectedLibraries(user.Id, selectedLibraries)
+	err = s.userManager.AddSelectedLibraries(user.Id, selectedLibraries)
 	if err != nil {
 		slog.Error("Failed to add libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to add libraries")

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/internal/userManager"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
@@ -18,12 +19,8 @@ func (s *Server) getSetupUser(c echo.Context) error {
 }
 
 func (s *Server) postSetupUser(c echo.Context) error {
-	_, err := s.store.GetUser()
-	if err == nil {
-		s.store.DeleteUser()
-	}
-
 	newFormData := extractSetupFormData(c)
+
 	formData, validationPassed := validateSetupForm(newFormData)
 	formData.FormSubmitted = "true"
 
@@ -32,7 +29,7 @@ func (s *Server) postSetupUser(c echo.Context) error {
 		return component.Render(c.Request().Context(), c.Response())
 	}
 
-	user, err := s.store.CreateUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value)
+	user, err := s.userManager.SetupUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to create user")
 	}
@@ -87,56 +84,22 @@ func getDefaultSetupFormData() components.SetupUserFormData {
 	}
 }
 
-func validateName(name string) (bool, string) {
-	if name == "" {
-		return false, "Name is required"
-	}
-
-	return true, ""
-}
-
-func validateHostUrl(hostUrl string) (bool, string) {
-	if hostUrl == "" {
-		return false, "A host URL is required"
-	}
-
-	_, err := url.ParseRequestURI(hostUrl)
-	if err != nil {
-		return false, "Host URL is invalid"
-	}
-
-	return true, ""
-}
-
-func validatePlexUrl(plexUrl string) (bool, string) {
-	if plexUrl == "" {
-		return false, "Plex URL is required"
-	}
-
-	_, err := url.ParseRequestURI(plexUrl)
-	if err != nil {
-		return false, "Plex URL is invalid"
-	}
-
-	return true, ""
-}
-
 func validateSetupForm(formData components.SetupUserFormData) (components.SetupUserFormData, bool) {
 	validationPassed := true
 
-	if valid, msg := validateName(formData.Name.Value); !valid {
+	if valid, msg := userManager.ValidateName(formData.Name.Value); !valid {
 		validationPassed = false
 		formData.Name.Valid = false
 		formData.Name.Error = msg
 	}
 
-	if valid, msg := validatePlexUrl(formData.PlexUrl.Value); !valid {
+	if valid, msg := userManager.ValidatePlexUrl(formData.PlexUrl.Value); !valid {
 		validationPassed = false
 		formData.PlexUrl.Valid = false
 		formData.PlexUrl.Error = msg
 	}
 
-	if valid, msg := validateHostUrl(formData.HostUrl.Value); !valid {
+	if valid, msg := userManager.ValidateHostUrl(formData.HostUrl.Value); !valid {
 		validationPassed = false
 		formData.HostUrl.Valid = false
 		formData.HostUrl.Error = msg

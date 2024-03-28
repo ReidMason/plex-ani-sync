@@ -12,7 +12,7 @@ import (
 
 func (s *Server) getIndex(c echo.Context) error {
 	// Redirect to setup if user doesn't exist
-	_, err := s.store.GetUser()
+	_, err := s.userManager.GetUser()
 	if err != nil {
 		log.Println("Failed to find existing user redirecting to setup")
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
