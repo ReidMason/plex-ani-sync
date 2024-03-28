@@ -15,7 +15,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/templates/layouts"
 )
 
-func Home(mediaHostUser mediaHost.PlexUser) templ.Component {
+func Index(mediaHostUser mediaHost.PlexUser) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, templ_7745c5c3_W io.Writer) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templ_7745c5c3_W.(*bytes.Buffer)
 		if !templ_7745c5c3_IsBuffer {
@@ -41,7 +41,7 @@ func Home(mediaHostUser mediaHost.PlexUser) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(mediaHostUser.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/views/home.templ`, Line: 11, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `templates/views/index.templ`, Line: 11, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {

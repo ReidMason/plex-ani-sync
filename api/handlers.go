@@ -35,6 +35,6 @@ func (s *Server) getIndex(c echo.Context) error {
 
 	slog.Info("Got series", slog.Any("series", series))
 
-	component := views.Home(user)
+	component := views.Index(user)
 	return component.Render(c.Request().Context(), c.Response())
 }

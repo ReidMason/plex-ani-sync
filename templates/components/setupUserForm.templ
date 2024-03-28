@@ -1,0 +1,27 @@
+package components
+
+import (
+	"github.com/ReidMason/plex-ani-sync/api/routes"
+	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
+)
+
+type SetupUserFormData struct {
+	Name          ui.Field
+	HostUrl       ui.Field
+	PlexUrl       ui.Field
+	FormSubmitted string
+}
+
+templ SetupUserForm(formData SetupUserFormData) {
+	<form hx-post={ routes.SETUP_USER } class="flex flex-col gap-4" hx-swap="innerHTML">
+		@SetupUserFormContent(formData)
+	</form>
+}
+
+templ SetupUserFormContent(formData SetupUserFormData) {
+	@ui.Input(formData.Name, formData.FormSubmitted == "true")
+	@ui.Input(formData.HostUrl, formData.FormSubmitted == "true")
+	@ui.Input(formData.PlexUrl, formData.FormSubmitted == "true")
+	<input type="hidden" name="formSubmitted" value={ formData.FormSubmitted } class="text-black"/>
+	<button class="bg-slate-800 text-slate-100 p-2 rounded-md w-full mt-4 hover:bg-slate-800/60">Authorize Plex</button>
+}

@@ -1,0 +1,13 @@
+package views
+
+import (
+	"github.com/ReidMason/plex-ani-sync/templates/layouts"
+	"github.com/ReidMason/plex-ani-sync/templates/components"
+)
+
+templ SetupUser(formData components.SetupUserFormData) {
+	@layouts.Main() {
+		<h1 class="font-semibold text-xl">Setup</h1>
+		@components.SetupUserForm(formData)
+	}
+}

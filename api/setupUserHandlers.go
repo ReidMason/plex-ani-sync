@@ -7,12 +7,13 @@ import (
 	"github.com/ReidMason/plex-ani-sync/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
+	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
 	"github.com/labstack/echo/v4"
 )
 
 func (s *Server) getSetupUser(c echo.Context) error {
-	component := views.Setup(getDefaultSetupFormData())
+	component := views.SetupUser(getDefaultSetupFormData())
 	return component.Render(c.Request().Context(), c.Response())
 }
 
@@ -27,7 +28,7 @@ func (s *Server) postSetupUser(c echo.Context) error {
 	formData.FormSubmitted = "true"
 
 	if !validationPassed {
-		component := views.SetupFormContent(formData)
+		component := components.SetupUserFormContent(formData)
 		return component.Render(c.Request().Context(), c.Response())
 	}
 
@@ -55,28 +56,28 @@ func (s *Server) postSetupUserValidate(c echo.Context) error {
 	newFormData := extractSetupFormData(c)
 	formData, _ := validateSetupForm(newFormData)
 
-	component := views.SetupFormContent(formData)
+	component := components.SetupUserFormContent(formData)
 	return component.Render(c.Request().Context(), c.Response())
 }
 
-func getDefaultSetupFormData() views.FormData {
-	return views.FormData{
+func getDefaultSetupFormData() components.SetupUserFormData {
+	return components.SetupUserFormData{
 		FormSubmitted: "false",
-		Name: components.Field{
+		Name: ui.Field{
 			Name:          "name",
 			Label:         "Name",
 			Placeholder:   "Enter your name",
 			Valid:         true,
 			ValidateRoute: routes.SETUP_USER_VALIDATE,
 		},
-		HostUrl: components.Field{
+		HostUrl: ui.Field{
 			Name:          "hostUrl",
 			Label:         "Host url",
 			Placeholder:   "Enter your PlexAnilistSync host url",
 			Valid:         true,
 			ValidateRoute: routes.SETUP_USER_VALIDATE,
 		},
-		PlexUrl: components.Field{
+		PlexUrl: ui.Field{
 			Name:          "plexUrl",
 			Label:         "Plex URL",
 			Placeholder:   "Enter your Plex URL",
@@ -120,7 +121,7 @@ func validatePlexUrl(plexUrl string) (bool, string) {
 	return true, ""
 }
 
-func validateSetupForm(formData views.FormData) (views.FormData, bool) {
+func validateSetupForm(formData components.SetupUserFormData) (components.SetupUserFormData, bool) {
 	validationPassed := true
 
 	if valid, msg := validateName(formData.Name.Value); !valid {
@@ -144,7 +145,7 @@ func validateSetupForm(formData views.FormData) (views.FormData, bool) {
 	return formData, validationPassed
 }
 
-func extractSetupFormData(c echo.Context) views.FormData {
+func extractSetupFormData(c echo.Context) components.SetupUserFormData {
 	formData := getDefaultSetupFormData()
 
 	formData.FormSubmitted = c.FormValue("formSubmitted")

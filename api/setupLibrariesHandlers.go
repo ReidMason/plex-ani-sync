@@ -46,7 +46,7 @@ func (s *Server) getSetupLibraries(c echo.Context) error {
 		SelectedLibraries: selectedLibraryKeys,
 	}
 
-	view := views.LibrarySelector(formData, filteredLibraries)
+	view := views.SetupLibraries(formData, filteredLibraries)
 	return view.Render(c.Request().Context(), c.Response())
 }
 
