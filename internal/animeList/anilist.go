@@ -12,9 +12,11 @@ import (
 
 const HOST = "https://graphql.anilist.co"
 
+type Variables map[string]interface{}
+
 type GraphQLRequest struct {
-	Variables map[string]interface{} `json:"variables"`
-	Query     string                 `json:"query"`
+	Variables Variables `json:"variables"`
+	Query     string    `json:"query"`
 }
 
 type Anilist struct {
@@ -41,16 +43,11 @@ func (a Anilist) GetAnimeList() ([]ListEntry, error) {
     }
 }`
 
-	variables := map[string]interface{}{
+	variables := Variables{
 		"user_id": a.userId,
 	}
 
-	requestBody := GraphQLRequest{
-		Query:     query,
-		Variables: variables,
-	}
-
-	req, err := buildRequest(requestBody)
+	req, err := buildRequest(query, variables)
 	if err != nil {
 		slog.Error("Failed to build Anilist request", slog.Any("error", err))
 		return nil, err
@@ -80,7 +77,12 @@ func (a Anilist) GetAnimeList() ([]ListEntry, error) {
 	return listEntries, nil
 }
 
-func buildRequest(body GraphQLRequest) (*http.Request, error) {
+func buildRequest(query string, variables Variables) (*http.Request, error) {
+	body := GraphQLRequest{
+		Query:     query,
+		Variables: variables,
+	}
+
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
