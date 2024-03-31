@@ -109,6 +109,25 @@ func (p Plex) GetSeries(libraryKey string) ([]PlexSeries, error) {
 	return response.MediaContainer.Metadata, nil
 }
 
+func (p Plex) GetSeasons(seriesKey string) ([]PlexSeason, error) {
+	url, err := p.buildHostUrl(fmt.Sprintf("/library/metadata/%s/children", seriesKey))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := buildRequest("GET", url, p.token)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeason]]](p.client, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.MediaContainer.Metadata, nil
+}
+
 func (p Plex) GetLibraries() ([]Library, error) {
 	url, err := p.buildHostUrl("library/sections")
 	if err != nil {
@@ -154,6 +173,31 @@ type PlexSeries struct {
 	LeafCount       int    `json:"leafCount"`
 	ViewedLeafCount int    `json:"viewedLeafCount"`
 	ChildCount      int    `json:"childCount"`
+}
+
+type PlexSeason struct {
+	ParentTitle     string `json:"parentTitle"`
+	ParentRatingKey string `json:"parentRatingKey"`
+	Summary         string `json:"summary"`
+	Guid            string `json:"guid"`
+	ParentGuid      string `json:"parentGuid"`
+	ParentStudio    string `json:"parentStudio"`
+	Type            string `json:"type"`
+	Title           string `json:"title"`
+	RatingKey       string `json:"ratingKey"`
+	ParentKey       string `json:"parentKey"`
+	ParentThumb     string `json:"parentThumb"`
+	Key             string `json:"key"`
+	TitleSort       string `json:"titleSort"`
+	Art             string `json:"art"`
+	Thumb           string `json:"thumb"`
+	Year            int    `json:"year"`
+	ParentIndex     int    `json:"parentIndex"`
+	UpdatedAt       int    `json:"updatedAt"`
+	LeafCount       int    `json:"leafCount"`
+	ViewedLeafCount int    `json:"viewedLeafCount"`
+	AddedAt         int    `json:"addedAt"`
+	Index           int    `json:"index"`
 }
 
 type MetadataMediaContainer[T any] struct {

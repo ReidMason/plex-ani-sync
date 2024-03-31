@@ -7,6 +7,7 @@ type MediaHost interface {
 	GetLibraries() ([]Library, error)
 	GetCurrentUser() (PlexUser, error)
 	GetSeries(libraryKey string) ([]PlexSeries, error)
+	GetSeasons(seriesKey string) ([]PlexSeason, error)
 }
 
 type HttpClient interface {
