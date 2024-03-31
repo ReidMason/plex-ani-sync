@@ -1,18 +1,16 @@
 package mediaHost
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log"
-	"log/slog"
 	"net/http"
 	"net/url"
+
+	"github.com/ReidMason/plex-ani-sync/internal/request"
 )
 
 type Plex struct {
-	client  HttpClient
+	client  request.HttpClient
 	hostUrl *url.URL
 	token   string
 }
@@ -21,7 +19,7 @@ func NewPlex() *Plex {
 	return &Plex{}
 }
 
-func (p *Plex) Initialize(token, host string, client HttpClient) error {
+func (p *Plex) Initialize(token, host string, client request.HttpClient) error {
 	hostUrl, err := url.Parse(host)
 	if err != nil {
 		return err
@@ -49,43 +47,6 @@ func buildRequest(method, url, token string) (*http.Request, error) {
 	return req, nil
 }
 
-func makeRequest[T any](client HttpClient, request *http.Request) (T, error) {
-	var result T
-
-	if client == nil {
-		return result, errors.New("No client provided for Plex request")
-	}
-
-	slog.Info("Making request", slog.String("url", request.URL.String()))
-	resp, err := client.Do(request)
-	if err != nil {
-		log.Println("Failed to make request", err)
-		return result, err
-	}
-
-	if resp.StatusCode >= 400 {
-		log.Printf("Request failed: %s", resp.Status)
-		return result, errors.New("Request failed with status: " + resp.Status)
-	}
-
-	defer resp.Body.Close()
-	return parseResponse[T](resp.Body)
-}
-
-func parseResponse[T any](responseBody io.ReadCloser) (T, error) {
-	var result T
-	body, err := io.ReadAll(responseBody)
-	if err != nil {
-		return result, err
-	}
-
-	if err := json.Unmarshal(body, &result); err != nil {
-		return result, err
-	}
-
-	return result, nil
-}
-
 func (p Plex) buildHostUrl(path string) (string, error) {
 	return url.JoinPath(p.hostUrl.String(), path)
 }
@@ -101,7 +62,7 @@ func (p Plex) GetSeries(libraryKey string) ([]PlexSeries, error) {
 		return nil, err
 	}
 
-	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeries]]](p.client, req)
+	response, err := request.MakeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeries]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +81,7 @@ func (p Plex) GetSeasons(seriesKey string) ([]PlexSeason, error) {
 		return nil, err
 	}
 
-	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeason]]](p.client, req)
+	response, err := request.MakeRequest[PlexResponse[MetadataMediaContainer[[]PlexSeason]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +100,7 @@ func (p Plex) GetEpisodes(seasonKey string) ([]PlexEpisode, error) {
 		return nil, err
 	}
 
-	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexEpisode]]](p.client, req)
+	response, err := request.MakeRequest[PlexResponse[MetadataMediaContainer[[]PlexEpisode]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +119,7 @@ func (p Plex) GetLibraries() ([]Library, error) {
 		return nil, err
 	}
 
-	response, err := makeRequest[PlexResponse[DirectoryMediaContainer[[]Library]]](p.client, req)
+	response, err := request.MakeRequest[PlexResponse[DirectoryMediaContainer[[]Library]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +135,7 @@ func (p Plex) GetCurrentUser() (PlexUser, error) {
 		return plexUser, err
 	}
 
-	return makeRequest[PlexUser](p.client, req)
+	return request.MakeRequest[PlexUser](p.client, req)
 }
 
 type PlexResponse[T any] struct {
@@ -220,9 +181,9 @@ type PlexSeason struct {
 }
 
 type PlexEpisode struct {
-	RatingKey             string  `json:"ratingKey"`
-	Key                   string  `json:"key"`
-	SkipParent            bool    `json:"skipParent"`
+	OriginalTitle         string  `json:"originalTitle"`
+	Art                   string  `json:"art"`
+	ContentRating         string  `json:"contentRating"`
 	ParentRatingKey       string  `json:"parentRatingKey"`
 	GrandparentRatingKey  string  `json:"grandparentRatingKey"`
 	Guid                  string  `json:"guid"`
@@ -234,22 +195,22 @@ type PlexEpisode struct {
 	ParentKey             string  `json:"parentKey"`
 	GrandparentTitle      string  `json:"grandparentTitle"`
 	ParentTitle           string  `json:"parentTitle"`
-	OriginalTitle         string  `json:"originalTitle"`
-	ContentRating         string  `json:"contentRating"`
+	AudienceRatingImage   string  `json:"audienceRatingImage"`
+	RatingKey             string  `json:"ratingKey"`
 	Summary               string  `json:"summary"`
-	Index                 int     `json:"index"`
-	ParentIndex           int     `json:"parentIndex"`
-	AudienceRating        float64 `json:"audienceRating"`
-	ParentYear            int     `json:"parentYear"`
-	Thumb                 string  `json:"thumb"`
-	Art                   string  `json:"art"`
-	GrandparentThumb      string  `json:"grandparentThumb"`
-	GrandparentArt        string  `json:"grandparentArt"`
-	Duration              int     `json:"duration"`
 	OriginallyAvailableAt string  `json:"originallyAvailableAt"`
+	GrandparentArt        string  `json:"grandparentArt"`
+	GrandparentThumb      string  `json:"grandparentThumb"`
+	Key                   string  `json:"key"`
+	Thumb                 string  `json:"thumb"`
+	ParentYear            int     `json:"parentYear"`
+	AudienceRating        float64 `json:"audienceRating"`
+	ParentIndex           int     `json:"parentIndex"`
+	Duration              int     `json:"duration"`
+	Index                 int     `json:"index"`
 	AddedAt               int     `json:"addedAt"`
 	UpdatedAt             int     `json:"updatedAt"`
-	AudienceRatingImage   string  `json:"audienceRatingImage"`
+	SkipParent            bool    `json:"skipParent"`
 }
 
 type MetadataMediaContainer[T any] struct {
