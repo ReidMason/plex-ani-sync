@@ -128,6 +128,25 @@ func (p Plex) GetSeasons(seriesKey string) ([]PlexSeason, error) {
 	return response.MediaContainer.Metadata, nil
 }
 
+func (p Plex) GetEpisodes(seasonKey string) ([]PlexEpisode, error) {
+	url, err := p.buildHostUrl(fmt.Sprintf("/library/metadata/%s/children", seasonKey))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := buildRequest("GET", url, p.token)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := makeRequest[PlexResponse[MetadataMediaContainer[[]PlexEpisode]]](p.client, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return response.MediaContainer.Metadata, nil
+}
+
 func (p Plex) GetLibraries() ([]Library, error) {
 	url, err := p.buildHostUrl("library/sections")
 	if err != nil {
@@ -198,6 +217,39 @@ type PlexSeason struct {
 	ViewedLeafCount int    `json:"viewedLeafCount"`
 	AddedAt         int    `json:"addedAt"`
 	Index           int    `json:"index"`
+}
+
+type PlexEpisode struct {
+	RatingKey             string  `json:"ratingKey"`
+	Key                   string  `json:"key"`
+	SkipParent            bool    `json:"skipParent"`
+	ParentRatingKey       string  `json:"parentRatingKey"`
+	GrandparentRatingKey  string  `json:"grandparentRatingKey"`
+	Guid                  string  `json:"guid"`
+	ParentGuid            string  `json:"parentGuid"`
+	GrandparentGuid       string  `json:"grandparentGuid"`
+	Type                  string  `json:"type"`
+	Title                 string  `json:"title"`
+	GrandparentKey        string  `json:"grandparentKey"`
+	ParentKey             string  `json:"parentKey"`
+	GrandparentTitle      string  `json:"grandparentTitle"`
+	ParentTitle           string  `json:"parentTitle"`
+	OriginalTitle         string  `json:"originalTitle"`
+	ContentRating         string  `json:"contentRating"`
+	Summary               string  `json:"summary"`
+	Index                 int     `json:"index"`
+	ParentIndex           int     `json:"parentIndex"`
+	AudienceRating        float64 `json:"audienceRating"`
+	ParentYear            int     `json:"parentYear"`
+	Thumb                 string  `json:"thumb"`
+	Art                   string  `json:"art"`
+	GrandparentThumb      string  `json:"grandparentThumb"`
+	GrandparentArt        string  `json:"grandparentArt"`
+	Duration              int     `json:"duration"`
+	OriginallyAvailableAt string  `json:"originallyAvailableAt"`
+	AddedAt               int     `json:"addedAt"`
+	UpdatedAt             int     `json:"updatedAt"`
+	AudienceRatingImage   string  `json:"audienceRatingImage"`
 }
 
 type MetadataMediaContainer[T any] struct {
