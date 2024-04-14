@@ -119,12 +119,22 @@ func (p Plex) GetLibraries() ([]Library, error) {
 		return nil, err
 	}
 
-	response, err := request.MakeRequest[PlexResponse[DirectoryMediaContainer[[]Library]]](p.client, req)
+	response, err := request.MakeRequest[PlexResponse[DirectoryMediaContainer[[]PlexLibrary]]](p.client, req)
 	if err != nil {
 		return nil, err
 	}
 
-	return response.MediaContainer.Directory, nil
+	plexLibraries := response.MediaContainer.Directory
+	libraries := make([]Library, len(plexLibraries))
+	for i, plexLibrary := range plexLibraries {
+		libraries[i] = Library{
+			Key:   plexLibrary.Key,
+			Title: plexLibrary.Title,
+			Type:  plexLibrary.Type,
+		}
+	}
+
+	return libraries, nil
 }
 
 func (p Plex) GetCurrentUser() (PlexUser, error) {
@@ -227,7 +237,7 @@ type DirectoryMediaContainer[T any] struct {
 	AllowSync bool   `json:"allowSync"`
 }
 
-type Library struct {
+type PlexLibrary struct {
 	Scanner          string     `json:"scanner"`
 	Type             string     `json:"type"`
 	Art              string     `json:"art"`

@@ -10,3 +10,9 @@ type MediaHost interface {
 	GetSeasons(seriesKey string) ([]PlexSeason, error)
 	GetEpisodes(seasonKey string) ([]PlexEpisode, error)
 }
+
+type Library struct {
+	Key   string
+	Title string
+	Type  string
+}
