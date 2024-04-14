@@ -5,17 +5,17 @@ package views
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import "context"
-import "io"
-import "bytes"
-
 import (
-	"github.com/ReidMason/plex-ani-sync/api/routes"
+	"bytes"
+	"context"
+	"io"
+
+	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/utils"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/layouts"
+	"github.com/a-h/templ"
 )
 
 type SetupLibrariesFormData struct {

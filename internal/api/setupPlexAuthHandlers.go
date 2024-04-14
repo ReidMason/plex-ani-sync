@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ReidMason/plex-ani-sync/api/routes"
+	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/labstack/echo/v4"
 )

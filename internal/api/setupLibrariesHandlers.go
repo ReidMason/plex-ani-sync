@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/ReidMason/plex-ani-sync/api/routes"
+	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
 	"github.com/labstack/echo/v4"
