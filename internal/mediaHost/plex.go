@@ -103,7 +103,7 @@ func (p Plex) GetSeasons(seriesKey string) ([]Season, error) {
 	return seasons, nil
 }
 
-func (p Plex) GetEpisodes(seasonKey string) ([]PlexEpisode, error) {
+func (p Plex) GetEpisodes(seasonKey string) ([]Episode, error) {
 	url, err := p.buildHostUrl(fmt.Sprintf("/library/metadata/%s/children", seasonKey))
 	if err != nil {
 		return nil, err
@@ -119,7 +119,14 @@ func (p Plex) GetEpisodes(seasonKey string) ([]PlexEpisode, error) {
 		return nil, err
 	}
 
-	return response.MediaContainer.Metadata, nil
+	episodes := make([]Episode, len(response.MediaContainer.Metadata))
+	for i, plexEpisode := range response.MediaContainer.Metadata {
+		episodes[i] = Episode{
+			Id: plexEpisode.RatingKey,
+		}
+	}
+
+	return episodes, nil
 }
 
 func (p Plex) GetLibraries() ([]Library, error) {
