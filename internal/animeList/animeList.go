@@ -21,8 +21,8 @@ type ListEntry struct {
 }
 
 type Anime struct {
-	Id       int
 	Title    string
 	Format   string
+	Id       int
 	Episodes int
 }
