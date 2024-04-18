@@ -137,15 +137,23 @@ func (p Plex) GetLibraries() ([]Library, error) {
 	return libraries, nil
 }
 
-func (p Plex) GetCurrentUser() (PlexUser, error) {
-	var plexUser PlexUser
+func (p Plex) GetCurrentUser() (User, error) {
+	var user User
 	req, err := buildRequest("GET", "https://plex.tv/api/v2/user", p.token)
 	if err != nil {
 		log.Println("Failed to build request for GetCurrentUser", err)
-		return plexUser, err
+		return user, err
 	}
 
-	return request.MakeRequest[PlexUser](p.client, req)
+	plexUser, err := request.MakeRequest[PlexUser](p.client, req)
+	if err != nil {
+		log.Println("Failed to make request for GetCurrentUser", err)
+		return user, err
+	}
+
+	return User{
+		Username: plexUser.Title,
+	}, nil
 }
 
 type PlexResponse[T any] struct {

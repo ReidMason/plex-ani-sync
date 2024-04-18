@@ -5,11 +5,11 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 )
 
-templ Index(mediaHostUser mediaHost.PlexUser) {
+templ Index(mediaHostUser mediaHost.User) {
 	@layouts.Main() {
 		<div class="bg-slate-700 p-8 h-full text-slate-100">
 			<h1 class="font-semibold text-xl">Home</h1>
-			<p>Welcome, { mediaHostUser.Title }</p>
+			<p>Welcome, { mediaHostUser.Username }</p>
 		</div>
 	}
 }
