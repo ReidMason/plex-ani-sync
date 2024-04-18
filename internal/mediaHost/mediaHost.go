@@ -6,9 +6,9 @@ type MediaHost interface {
 	Initialize(token string, host string, client request.HttpClient) error
 	GetLibraries() ([]Library, error)
 	GetCurrentUser() (User, error)
-	GetSeries(libraryKey string) ([]PlexSeries, error)
 	GetSeasons(seriesKey string) ([]PlexSeason, error)
 	GetEpisodes(seasonKey string) ([]PlexEpisode, error)
+	GetSeries(libraryKey string) ([]Series, error)
 }
 
 type Library struct {
@@ -19,4 +19,8 @@ type Library struct {
 
 type User struct {
 	Username string
+}
+
+type Series struct {
+	Id string
 }

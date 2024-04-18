@@ -51,7 +51,7 @@ func (p Plex) buildHostUrl(path string) (string, error) {
 	return url.JoinPath(p.hostUrl.String(), path)
 }
 
-func (p Plex) GetSeries(libraryKey string) ([]PlexSeries, error) {
+func (p Plex) GetSeries(libraryKey string) ([]Series, error) {
 	url, err := p.buildHostUrl(fmt.Sprintf("/library/sections/%s/all", libraryKey))
 	if err != nil {
 		return nil, err
@@ -67,7 +67,14 @@ func (p Plex) GetSeries(libraryKey string) ([]PlexSeries, error) {
 		return nil, err
 	}
 
-	return response.MediaContainer.Metadata, nil
+	series := make([]Series, len(response.MediaContainer.Metadata))
+	for i, plexSeries := range response.MediaContainer.Metadata {
+		series[i] = Series{
+			Id: plexSeries.RatingKey,
+		}
+	}
+
+	return series, nil
 }
 
 func (p Plex) GetSeasons(seriesKey string) ([]PlexSeason, error) {
