@@ -12,7 +12,6 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/api"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
-	"github.com/ReidMason/plex-ani-sync/internal/userManager"
 	"github.com/charmbracelet/log"
 )
 
@@ -31,7 +30,6 @@ func run(w io.Writer, args cmdArgs) error {
 	slog.SetDefault(logger)
 
 	storage, err := storage.NewPostgresStorage(args.dbUser, args.dbPass, args.dbHost, args.dbPort, args.dbName)
-	userManagerService := userManager.NewUserManager(storage)
 	if err != nil {
 		slog.Error("Failed to initialise storage", slog.Any("error", err))
 		return err
@@ -59,7 +57,7 @@ func run(w io.Writer, args cmdArgs) error {
 
 	slog.Info("Found anime", slog.Any("anime", results))
 
-	server := api.NewServer(args.listenAddr, plex, userManagerService)
+	server := api.NewServer(args.listenAddr, plex, storage)
 	if err := server.Start(); err != nil {
 		slog.Error("Failed to start server", slog.Any("error", err))
 		return err

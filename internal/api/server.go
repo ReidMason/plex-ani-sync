@@ -6,7 +6,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
-	"github.com/ReidMason/plex-ani-sync/internal/userManager"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 )
@@ -15,11 +15,11 @@ const APP_NAME = "Plex-anilist-sync"
 
 type Server struct {
 	mediaHost   mediaHost.MediaHost
-	userManager userManager.UserManager
+	userManager storage.UserManager
 	listenAddr  string
 }
 
-func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager userManager.UserManager) *Server {
+func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager storage.UserManager) *Server {
 	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, userManager: userManager}
 }
 

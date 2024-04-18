@@ -7,7 +7,6 @@ import (
 
 	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -35,59 +34,6 @@ func NewPostgresStorage(username, password, host, port, database string) (*Postg
 
 	queries := postgresStorage.New(driver)
 	return &Postgres{queries: queries}, nil
-}
-
-func (p Postgres) GetUser() (User, error) {
-	ctx := context.Background()
-	user, err := p.queries.GetUser(ctx)
-	if err != nil {
-		return User{}, err
-	}
-
-	return pgUserToUser(user), nil
-}
-
-func (p Postgres) DeleteUser() (User, error) {
-	ctx := context.Background()
-	user, err := p.queries.DeleteUser(ctx)
-	if err != nil {
-		return User{}, err
-	}
-
-	return pgUserToUser(user), nil
-}
-
-func (p Postgres) CreateUser(name, plexUrl, hostUrl string) (User, error) {
-	ctx := context.Background()
-	user, err := p.queries.CreateUser(ctx, postgresStorage.CreateUserParams{
-		Name:             name,
-		PlexUrl:          plexUrl,
-		HostUrl:          hostUrl,
-		ClientIdentifier: uuid.New().String(),
-	})
-
-	if err != nil {
-		return User{}, err
-	}
-
-	return pgUserToUser(user), nil
-}
-
-func (p Postgres) UpdateUser(userUpdate User) (User, error) {
-	ctx := context.Background()
-	obj := postgresStorage.UpdateUserParams{
-		ID:        userUpdate.Id,
-		Name:      userUpdate.Name,
-		PlexUrl:   userUpdate.PlexUrl,
-		HostUrl:   userUpdate.HostUrl,
-		PlexToken: stringToPgTypeText(userUpdate.PlexToken),
-	}
-	user, err := p.queries.UpdateUser(ctx, obj)
-	if err != nil {
-		return User{}, err
-	}
-
-	return pgUserToUser(user), nil
 }
 
 func (p Postgres) GetSelectedLibraries(userId int32) ([]Library, error) {

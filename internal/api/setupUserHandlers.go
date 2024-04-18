@@ -7,7 +7,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
-	"github.com/ReidMason/plex-ani-sync/internal/userManager"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
@@ -91,19 +91,19 @@ func getDefaultSetupFormData() components.SetupUserFormData {
 func validateSetupForm(formData components.SetupUserFormData) (components.SetupUserFormData, bool) {
 	validationPassed := true
 
-	if valid, msg := userManager.ValidateName(formData.Name.Value); !valid {
+	if valid, msg := storage.ValidateName(formData.Name.Value); !valid {
 		validationPassed = false
 		formData.Name.Valid = false
 		formData.Name.Error = msg
 	}
 
-	if valid, msg := userManager.ValidatePlexUrl(formData.PlexUrl.Value); !valid {
+	if valid, msg := storage.ValidatePlexUrl(formData.PlexUrl.Value); !valid {
 		validationPassed = false
 		formData.PlexUrl.Valid = false
 		formData.PlexUrl.Error = msg
 	}
 
-	if valid, msg := userManager.ValidateHostUrl(formData.HostUrl.Value); !valid {
+	if valid, msg := storage.ValidateHostUrl(formData.HostUrl.Value); !valid {
 		validationPassed = false
 		formData.HostUrl.Valid = false
 		formData.HostUrl.Error = msg
