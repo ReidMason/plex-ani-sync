@@ -8,6 +8,7 @@ import (
 
 	postgresStorage "github.com/ReidMason/plex-ani-sync/internal/storage/postgres"
 	"github.com/google/uuid"
+	"golang.org/x/exp/slog"
 )
 
 type UserManager interface {
@@ -17,6 +18,14 @@ type UserManager interface {
 	GetSelectedLibraries(userId int32) ([]Library, error)
 	AddSelectedLibraries(userId int32, libraryIds []string) error
 	SetupUser(name, plexUrl, hostUrl string) (User, error)
+}
+
+type Library struct {
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	LibraryKey string
+	Id         int32
+	UserId     int32
 }
 
 type User struct {
@@ -102,6 +111,47 @@ func (p Postgres) SetupUser(name, plexUrl, hostUrl string) (User, error) {
 	}
 
 	return p.CreateUser(name, plexUrl, hostUrl)
+}
+
+func (p Postgres) GetSelectedLibraries(userId int32) ([]Library, error) {
+	ctx := context.Background()
+	libraries, err := p.queries.GetSelectedLibraries(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Library, 0)
+	for _, library := range libraries {
+		result = append(result, Library{
+			Id:         library.ID,
+			UserId:     library.UserID,
+			LibraryKey: library.LibraryKey,
+			CreatedAt:  library.CreatedAt.Time,
+			UpdatedAt:  library.UpdatedAt.Time,
+		})
+	}
+
+	return result, nil
+}
+
+func (p Postgres) AddSelectedLibraries(userId int32, libraryIds []string) error {
+	ctx := context.Background()
+	err := p.queries.DeleteSelectedLibraries(ctx, userId)
+	if err != nil {
+		slog.Error("error deleting selected libraries", slog.Any("error", err))
+		return err
+	}
+
+	libaries := make([]postgresStorage.AddLibrariesParams, 0)
+	for _, libraryKey := range libraryIds {
+		libaries = append(libaries, postgresStorage.AddLibrariesParams{
+			UserID:     userId,
+			LibraryKey: libraryKey,
+		})
+	}
+
+	_, err = p.queries.AddLibraries(ctx, libaries)
+	return err
 }
 
 func ValidateName(name string) (bool, string) {
