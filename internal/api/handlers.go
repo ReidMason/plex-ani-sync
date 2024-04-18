@@ -43,7 +43,7 @@ func (s *Server) getIndex(c echo.Context) error {
 
 	slog.Info(fmt.Sprintf("Found %d seasons", len(seasons)))
 
-	episodes, err := s.mediaHost.GetEpisodes(seasons[0].RatingKey)
+	episodes, err := s.mediaHost.GetEpisodes(seasons[0].Id)
 	if err != nil {
 		slog.Error("Failed to get episodes from media host", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get episodes from media host")
