@@ -2,7 +2,7 @@ package animeList
 
 type AnimeList interface {
 	GetAnimeList() ([]ListEntry, error)
-	SearchAnime(title string) (Anime, error)
+	SearchAnime(title string) ([]Anime, error)
 }
 
 type Status string
