@@ -95,13 +95,21 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 	for _, media := range response.Data.Page.Media {
 		results = append(results, Anime{
 			Id:       media.ID,
-			Title:    media.Title.English,
+			Title:    getTitle(media),
 			Format:   media.Format,
 			Episodes: media.Episodes,
 		})
 	}
 
 	return results, nil
+}
+
+func getTitle(title AnimeResult) string {
+	if title.Title.English != "" {
+		return title.Title.English
+	}
+
+	return title.Title.Romaji
 }
 
 func (a Anilist) GetAnimeList() ([]ListEntry, error) {
