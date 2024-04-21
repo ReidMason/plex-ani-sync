@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/request"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"golang.org/x/exp/slog"
 )
 
@@ -21,11 +23,104 @@ type GraphQLRequest struct {
 
 type Anilist struct {
 	client request.HttpClient
+	cache  storage.Cache
 	userId int
 }
 
-func NewAnilist(client request.HttpClient, userId int) *Anilist {
-	return &Anilist{client: client, userId: userId}
+func NewAnilist(client request.HttpClient, userId int, cache storage.Cache) *Anilist {
+	return &Anilist{client: client, userId: userId, cache: cache}
+}
+
+func (a Anilist) GetAnime(id string) (Anime, error) {
+	query := `query ($anime_id: Int) {
+    Media(id: $anime_id, type: ANIME) {
+      id
+      format
+      episodes
+      synonyms
+      status
+      endDate {
+        year
+        month
+        day
+      }
+      startDate {
+        year
+        month
+        day
+      }
+      title {
+        english
+        romaji
+      }
+      relations {
+        edges {
+          relationType
+        }
+        nodes {
+          id
+          format
+          episodes
+          endDate {
+            year
+            month
+            day
+          }
+          startDate {
+            year
+            month
+            day
+          }
+        }
+      }
+    }
+  }`
+
+	variables := Variables{
+		"anime_id": id,
+	}
+
+	var response GetAnimeResponse
+	cacheKey := fmt.Sprintf("anilistGetAnime-id:%s", id)
+	result, err := a.cache.Get(cacheKey)
+	if err == nil {
+		err = json.Unmarshal([]byte(result), &response)
+	}
+
+	if err != nil {
+		// Make request
+		slog.Info("Geting Anilist anime", slog.String("id", id))
+		req, err := buildRequest(query, variables)
+		if err != nil {
+			slog.Error("Failed to build Anilist request", slog.Any("error", err))
+			return Anime{}, err
+		}
+
+		response, err = request.MakeRequest[GetAnimeResponse](a.client, req)
+		if err != nil {
+			slog.Error("Failed to make Anilist request", slog.Any("error", err))
+			return Anime{}, err
+		}
+
+		// Cache the response
+		if resultsString, err := json.Marshal(response); err == nil {
+			duration := 10_000 * time.Hour
+			if err = a.cache.Set(cacheKey, string(resultsString), duration); err != nil {
+				slog.Error("Failed to cache Anilist get anime result", slog.Any("error", err))
+			}
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	anime := response.Data.Media
+	return Anime{
+		Id:       anime.ID,
+		Title:    getTitle(anime),
+		Format:   anime.Format,
+		Episodes: anime.Episodes,
+		Synonyms: anime.Synonyms,
+	}, nil
 }
 
 func (a Anilist) SearchAnime(title string) ([]Anime, error) {
@@ -79,26 +174,65 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 		"title": title,
 	}
 
-	req, err := buildRequest(query, variables)
-	if err != nil {
-		slog.Error("Failed to build Anilist request", slog.Any("error", err))
-		return nil, err
+	var response AnimeSearchResponse
+	cacheKey := fmt.Sprintf("anilistSearchAnime-title:%s", title)
+	result, err := a.cache.Get(cacheKey)
+	if err == nil {
+		err = json.Unmarshal([]byte(result), &response)
 	}
 
-	response, err := request.MakeRequest[AnimeSearchResponse](a.client, req)
 	if err != nil {
-		slog.Error("Failed to make Anilist request", slog.Any("error", err))
-		return nil, err
+		// Make request
+		slog.Info("Searching Anilist for anime", slog.String("title", title))
+		req, err := buildRequest(query, variables)
+		if err != nil {
+			slog.Error("Failed to build Anilist request", slog.Any("error", err))
+			return nil, err
+		}
+
+		response, err = request.MakeRequest[AnimeSearchResponse](a.client, req)
+		if err != nil {
+			slog.Error("Failed to make Anilist request", slog.Any("error", err))
+			return nil, err
+		}
+
+		// Cache the response
+		if resultsString, err := json.Marshal(response); err == nil {
+			duration := 10_000 * time.Hour
+			if err = a.cache.Set(cacheKey, string(resultsString), duration); err != nil {
+				slog.Error("Failed to cache Anilist search results", slog.Any("error", err))
+			}
+		}
+
+		time.Sleep(2 * time.Second)
 	}
 
 	results := make([]Anime, 0, len(response.Data.Page.Media))
 	for _, media := range response.Data.Page.Media {
-		results = append(results, Anime{
+		anime := Anime{
 			Id:       media.ID,
 			Title:    getTitle(media),
 			Format:   media.Format,
 			Episodes: media.Episodes,
-		})
+			Synonyms: media.Synonyms,
+		}
+
+		for i, node := range media.Relations.Nodes {
+			relation := media.Relations.Edges[i]
+			if relation.RelationType == "SEQUEL" && anime.Sequel.Id == "" {
+				anime.Sequel = AnimeRelation{
+					Id: fmt.Sprint(node.ID),
+				}
+			}
+
+			if relation.RelationType == "PREQUEL" && anime.Prequel.Id == "" {
+				anime.Prequel = AnimeRelation{
+					Id: fmt.Sprint(node.ID),
+				}
+			}
+		}
+
+		results = append(results, anime)
 	}
 
 	return results, nil
@@ -190,6 +324,12 @@ type AnimeSearchResponse struct {
 		Page struct {
 			Media []AnimeResult `json:"media"`
 		} `json:"Page"`
+	} `json:"data"`
+}
+
+type GetAnimeResponse struct {
+	Data struct {
+		Media AnimeResult `json:"Media"`
 	} `json:"data"`
 }
 

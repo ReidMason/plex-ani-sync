@@ -39,3 +39,25 @@
 -- AddLibraries adds selected libraries for a user.
   INSERT INTO selected_plex_libraries (user_id, library_key)
   VALUES ($1, $2);
+
+-- name: GetCache :one
+-- GetCache retrieves a cache entry.
+  SELECT * FROM cache
+  WHERE key = $1
+  LIMIT 1;
+
+-- name: SetCache :exec
+-- SetCache sets a cache entry.
+  INSERT INTO cache (key, value, expires_at)
+  VALUES ($1, $2, $3)
+  ON CONFLICT (key) DO UPDATE
+  SET value = $2,
+      expires_at = $3,
+      updated_at = NOW()
+  RETURNING *;
+
+-- name: DeleteCache :exec
+-- DeleteCache deletes a cache entry.
+  DELETE FROM cache
+  WHERE key = $1
+  RETURNING *;

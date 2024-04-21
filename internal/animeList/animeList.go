@@ -3,6 +3,7 @@ package animeList
 type AnimeList interface {
 	GetAnimeList() ([]ListEntry, error)
 	SearchAnime(title string) ([]Anime, error)
+	GetAnime(id string) (Anime, error)
 }
 
 type Status string
@@ -23,6 +24,13 @@ type ListEntry struct {
 type Anime struct {
 	Title    string
 	Format   string
+	Sequel   AnimeRelation
+	Prequel  AnimeRelation
+	Synonyms []string
 	Id       int
 	Episodes int
+}
+
+type AnimeRelation struct {
+	Id string
 }
