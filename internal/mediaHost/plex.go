@@ -70,7 +70,8 @@ func (p Plex) GetSeries(libraryKey string) ([]Series, error) {
 	series := make([]Series, len(response.MediaContainer.Metadata))
 	for i, plexSeries := range response.MediaContainer.Metadata {
 		series[i] = Series{
-			Id: plexSeries.RatingKey,
+			Id:    plexSeries.RatingKey,
+			Title: plexSeries.Title,
 		}
 	}
 
@@ -96,7 +97,11 @@ func (p Plex) GetSeasons(seriesKey string) ([]Season, error) {
 	seasons := make([]Season, len(response.MediaContainer.Metadata))
 	for i, plexSeason := range response.MediaContainer.Metadata {
 		seasons[i] = Season{
-			Id: plexSeason.RatingKey,
+			Id:       plexSeason.RatingKey,
+			Title:    plexSeason.ParentTitle,
+			Index:    plexSeason.Index,
+			Episodes: plexSeason.LeafCount,
+			Year:     plexSeason.Year,
 		}
 	}
 

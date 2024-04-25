@@ -22,11 +22,16 @@ type User struct {
 }
 
 type Series struct {
-	Id string
+	Id    string
+	Title string
 }
 
 type Season struct {
-	Id string
+	Id       string
+	Title    string
+	Index    int
+	Episodes int
+	Year     int
 }
 
 type Episode struct {

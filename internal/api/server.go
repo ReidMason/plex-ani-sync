@@ -28,7 +28,7 @@ func (s *Server) Start() error {
 
 	e.Static(routes.PUBLIC, "public")
 
-	err := s.initialiseMediaHost()
+	err := s.InitialiseMediaHost()
 	if err != nil {
 		log.Warnf("Failed to initialise media host: %v", err)
 	}
@@ -49,7 +49,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) initialiseMediaHost() error {
+func (s *Server) InitialiseMediaHost() error {
 	user, err := s.userManager.GetUser()
 	if err != nil {
 		return err

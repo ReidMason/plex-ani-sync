@@ -23,6 +23,7 @@ type ListEntry struct {
 
 type Anime struct {
 	Title    string
+	Year     int
 	Format   string
 	Sequel   AnimeRelation
 	Prequel  AnimeRelation

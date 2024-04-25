@@ -113,14 +113,32 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 		time.Sleep(2 * time.Second)
 	}
 
-	anime := response.Data.Media
-	return Anime{
-		Id:       anime.ID,
-		Title:    getTitle(anime),
-		Format:   anime.Format,
-		Episodes: anime.Episodes,
-		Synonyms: anime.Synonyms,
-	}, nil
+	media := response.Data.Media
+	anime := Anime{
+		Id:       media.ID,
+		Title:    getTitle(media),
+		Format:   media.Format,
+		Episodes: media.Episodes,
+		Synonyms: media.Synonyms,
+		Year:     media.StartDate.Year,
+	}
+
+	for i, node := range media.Relations.Nodes {
+		relation := media.Relations.Edges[i]
+		if relation.RelationType == "SEQUEL" && anime.Sequel.Id == "" {
+			anime.Sequel = AnimeRelation{
+				Id: fmt.Sprint(node.ID),
+			}
+		}
+
+		if relation.RelationType == "PREQUEL" && anime.Prequel.Id == "" {
+			anime.Prequel = AnimeRelation{
+				Id: fmt.Sprint(node.ID),
+			}
+		}
+	}
+
+	return anime, nil
 }
 
 func (a Anilist) SearchAnime(title string) ([]Anime, error) {
@@ -215,6 +233,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 			Format:   media.Format,
 			Episodes: media.Episodes,
 			Synonyms: media.Synonyms,
+			Year:     media.StartDate.Year,
 		}
 
 		for i, node := range media.Relations.Nodes {

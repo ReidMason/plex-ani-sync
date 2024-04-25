@@ -34,7 +34,7 @@ func (s *Server) getSetupPlexAuth(c echo.Context) error {
 	user.PlexToken = authResponse.AuthToken
 	s.userManager.UpdateUser(user)
 
-	err = s.initialiseMediaHost()
+	err = s.InitialiseMediaHost()
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "Failed to initialize media host")
 	}
