@@ -20,7 +20,7 @@ func MakeRequest[T any](client HttpClient, request *http.Request) (T, error) {
 		return result, errors.New("No client provided for request")
 	}
 
-	slog.Info("Making request", slog.String("url", request.URL.String()))
+	slog.Debug("Making request", slog.String("url", request.URL.String()))
 	resp, err := client.Do(request)
 	if err != nil {
 		slog.Error("Failed to make request", slog.Any("error", err))
