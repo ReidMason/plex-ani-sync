@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type HttpClient interface {
