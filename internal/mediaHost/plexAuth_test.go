@@ -57,7 +57,7 @@ func TestBuildAuthUrl(t *testing.T) {
 			code:             "code1",
 			clientIdentifier: "ci1",
 			appName:          "app1",
-			expected:         "https://app.plex.tv/auth/#?clientID=ci1&code=code1&context%5Bdevice%5D%5Bproduct%5D=app1&forwardUrl=http%3A%2F%2Fsite%2F%3FclientIdentifier%3Dci1%26code%3DtestCode1%26pinid%3D123",
+			expected:         "https://app.plex.tv/auth/#?clientID=ci1&code=code1&context%5Bdevice%5D%5Bproduct%5D=app1&forwardUrl=http%3A%2F%2Fsite%2F%3FclientIdentifier%3Dci1%26code%3Dcode1%26pinid%3D123",
 		},
 		{
 			pinId:            123,
@@ -65,7 +65,7 @@ func TestBuildAuthUrl(t *testing.T) {
 			code:             "code2",
 			clientIdentifier: "ci2",
 			appName:          "app2",
-			expected:         "https://app.plex.tv/auth/#?clientID=ci2&code=code2&context%5Bdevice%5D%5Bproduct%5D=app2&forwardUrl=http%3A%2F%2Fsite%3FclientIdentifier%3Dci2%26code%3DtestCode2%26pinid%3D123",
+			expected:         "https://app.plex.tv/auth/#?clientID=ci2&code=code2&context%5Bdevice%5D%5Bproduct%5D=app2&forwardUrl=http%3A%2F%2Fsite%3FclientIdentifier%3Dci2%26code%3Dcode2%26pinid%3D123",
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestBuildAuthUrl(t *testing.T) {
 			}
 
 			if result != tc.expected {
-				t.Errorf("BuildAuthUrl(%s, %s, %s) = %s; want %s", tc.code, tc.clientIdentifier, tc.appName, result, tc.expected)
+				t.Errorf("BuildAuthUrl(%s, %s, %s) = %s; want %s\n", tc.code, tc.clientIdentifier, tc.appName, result, tc.expected)
 				fmt.Printf("result  : %v\n", result)
 				fmt.Printf("expected: %v\n", tc.expected)
 			}
