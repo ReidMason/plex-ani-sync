@@ -2,36 +2,38 @@ package storage
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"time"
 
 	sqlite3Storage "github.com/ReidMason/plex-ani-sync/internal/storage/sqlite3"
 )
 
 type Cache interface {
-	GetCache(key string) (string, error)
+	GetCache(key string) (*string, error)
 	SetCache(key string, value string, duration time.Duration) error
 }
 
-func (s Sqlite) GetCache(key string) (string, error) {
+func (s Sqlite) GetCache(key string) (*string, error) {
 	ctx := context.Background()
 	result, err := s.queries.GetCache(ctx, key)
-	if err != nil {
-		return "", err
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
 	}
 
 	expiresAt, err := parseIso8601Time(result.ExpiresAt)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	currentTime := time.Now().UTC()
 
 	if expiresAt.Before(currentTime) {
-		return "", errors.New("Cache entry expired")
+		return nil, nil
 	}
 
-	return result.Value, nil
+	return &result.Value, nil
 }
 
 func (s Sqlite) SetCache(key string, value string, duration time.Duration) error {
