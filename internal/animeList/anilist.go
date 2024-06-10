@@ -83,17 +83,17 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	var response GetAnimeResponse
 	cacheKey := fmt.Sprintf("anilistGetAnime-id:%s", id)
-	result, err := a.cache.GetCache(cacheKey)
-	if err != nil {
-		a.log.Error("Failed to get cache", slog.Any("error", err))
-		result = nil
+	cachedResult, cachedErr := a.cache.GetCache(cacheKey)
+	if cachedErr != nil {
+		a.log.Error("Failed to get cache", slog.Any("error", cachedErr))
+		cachedResult = nil
 	}
 
-	if err = json.Unmarshal([]byte(*result), &response); err != nil {
-		a.log.Error("Failed to unmarshal Anilist get anime result", slog.Any("error", err))
+	if cachedErr = json.Unmarshal([]byte(*cachedResult), &response); cachedErr != nil {
+		a.log.Error("Failed to unmarshal Anilist get anime result", slog.Any("error", cachedErr))
 	}
 
-	if err != nil {
+	if cachedErr != nil || cachedResult == nil {
 		// Make request
 		a.log.Info("Geting Anilist anime", slog.String("id", id))
 		req, err := buildRequest(query, variables)
@@ -200,19 +200,19 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 
 	var response AnimeSearchResponse
 	cacheKey := fmt.Sprintf("anilistSearchAnime-title:%s", title)
-	result, err := a.cache.GetCache(cacheKey)
-	if err != nil {
-		a.log.Error("Failed to get cache", slog.Any("error", err))
-		result = nil
+	cachedResult, cacheErr := a.cache.GetCache(cacheKey)
+	if cacheErr != nil {
+		a.log.Error("Failed to get cache", slog.Any("error", cacheErr))
+		cachedResult = nil
 	}
 
-	if result != nil {
-		if err = json.Unmarshal([]byte(*result), &response); err != nil {
-			a.log.Error("Failed to unmarshal Anilist search results", slog.Any("error", err))
+	if cachedResult != nil {
+		if cacheErr = json.Unmarshal([]byte(*cachedResult), &response); cacheErr != nil {
+			a.log.Error("Failed to unmarshal Anilist search results", slog.Any("error", cacheErr))
 		}
 	}
 
-	if err != nil {
+	if cacheErr != nil || cachedResult == nil {
 		// Make request
 		a.log.Info("Searching Anilist for anime", slog.String("title", title))
 		req, err := buildRequest(query, variables)
