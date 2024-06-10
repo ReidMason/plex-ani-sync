@@ -117,7 +117,7 @@ const setCache = `-- name: SetCache :exec
   ON CONFLICT (key) DO UPDATE
   SET value = ?,
       expires_at = ?,
-      updated_at = DEFAULT(datetime('now'))
+      updated_at = datetime('now')
   RETURNING id, "key", value, updated_at, expires_at
 `
 
@@ -139,7 +139,7 @@ const updateUser = `-- name: UpdateUser :one
       plex_url = ?,
       plex_token = ?,
       host_url = ?,
-      updated_at = DEFAULT(datetime('now'))
+      updated_at = datetime('now')
   WHERE id = ?
   RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `

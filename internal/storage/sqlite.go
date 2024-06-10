@@ -17,9 +17,10 @@ var embedMigrations embed.FS
 type Sqlite struct {
 	db      *sql.DB
 	queries *sqlite3Storage.Queries
+	log     *slog.Logger
 }
 
-func NewSqliteStorage(databasePath string) (*Sqlite, error) {
+func NewSqliteStorage(databasePath string, logger *slog.Logger) (*Sqlite, error) {
 	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, err
@@ -34,6 +35,7 @@ func NewSqliteStorage(databasePath string) (*Sqlite, error) {
 	return &Sqlite{
 		db:      db,
 		queries: sqlite3Storage.New(db),
+		log:     logger,
 	}, nil
 }
 

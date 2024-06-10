@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/request"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
-	"golang.org/x/exp/slog"
 )
 
 const HOST = "https://graphql.anilist.co"
@@ -25,10 +25,11 @@ type Anilist struct {
 	client request.HttpClient
 	cache  storage.Cache
 	userId int
+	log    *slog.Logger
 }
 
-func NewAnilist(client request.HttpClient, userId int, cache storage.Cache) *Anilist {
-	return &Anilist{client: client, userId: userId, cache: cache}
+func NewAnilist(client request.HttpClient, userId int, cache storage.Cache, logger *slog.Logger) *Anilist {
+	return &Anilist{client: client, userId: userId, cache: cache, log: logger}
 }
 
 func (a Anilist) GetAnime(id string) (Anime, error) {
@@ -89,16 +90,16 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	if err != nil {
 		// Make request
-		slog.Info("Geting Anilist anime", slog.String("id", id))
+		a.log.Info("Geting Anilist anime", slog.String("id", id))
 		req, err := buildRequest(query, variables)
 		if err != nil {
-			slog.Error("Failed to build Anilist request", slog.Any("error", err))
+			a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 			return Anime{}, err
 		}
 
 		response, err = request.MakeRequest[GetAnimeResponse](a.client, req)
 		if err != nil {
-			slog.Error("Failed to make Anilist request", slog.Any("error", err))
+			a.log.Error("Failed to make Anilist request", slog.Any("error", err))
 			return Anime{}, err
 		}
 
@@ -106,8 +107,11 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 		if resultsString, err := json.Marshal(response); err == nil {
 			duration := 10_000 * time.Hour
 			if err = a.cache.SetCache(cacheKey, string(resultsString), duration); err != nil {
-				slog.Error("Failed to cache Anilist get anime result", slog.Any("error", err))
+				a.log.Error("HELLO")
+				a.log.Error("Failed to cache Anilist get anime result", slog.Any("error", err))
 			}
+		} else {
+			a.log.Error("Failed to marshal Anilist get anime result", slog.Any("error", err))
 		}
 
 		time.Sleep(2 * time.Second)
@@ -201,16 +205,16 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 
 	if err != nil {
 		// Make request
-		slog.Info("Searching Anilist for anime", slog.String("title", title))
+		a.log.Info("Searching Anilist for anime", slog.String("title", title))
 		req, err := buildRequest(query, variables)
 		if err != nil {
-			slog.Error("Failed to build Anilist request", slog.Any("error", err))
+			a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 			return nil, err
 		}
 
 		response, err = request.MakeRequest[AnimeSearchResponse](a.client, req)
 		if err != nil {
-			slog.Error("Failed to make Anilist request", slog.Any("error", err))
+			a.log.Error("Failed to make Anilist request", slog.Any("error", err))
 			return nil, err
 		}
 
@@ -218,7 +222,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 		if resultsString, err := json.Marshal(response); err == nil {
 			duration := 10_000 * time.Hour
 			if err = a.cache.SetCache(cacheKey, string(resultsString), duration); err != nil {
-				slog.Error("Failed to cache Anilist search results", slog.Any("error", err))
+				a.log.Error("Failed to cache Anilist search results", slog.Any("error", err))
 			}
 		}
 
@@ -286,13 +290,13 @@ func (a Anilist) GetAnimeList() ([]ListEntry, error) {
 
 	req, err := buildRequest(query, variables)
 	if err != nil {
-		slog.Error("Failed to build Anilist request", slog.Any("error", err))
+		a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 		return nil, err
 	}
 
 	response, err := request.MakeRequest[AnimeListResponse](a.client, req)
 	if err != nil {
-		slog.Error("Failed to make Anilist request", slog.Any("error", err))
+		a.log.Error("Failed to make Anilist request", slog.Any("error", err))
 		return nil, err
 	}
 

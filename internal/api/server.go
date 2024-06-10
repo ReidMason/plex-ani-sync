@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
@@ -17,10 +18,11 @@ type Server struct {
 	mediaHost   mediaHost.MediaHost
 	userManager storage.UserManager
 	listenAddr  string
+	log         *slog.Logger
 }
 
-func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager storage.UserManager) *Server {
-	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, userManager: userManager}
+func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager storage.UserManager, logger *slog.Logger) *Server {
+	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, userManager: userManager, log: logger}
 }
 
 func (s *Server) Start() error {
