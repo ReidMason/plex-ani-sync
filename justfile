@@ -5,7 +5,7 @@ sqlc-generate:
   cd internal/storage/sqlc && sqlc generate 
 
 tailwind:
-  npx tailwindcss -i ./templates/input.css -o ./public/assets/css/style.css --watch 
+  ./tailwindcss -i ./templates/input.css -o ./public/assets/css/style.css --watch 
 
 templ:
   templ generate -watch -proxy="http://localhost:8000/"
