@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"log/slog"
@@ -17,13 +18,18 @@ type HttpClient interface {
 type StaggeredHttpClient struct {
 	client      HttpClient
 	lastRequest time.Time
+	mutex       sync.Mutex
+	log         *slog.Logger
 }
 
-func NewStaggeredHttpClient(client HttpClient) *StaggeredHttpClient {
-	return &StaggeredHttpClient{client: client, lastRequest: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)}
+func NewStaggeredHttpClient(client HttpClient, logger *slog.Logger) *StaggeredHttpClient {
+	return &StaggeredHttpClient{client: client, lastRequest: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), mutex: sync.Mutex{}, log: logger}
 }
 
 func (r *StaggeredHttpClient) Do(request *http.Request) (*http.Response, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	if time.Since(r.lastRequest) < 2*time.Second {
 		slog.Info("Sleeping for 2 seconds")
 		time.Sleep(2 * time.Second)
