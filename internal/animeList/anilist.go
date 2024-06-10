@@ -113,8 +113,6 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 		} else {
 			a.log.Error("Failed to marshal Anilist get anime result", slog.Any("error", err))
 		}
-
-		time.Sleep(2 * time.Second)
 	}
 
 	media := response.Data.Media
@@ -225,8 +223,6 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 				a.log.Error("Failed to cache Anilist search results", slog.Any("error", err))
 			}
 		}
-
-		time.Sleep(2 * time.Second)
 	}
 
 	results := make([]Anime, 0, len(response.Data.Page.Media))

@@ -5,12 +5,32 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"log/slog"
 )
 
 type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
+}
+
+type StaggeredHttpClient struct {
+	client      HttpClient
+	lastRequest time.Time
+}
+
+func NewStaggeredHttpClient(client HttpClient) *StaggeredHttpClient {
+	return &StaggeredHttpClient{client: client, lastRequest: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)}
+}
+
+func (r *StaggeredHttpClient) Do(request *http.Request) (*http.Response, error) {
+	if time.Since(r.lastRequest) < 2*time.Second {
+		slog.Info("Sleeping for 2 seconds")
+		time.Sleep(2 * time.Second)
+	}
+	r.lastRequest = time.Now()
+
+	return r.client.Do(request)
 }
 
 func MakeRequest[T any](client HttpClient, request *http.Request) (T, error) {
