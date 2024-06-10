@@ -82,7 +82,7 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	var response GetAnimeResponse
 	cacheKey := fmt.Sprintf("anilistGetAnime-id:%s", id)
-	result, err := a.cache.Get(cacheKey)
+	result, err := a.cache.GetCache(cacheKey)
 	if err == nil {
 		err = json.Unmarshal([]byte(result), &response)
 	}
@@ -105,7 +105,7 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 		// Cache the response
 		if resultsString, err := json.Marshal(response); err == nil {
 			duration := 10_000 * time.Hour
-			if err = a.cache.Set(cacheKey, string(resultsString), duration); err != nil {
+			if err = a.cache.SetCache(cacheKey, string(resultsString), duration); err != nil {
 				slog.Error("Failed to cache Anilist get anime result", slog.Any("error", err))
 			}
 		}
@@ -194,7 +194,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 
 	var response AnimeSearchResponse
 	cacheKey := fmt.Sprintf("anilistSearchAnime-title:%s", title)
-	result, err := a.cache.Get(cacheKey)
+	result, err := a.cache.GetCache(cacheKey)
 	if err == nil {
 		err = json.Unmarshal([]byte(result), &response)
 	}
@@ -217,7 +217,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 		// Cache the response
 		if resultsString, err := json.Marshal(response); err == nil {
 			duration := 10_000 * time.Hour
-			if err = a.cache.Set(cacheKey, string(resultsString), duration); err != nil {
+			if err = a.cache.SetCache(cacheKey, string(resultsString), duration); err != nil {
 				slog.Error("Failed to cache Anilist search results", slog.Any("error", err))
 			}
 		}

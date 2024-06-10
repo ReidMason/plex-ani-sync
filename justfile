@@ -2,16 +2,16 @@ test-cover:
   go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
 
 sqlc-generate:
-  cd db/sqlc && sqlc generate 
-
-migrate-up:
-  migrate -source file://db/migrations -database pgx://admin:admin@localhost:5432/plexanilistsync up
+  cd internal/storage/sqlc && sqlc generate 
 
 tailwind:
   npx tailwindcss -i ./templates/input.css -o ./public/assets/css/style.css --watch 
 
 templ:
   templ generate -watch -proxy="http://localhost:8000/"
+
+migrate-up:
+  goose -dir ./db/migrations sqlite3 ./docker/data/data.db up
 
 new-migration name:
   migrate create -ext sql -dir ./db/migrations -seq "{{name}}"

@@ -61,3 +61,10 @@
   DELETE FROM cache
   WHERE key = $1
   RETURNING *;
+
+-- name: CreateMapping :one
+-- CreateMapping creates a new mapping.
+  INSERT INTO mappings (anime_id, anime_episode_start, anime_episode_end, media_id, media_episode_start, media_episode_end)
+  VALUES ($1, $2, $3, $4, $5, $6)
+  RETURNING *;
+

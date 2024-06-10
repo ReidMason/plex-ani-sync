@@ -3,36 +3,30 @@
 //   sqlc v1.26.0
 // source: queries.sql
 
-package postgresStorage
+package sqlite3Storage
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
-
-type AddLibrariesParams struct {
-	UserID     int32
-	LibraryKey string
-}
 
 const createUser = `-- name: CreateUser :one
   INSERT INTO users (name, plex_url, plex_token, host_url, client_identifier)
-  VALUES ($1, $2, $3, $4, $5)
+  VALUES (?, ?, ?, ?, ?)
   RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `
 
 type CreateUserParams struct {
 	Name             string
 	PlexUrl          string
-	PlexToken        pgtype.Text
+	PlexToken        sql.NullString
 	HostUrl          string
 	ClientIdentifier string
 }
 
 // CreateUser creates a new user.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
+	row := q.db.QueryRowContext(ctx, createUser,
 		arg.Name,
 		arg.PlexUrl,
 		arg.PlexToken,
@@ -53,29 +47,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const deleteCache = `-- name: DeleteCache :exec
-  DELETE FROM cache
-  WHERE key = $1
-  RETURNING id, key, value, expires_at, updated_at
-`
-
-// DeleteCache deletes a cache entry.
-func (q *Queries) DeleteCache(ctx context.Context, key string) error {
-	_, err := q.db.Exec(ctx, deleteCache, key)
-	return err
-}
-
-const deleteSelectedLibraries = `-- name: DeleteSelectedLibraries :exec
-  DELETE FROM selected_plex_libraries
-  WHERE user_id = $1
-`
-
-// DeleteSelectedLibraries deletes all selected libraries for a user.
-func (q *Queries) DeleteSelectedLibraries(ctx context.Context, userID int32) error {
-	_, err := q.db.Exec(ctx, deleteSelectedLibraries, userID)
-	return err
-}
-
 const deleteUser = `-- name: DeleteUser :one
   DELETE FROM users
   RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
@@ -83,7 +54,7 @@ const deleteUser = `-- name: DeleteUser :one
 
 // DeleteUser deletes the user
 func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
-	row := q.db.QueryRow(ctx, deleteUser)
+	row := q.db.QueryRowContext(ctx, deleteUser)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -99,55 +70,23 @@ func (q *Queries) DeleteUser(ctx context.Context) (User, error) {
 }
 
 const getCache = `-- name: GetCache :one
-  SELECT id, key, value, expires_at, updated_at FROM cache
-  WHERE key = $1
+  SELECT id, "key", value, updated_at, expires_at FROM cache
+  WHERE key = ?
   LIMIT 1
 `
 
 // GetCache retrieves a cache entry.
 func (q *Queries) GetCache(ctx context.Context, key string) (Cache, error) {
-	row := q.db.QueryRow(ctx, getCache, key)
+	row := q.db.QueryRowContext(ctx, getCache, key)
 	var i Cache
 	err := row.Scan(
 		&i.ID,
 		&i.Key,
 		&i.Value,
-		&i.ExpiresAt,
 		&i.UpdatedAt,
+		&i.ExpiresAt,
 	)
 	return i, err
-}
-
-const getSelectedLibraries = `-- name: GetSelectedLibraries :many
-  SELECT id, user_id, library_key, created_at, updated_at FROM selected_plex_libraries
-  WHERE user_id = $1
-`
-
-// GetSelectedLibraries retrieves all selected libraries for a user.
-func (q *Queries) GetSelectedLibraries(ctx context.Context, userID int32) ([]SelectedPlexLibrary, error) {
-	rows, err := q.db.Query(ctx, getSelectedLibraries, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SelectedPlexLibrary
-	for rows.Next() {
-		var i SelectedPlexLibrary
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.LibraryKey,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getUser = `-- name: GetUser :one
@@ -157,7 +96,7 @@ const getUser = `-- name: GetUser :one
 
 // GetUser retrieves the user.
 func (q *Queries) GetUser(ctx context.Context) (User, error) {
-	row := q.db.QueryRow(ctx, getUser)
+	row := q.db.QueryRowContext(ctx, getUser)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -174,48 +113,48 @@ func (q *Queries) GetUser(ctx context.Context) (User, error) {
 
 const setCache = `-- name: SetCache :exec
   INSERT INTO cache (key, value, expires_at)
-  VALUES ($1, $2, $3)
+  VALUES (?, ?, ?)
   ON CONFLICT (key) DO UPDATE
-  SET value = $2,
-      expires_at = $3,
-      updated_at = NOW()
-  RETURNING id, key, value, expires_at, updated_at
+  SET value = ?,
+      expires_at = ?,
+      updated_at = DEFAULT(datetime('now'))
+  RETURNING id, "key", value, updated_at, expires_at
 `
 
 type SetCacheParams struct {
 	Key       string
 	Value     string
-	ExpiresAt pgtype.Timestamp
+	ExpiresAt string
 }
 
 // SetCache sets a cache entry.
 func (q *Queries) SetCache(ctx context.Context, arg SetCacheParams) error {
-	_, err := q.db.Exec(ctx, setCache, arg.Key, arg.Value, arg.ExpiresAt)
+	_, err := q.db.ExecContext(ctx, setCache, arg.Key, arg.Value, arg.ExpiresAt)
 	return err
 }
 
 const updateUser = `-- name: UpdateUser :one
   UPDATE users
-  SET name = $1,
-      plex_url = $2,
-      plex_token = $3,
-      host_url = $4,
-      updated_at = NOW()
-  WHERE id = $5
+  SET name = ?,
+      plex_url = ?,
+      plex_token = ?,
+      host_url = ?,
+      updated_at = DEFAULT(datetime('now'))
+  WHERE id = ?
   RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
 `
 
 type UpdateUserParams struct {
 	Name      string
 	PlexUrl   string
-	PlexToken pgtype.Text
+	PlexToken sql.NullString
 	HostUrl   string
-	ID        int32
+	ID        int64
 }
 
 // UpdateUser updates a user's information.
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser,
+	row := q.db.QueryRowContext(ctx, updateUser,
 		arg.Name,
 		arg.PlexUrl,
 		arg.PlexToken,
