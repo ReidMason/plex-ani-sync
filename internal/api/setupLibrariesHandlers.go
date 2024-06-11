@@ -6,6 +6,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
 	"github.com/labstack/echo/v4"
 )
@@ -31,14 +32,8 @@ func (s *Server) getSetupLibraries(c echo.Context) error {
 		}
 	}
 
-	selectedLibraries, err := s.userManager.GetSelectedLibraries(user.Id)
-	if err != nil {
-		slog.Error("Failed to get selected libraries", slog.Any("error", err))
-		return c.String(http.StatusInternalServerError, "Failed to get selected libraries")
-	}
-
-	selectedLibraryKeys := make([]string, 0, len(selectedLibraries))
-	for _, library := range selectedLibraries {
+	selectedLibraryKeys := make([]string, 0, len(user.Libraries))
+	for _, library := range user.Libraries {
 		selectedLibraryKeys = append(selectedLibraryKeys, library.LibraryKey)
 	}
 
@@ -71,7 +66,7 @@ func (s *Server) postSetupLibraries(c echo.Context) error {
 		return nil
 	}
 
-	err = s.userManager.AddSelectedLibraries(user.Id, selectedLibraries)
+	err = s.userManager.UpdateUser(user.Id, storage.UserUpdate{Libraries: selectedLibraries})
 	if err != nil {
 		slog.Error("Failed to add libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to add libraries")

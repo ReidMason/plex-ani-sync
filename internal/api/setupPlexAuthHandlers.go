@@ -7,6 +7,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/labstack/echo/v4"
 )
 
@@ -32,7 +33,7 @@ func (s *Server) getSetupPlexAuth(c echo.Context) error {
 	}
 
 	user.PlexToken = authResponse.AuthToken
-	s.userManager.UpdateUser(user)
+	s.userManager.UpdateUser(user.Id, storage.UserUpdate{User: &user})
 
 	err = s.InitialiseMediaHost()
 	if err != nil {

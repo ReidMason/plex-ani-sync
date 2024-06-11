@@ -28,12 +28,10 @@ type Mapping struct {
 	UpdatedAt         string
 }
 
-type SelectedPlexLibrary struct {
-	ID         int64
+type PlexUserLibrary struct {
 	UserID     int64
 	LibraryKey string
 	CreatedAt  string
-	UpdatedAt  string
 }
 
 type User struct {

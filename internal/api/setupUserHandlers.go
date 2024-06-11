@@ -7,7 +7,6 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
-	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
@@ -30,7 +29,16 @@ func (s *Server) postSetupUser(c echo.Context) error {
 		return component.Render(c.Request().Context(), c.Response())
 	}
 
-	user, err := s.userManager.SetupUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value)
+	formData.Name.Valid, formData.Name.Error = ValidateName(formData.Name.Value)
+	formData.PlexUrl.Valid, formData.PlexUrl.Error = ValidatePlexUrl(formData.PlexUrl.Value)
+	formData.HostUrl.Valid, formData.HostUrl.Error = ValidateHostUrl(formData.HostUrl.Value)
+
+	if !formData.Name.Valid || !formData.PlexUrl.Valid || !formData.HostUrl.Valid {
+		component := components.SetupUserFormContent(formData)
+		return component.Render(c.Request().Context(), c.Response())
+	}
+
+	err := s.userManager.AddUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value, nil)
 	if err != nil {
 		slog.Error("Failed to create user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to create user")
@@ -40,6 +48,12 @@ func (s *Server) postSetupUser(c echo.Context) error {
 	if err != nil {
 		slog.Error("Failed to parse host url", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to parse host url")
+	}
+
+	user, err := s.userManager.GetUser()
+	if err != nil {
+		slog.Error("Failed to get user", slog.Any("error", err))
+		return c.String(http.StatusInternalServerError, "Failed to get new user")
 	}
 
 	forwardUrl.Path = routes.SETUP_PLEX_AUTH
@@ -91,19 +105,19 @@ func getDefaultSetupFormData() components.SetupUserFormData {
 func validateSetupForm(formData components.SetupUserFormData) (components.SetupUserFormData, bool) {
 	validationPassed := true
 
-	if valid, msg := storage.ValidateName(formData.Name.Value); !valid {
+	if valid, msg := ValidateName(formData.Name.Value); !valid {
 		validationPassed = false
 		formData.Name.Valid = false
 		formData.Name.Error = msg
 	}
 
-	if valid, msg := storage.ValidatePlexUrl(formData.PlexUrl.Value); !valid {
+	if valid, msg := ValidatePlexUrl(formData.PlexUrl.Value); !valid {
 		validationPassed = false
 		formData.PlexUrl.Valid = false
 		formData.PlexUrl.Error = msg
 	}
 
-	if valid, msg := storage.ValidateHostUrl(formData.HostUrl.Value); !valid {
+	if valid, msg := ValidateHostUrl(formData.HostUrl.Value); !valid {
 		validationPassed = false
 		formData.HostUrl.Valid = false
 		formData.HostUrl.Error = msg
@@ -121,4 +135,38 @@ func extractSetupFormData(c echo.Context) components.SetupUserFormData {
 	formData.PlexUrl.Value = c.FormValue(formData.PlexUrl.Name)
 
 	return formData
+}
+
+func ValidateName(name string) (bool, string) {
+	if name == "" {
+		return false, "Name is required"
+	}
+
+	return true, ""
+}
+
+func ValidateHostUrl(hostUrl string) (bool, string) {
+	if hostUrl == "" {
+		return false, "A host URL is required"
+	}
+
+	_, err := url.ParseRequestURI(hostUrl)
+	if err != nil {
+		return false, "Host URL is invalid"
+	}
+
+	return true, ""
+}
+
+func ValidatePlexUrl(plexUrl string) (bool, string) {
+	if plexUrl == "" {
+		return false, "Plex URL is required"
+	}
+
+	_, err := url.ParseRequestURI(plexUrl)
+	if err != nil {
+		return false, "Plex URL is invalid"
+	}
+
+	return true, ""
 }

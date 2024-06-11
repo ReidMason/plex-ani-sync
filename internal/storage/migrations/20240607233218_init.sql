@@ -13,13 +13,11 @@ CREATE TABLE users (
   updated_at TEXT NOT NULL DEFAULT(datetime('now'))
 );
 
-CREATE TABLE selected_plex_libraries (
-  id INTEGER PRIMARY KEY,
+CREATE TABLE plex_user_libraries (
   user_id INTEGER NOT NULL REFERENCES users(id),
   library_key TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT(datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT(datetime('now')),
-  UNIQUE(user_id, library_key)
+  PRIMARY KEY (user_id, library_key)
 );
  
 CREATE TABLE mappings (
