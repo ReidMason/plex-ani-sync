@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -45,30 +44,6 @@ func (s *Server) getIndex(c echo.Context) error {
 			}
 		}
 	}
-
-	series, err := s.mediaHost.GetSeries("1")
-	if err != nil {
-		s.log.Error("Failed to get series from media host", slog.Any("error", err))
-		return c.String(http.StatusInternalServerError, "Failed to get series from media host")
-	}
-
-	s.log.Info(fmt.Sprintf("Found %d series", len(series)))
-
-	seasons, err := s.mediaHost.GetSeasons(series[0].Id)
-	if err != nil {
-		s.log.Error("Failed to get seasons from media host", slog.Any("error", err))
-		return c.String(http.StatusInternalServerError, "Failed to get seasons from media host")
-	}
-
-	s.log.Info(fmt.Sprintf("Found %d seasons", len(seasons)))
-
-	episodes, err := s.mediaHost.GetEpisodes(seasons[0].Id)
-	if err != nil {
-		s.log.Error("Failed to get episodes from media host", slog.Any("error", err))
-		return c.String(http.StatusInternalServerError, "Failed to get episodes from media host")
-	}
-
-	s.log.Info(fmt.Sprintf("Found %d episodes", len(episodes)))
 
 	component := views.Index(indexData)
 	return component.Render(c.Request().Context(), c.Response())
