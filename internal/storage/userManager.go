@@ -2,55 +2,20 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	sqlite3Storage "github.com/ReidMason/plex-ani-sync/internal/storage/sqlite3"
+	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/exp/slog"
 )
 
 type UserManager interface {
 	GetUser() (User, error)
-	// UpdateUser(user User) (User, error)
-	// DeleteUser() (User, error)
-	// GetSelectedLibraries(userId int64) ([]Library, error)
-	// AddSelectedLibraries(userId int64, libraryIds []string) error
-	// SetupUser(name, plexUrl, hostUrl string) (User, error)
-}
-
-func (s Sqlite) GetUser() (User, error) {
-	ctx := context.Background()
-
-	user, err := s.queries.GetUser(ctx)
-	if err != nil {
-		return User{}, err
-	}
-
-	slog.Info("Got user", slog.Any("User:", user))
-
-	createdAt, err := parseIso8601Time(user.CreatedAt)
-	if err != nil {
-		return User{}, err
-	}
-
-	updatedAt, err := parseIso8601Time(user.UpdatedAt)
-	if err != nil {
-		return User{}, err
-	}
-
-	var plexToken *string
-	if user.PlexToken.Valid {
-		plexToken = &user.PlexToken.String
-	}
-
-	return User{
-		CreatedAt:        createdAt,
-		UpdatedAt:        updatedAt,
-		PlexToken:        plexToken,
-		PlexUrl:          user.PlexUrl,
-		HostUrl:          user.HostUrl,
-		Name:             user.Name,
-		ClientIdentifier: user.ClientIdentifier,
-		Id:               user.ID,
-	}, nil
+	AddUser(name, plexUrl, hostUrl string, libraryKeys []string) error
+	UpdateUser(userId int64, userUpdate UserUpdate) error
+	DeleteUser() error
 }
 
 type User struct {
@@ -61,161 +26,188 @@ type User struct {
 	HostUrl          string
 	Name             string
 	ClientIdentifier string
+	Libraries        []Library
 	Id               int64
 }
 
-// type Library struct {
-// 	CreatedAt  time.Time
-// 	UpdatedAt  time.Time
-// 	LibraryKey string
-// 	Id         int32
-// 	UserId     int32
-// }
-//
-// func (p Postgres) GetUser() (User, error) {
-// 	ctx := context.Background()
-// 	user, err := p.queries.GetUser(ctx)
-// 	if err != nil {
-// 		return User{}, err
-// 	}
-//
-// 	return pgUserToUser(user), nil
-// }
-//
-// func (p Postgres) DeleteUser() (User, error) {
-// 	ctx := context.Background()
-// 	user, err := p.queries.DeleteUser(ctx)
-// 	if err != nil {
-// 		return User{}, err
-// 	}
-//
-// 	return pgUserToUser(user), nil
-// }
-//
-// func (p Postgres) CreateUser(name, plexUrl, hostUrl string) (User, error) {
-// 	ctx := context.Background()
-// 	user, err := p.queries.CreateUser(ctx, postgresStorage.CreateUserParams{
-// 		Name:             name,
-// 		PlexUrl:          plexUrl,
-// 		HostUrl:          hostUrl,
-// 		ClientIdentifier: uuid.New().String(),
-// 	})
-//
-// 	if err != nil {
-// 		return User{}, err
-// 	}
-//
-// 	return pgUserToUser(user), nil
-// }
-//
-// func (p Postgres) UpdateUser(userUpdate User) (User, error) {
-// 	ctx := context.Background()
-// 	obj := postgresStorage.UpdateUserParams{
-// 		Name:      userUpdate.Name,
-// 		PlexUrl:   userUpdate.PlexUrl,
-// 		HostUrl:   userUpdate.HostUrl,
-// 		PlexToken: stringToPgTypeText(userUpdate.PlexToken),
-// 	}
-// 	user, err := p.queries.UpdateUser(ctx, obj)
-// 	if err != nil {
-// 		return User{}, err
-// 	}
-//
-// 	return pgUserToUser(user), nil
-// }
-//
-// func (p Postgres) SetupUser(name, plexUrl, hostUrl string) (User, error) {
-// 	if valid, err := ValidateName(name); !valid {
-// 		return User{}, errors.New(err)
-// 	}
-//
-// 	if valid, err := ValidatePlexUrl(plexUrl); !valid {
-// 		return User{}, errors.New(err)
-// 	}
-//
-// 	if valid, err := ValidateHostUrl(hostUrl); !valid {
-// 		return User{}, errors.New(err)
-// 	}
-//
-// 	_, err := p.GetUser()
-// 	if err == nil {
-// 		p.DeleteUser()
-// 	}
-//
-// 	return p.CreateUser(name, plexUrl, hostUrl)
-// }
-//
-// func (p Postgres) GetSelectedLibraries(userId int32) ([]Library, error) {
-// 	ctx := context.Background()
-// 	libraries, err := p.queries.GetSelectedLibraries(ctx, userId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	result := make([]Library, 0)
-// 	for _, library := range libraries {
-// 		result = append(result, Library{
-// 			Id:         library.ID,
-// 			UserId:     library.UserID,
-// 			LibraryKey: library.LibraryKey,
-// 			CreatedAt:  library.CreatedAt.Time,
-// 			UpdatedAt:  library.UpdatedAt.Time,
-// 		})
-// 	}
-//
-// 	return result, nil
-// }
-//
-// func (p Postgres) AddSelectedLibraries(userId int32, libraryIds []string) error {
-// 	ctx := context.Background()
-// 	err := p.queries.DeleteSelectedLibraries(ctx, userId)
-// 	if err != nil {
-// 		slog.Error("error deleting selected libraries", slog.Any("error", err))
-// 		return err
-// 	}
-//
-// 	libaries := make([]postgresStorage.AddLibrariesParams, 0)
-// 	for _, libraryKey := range libraryIds {
-// 		libaries = append(libaries, postgresStorage.AddLibrariesParams{
-// 			UserID:     userId,
-// 			LibraryKey: libraryKey,
-// 		})
-// 	}
-//
-// 	_, err = p.queries.AddLibraries(ctx, libaries)
-// 	return err
-// }
-//
-// func ValidateName(name string) (bool, string) {
-// 	if name == "" {
-// 		return false, "Name is required"
-// 	}
-//
-// 	return true, ""
-// }
-//
-// func ValidateHostUrl(hostUrl string) (bool, string) {
-// 	if hostUrl == "" {
-// 		return false, "A host URL is required"
-// 	}
-//
-// 	_, err := url.ParseRequestURI(hostUrl)
-// 	if err != nil {
-// 		return false, "Host URL is invalid"
-// 	}
-//
-// 	return true, ""
-// }
-//
-// func ValidatePlexUrl(plexUrl string) (bool, string) {
-// 	if plexUrl == "" {
-// 		return false, "Plex URL is required"
-// 	}
-//
-// 	_, err := url.ParseRequestURI(plexUrl)
-// 	if err != nil {
-// 		return false, "Plex URL is invalid"
-// 	}
-//
-// 	return true, ""
-// }
+type Library struct {
+	CreatedAt  time.Time
+	LibraryKey string
+	UserId     int64
+}
+
+func (s Sqlite) GetUser() (User, error) {
+	ctx := context.Background()
+
+	sqlUserRows, err := s.queries.GetUser(ctx)
+	if err != nil {
+		return User{}, err
+	}
+
+	return sqliteUserRowToUser(sqlUserRows)
+}
+
+func (s Sqlite) AddUser(name, plexUrl, hostUrl string, libraryKeys []string) error {
+	ctx := context.Background()
+	user, err := s.queries.AddUser(ctx, sqlite3Storage.AddUserParams{
+		Name:             name,
+		PlexUrl:          plexUrl,
+		HostUrl:          hostUrl,
+		ClientIdentifier: uuid.New().String(),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return s.setSelectedLibraries(user.ID, libraryKeys)
+}
+
+type UserUpdate struct {
+	User      *User
+	Libraries []string
+}
+
+func (s Sqlite) UpdateUser(userId int64, userUpdate UserUpdate) error {
+	ctx := context.Background()
+
+	if userUpdate.User != nil {
+		userUpdateParams := sqlite3Storage.UpdateUserParams{
+			ID:        userId,
+			Name:      userUpdate.User.Name,
+			PlexUrl:   userUpdate.User.PlexUrl,
+			HostUrl:   userUpdate.User.HostUrl,
+			PlexToken: stringToSqlNullString(userUpdate.User.PlexToken),
+		}
+
+		if err := s.queries.UpdateUser(ctx, userUpdateParams); err != nil {
+			return err
+		}
+	}
+
+	return s.setSelectedLibraries(userId, userUpdate.Libraries)
+}
+
+func sqliteUserRowToUser(sqliteUserRows []sqlite3Storage.GetUserRow) (User, error) {
+	if len(sqliteUserRows) == 0 {
+		return User{}, errors.New("No user found")
+	}
+
+	sqliteUserRow := sqliteUserRows[0]
+
+	createdAt, err := parseIso8601Time(sqliteUserRow.CreatedAt)
+	if err != nil {
+		createdAt = time.Now()
+	}
+
+	updatedAt, err := parseIso8601Time(sqliteUserRow.UpdatedAt)
+	if err != nil {
+		updatedAt = time.Now()
+	}
+
+	user := User{
+		Id:               sqliteUserRow.ID,
+		Name:             sqliteUserRow.Name,
+		PlexUrl:          sqliteUserRow.PlexUrl,
+		HostUrl:          sqliteUserRow.HostUrl,
+		ClientIdentifier: sqliteUserRow.ClientIdentifier,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		Libraries:        []Library{},
+	}
+
+	for _, library := range sqliteUserRows {
+		user.Libraries = append(user.Libraries, Library{
+			LibraryKey: library.LibraryKey,
+			UserId:     library.UserID,
+			CreatedAt:  createdAt,
+		})
+	}
+
+	if sqliteUserRow.PlexToken.Valid {
+		user.PlexToken = &sqliteUserRow.PlexToken.String
+	}
+
+	return user, nil
+}
+
+func (s Sqlite) DeleteUser() error {
+	ctx := context.Background()
+	return s.queries.DeleteUser(ctx)
+}
+
+func (s Sqlite) SetupUser(name, plexUrl, hostUrl string) error {
+	_, err := s.GetUser()
+	if err == nil {
+		s.DeleteUser()
+	}
+
+	return s.AddUser(name, plexUrl, hostUrl, nil)
+}
+
+func (s Sqlite) getSelectedLibraries(userId int64) ([]Library, error) {
+	ctx := context.Background()
+	libraries, err := s.queries.GetLibraries(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Library, 0)
+	for _, library := range libraries {
+		createdAt, err := parseIso8601Time(library.CreatedAt)
+		if err != nil {
+			createdAt = time.Now()
+		}
+
+		result = append(result, Library{
+			UserId:     library.UserID,
+			LibraryKey: library.LibraryKey,
+			CreatedAt:  createdAt,
+		})
+	}
+
+	return result, nil
+}
+
+func (s Sqlite) setSelectedLibraries(userId int64, libraryKeys []string) error {
+	ctx := context.Background()
+
+	if libraryKeys == nil {
+		libraryKeys = []string{}
+	}
+
+	existingLibraries, err := s.queries.GetLibraries(ctx, userId)
+	if err != nil {
+		return err
+	}
+
+	for _, library := range existingLibraries {
+		if slices.Contains(libraryKeys, library.LibraryKey) {
+			continue
+		}
+
+		if err = s.queries.DeleteLibrary(ctx, sqlite3Storage.DeleteLibraryParams{
+			UserID:     userId,
+			LibraryKey: library.LibraryKey,
+		}); err != nil {
+			s.log.Error("Failed to delete library", slog.Int64("userId", userId), slog.String("libraryKey", library.LibraryKey), slog.Any("error", err))
+		}
+	}
+
+	for _, libraryId := range libraryKeys {
+		for _, library := range existingLibraries {
+			if libraryId == library.LibraryKey {
+				continue
+			}
+		}
+
+		if err = s.queries.AddLibrary(ctx, sqlite3Storage.AddLibraryParams{
+			UserID:     userId,
+			LibraryKey: libraryId,
+		}); err != nil {
+			s.log.Error("Failed to add library", slog.Int64("userId", userId), slog.String("libraryKey", libraryId), slog.Any("error", err))
+		}
+	}
+
+	return nil
+}

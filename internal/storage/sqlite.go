@@ -52,3 +52,11 @@ func (s Sqlite) ApplyMigrations() error {
 func parseIso8601Time(timeString string) (time.Time, error) {
 	return time.Parse(time.RFC3339, timeString)
 }
+
+func stringToSqlNullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{String: "", Valid: false}
+	}
+
+	return sql.NullString{String: *s, Valid: true}
+}
