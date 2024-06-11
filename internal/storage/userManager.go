@@ -117,9 +117,13 @@ func sqliteUserRowToUser(sqliteUserRows []sqlite3Storage.GetUserRow) (User, erro
 	}
 
 	for _, library := range sqliteUserRows {
+		if !library.LibraryKey.Valid || !library.UserID.Valid {
+			continue
+		}
+
 		user.Libraries = append(user.Libraries, Library{
-			LibraryKey: library.LibraryKey,
-			UserId:     library.UserID,
+			LibraryKey: library.LibraryKey.String,
+			UserId:     library.UserID.Int64,
 			CreatedAt:  createdAt,
 		})
 	}

@@ -123,7 +123,7 @@ SELECT id, name, plex_url, plex_token, host_url, client_identifier, usr.created_
     SELECT id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at FROM users
     LIMIT 1
 ) as usr
-INNER JOIN plex_user_libraries as spl ON spl.user_id = usr.id
+LEFT JOIN plex_user_libraries as spl ON spl.user_id = usr.id
 `
 
 type GetUserRow struct {
@@ -135,9 +135,9 @@ type GetUserRow struct {
 	ClientIdentifier string
 	CreatedAt        string
 	UpdatedAt        string
-	UserID           int64
-	LibraryKey       string
-	CreatedAt_2      string
+	UserID           sql.NullInt64
+	LibraryKey       sql.NullString
+	CreatedAt_2      sql.NullString
 }
 
 // GetUser retrieves the user.

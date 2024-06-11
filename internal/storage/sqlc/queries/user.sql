@@ -10,7 +10,7 @@ SELECT * FROM (
     SELECT * FROM users
     LIMIT 1
 ) as usr
-INNER JOIN plex_user_libraries as spl ON spl.user_id = usr.id;
+LEFT JOIN plex_user_libraries as spl ON spl.user_id = usr.id;
 
 -- name: DeleteUser :exec
 -- DeleteUser deletes the user
