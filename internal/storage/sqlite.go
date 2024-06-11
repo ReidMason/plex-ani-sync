@@ -40,12 +40,12 @@ func NewSqliteStorage(databasePath string, logger *slog.Logger) (*Sqlite, error)
 }
 
 func (s Sqlite) Reset() error {
-	slog.Warn("Resetting database")
+	s.log.Warn("Resetting database")
 	return goose.Down(s.db, "migrations")
 }
 
 func (s Sqlite) ApplyMigrations() error {
-	slog.Info("Applying migrations")
+	s.log.Info("Applying migrations")
 	return goose.Up(s.db, "migrations")
 }
 

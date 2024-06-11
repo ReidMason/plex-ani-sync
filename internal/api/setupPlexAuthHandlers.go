@@ -14,7 +14,7 @@ import (
 func (s *Server) getSetupPlexAuth(c echo.Context) error {
 	pinId, err := strconv.Atoi(c.Request().URL.Query().Get("pinid"))
 	if err != nil {
-		slog.Error("Failed to parse pin id", slog.Any("error", err))
+		s.log.Error("Failed to parse pin id", slog.Any("error", err))
 		return c.String(http.StatusBadRequest, "Invalid pin id")
 	}
 
@@ -28,7 +28,7 @@ func (s *Server) getSetupPlexAuth(c echo.Context) error {
 
 	user, err := s.userManager.GetUser()
 	if err != nil {
-		slog.Error("Failed to find user", slog.Any("error", err))
+		s.log.Error("Failed to find user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to find user")
 	}
 

@@ -31,7 +31,7 @@ func (r *StaggeredHttpClient) Do(request *http.Request) (*http.Response, error) 
 	defer r.mutex.Unlock()
 
 	if time.Since(r.lastRequest) < 2*time.Second {
-		slog.Info("Sleeping for 2 seconds")
+		r.log.Info("Sleeping for 2 seconds")
 		time.Sleep(2 * time.Second)
 	}
 	r.lastRequest = time.Now()
@@ -46,21 +46,14 @@ func MakeRequest[T any](client HttpClient, request *http.Request) (T, error) {
 		return result, errors.New("No client provided for request")
 	}
 
-	slog.Debug("Making request", slog.String("url", request.URL.String()))
 	resp, err := client.Do(request)
 	if err != nil {
-		slog.Error("Failed to make request", slog.Any("error", err))
 		return result, err
 	}
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		slog.Error("Request failed",
-			slog.String("status", resp.Status),
-			slog.String("URL", request.URL.RequestURI()),
-			slog.String("Response body", string(body)),
-		)
-		return result, errors.New("Request failed with status: " + resp.Status)
+		return result, errors.New("Request failed with status: " + resp.Status + " URL: " + request.URL.RequestURI() + " Response body: " + string(body))
 	}
 
 	defer resp.Body.Close()

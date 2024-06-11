@@ -14,14 +14,14 @@ import (
 func (s *Server) getSetupLibraries(c echo.Context) error {
 	user, err := s.userManager.GetUser()
 	if err != nil {
-		slog.Error("Failed to get user", slog.Any("error", err))
+		s.log.Error("Failed to get user", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
 		return nil
 	}
 
 	libraries, err := s.mediaHost.GetLibraries()
 	if err != nil {
-		slog.Error("Failed to get libraries", slog.Any("error", err))
+		s.log.Error("Failed to get libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get libraries")
 	}
 
@@ -48,7 +48,7 @@ func (s *Server) getSetupLibraries(c echo.Context) error {
 func (s *Server) postSetupLibraries(c echo.Context) error {
 	data, err := c.FormParams()
 	if err != nil {
-		slog.Error("Failed to get form params", slog.Any("error", err))
+		s.log.Error("Failed to get form params", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get form params")
 	}
 
@@ -57,18 +57,18 @@ func (s *Server) postSetupLibraries(c echo.Context) error {
 		selectedLibraries = append(selectedLibraries, key)
 	}
 
-	slog.Info("Selected libraries", slog.Any("libraries", selectedLibraries))
+	s.log.Info("Selected libraries", slog.Any("libraries", selectedLibraries))
 
 	user, err := s.userManager.GetUser()
 	if err != nil {
-		slog.Error("Failed to get user", slog.Any("error", err))
+		s.log.Error("Failed to get user", slog.Any("error", err))
 		c.Redirect(http.StatusFound, routes.SETUP_USER)
 		return nil
 	}
 
 	err = s.userManager.UpdateUser(user.Id, storage.UserUpdate{Libraries: selectedLibraries})
 	if err != nil {
-		slog.Error("Failed to add libraries", slog.Any("error", err))
+		s.log.Error("Failed to add libraries", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to add libraries")
 	}
 

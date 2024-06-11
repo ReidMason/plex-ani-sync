@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -155,18 +154,15 @@ func pollForAuthToken(pollingLink string) (authResponse, error) {
 func GetAuthResponse(pinId int, code string, clientIdentifier string) (authResponse, error) {
 	pollingLink, err := buildAuthTokenPollingLink(pinId, code, clientIdentifier)
 	if err != nil {
-		slog.Error("Failed to build polling link", slog.Any("error", err))
 		return authResponse{}, err
 	}
 
 	response, err := pollForAuthToken(pollingLink)
 	if err != nil {
-		slog.Error("Failed to poll for auth token", slog.Any("error", err))
 		return authResponse{}, err
 	}
 
 	if response.AuthToken == nil {
-		slog.Error("No Plex auth token found in response")
 		return authResponse{}, err
 	}
 

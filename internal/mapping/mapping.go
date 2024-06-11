@@ -17,10 +17,11 @@ type MappingFinder interface {
 
 type AnimeMappingFinder struct {
 	animeList animeList.AnimeList
+	log       *slog.Logger
 }
 
-func NewMapping(animeList animeList.AnimeList) *AnimeMappingFinder {
-	return &AnimeMappingFinder{animeList: animeList}
+func NewMapping(animeList animeList.AnimeList, logger *slog.Logger) *AnimeMappingFinder {
+	return &AnimeMappingFinder{animeList: animeList, log: logger}
 }
 
 func (m AnimeMappingFinder) findAnime(totalEpisodes int, anime []animeList.Anime) []animeList.Anime {
@@ -70,24 +71,17 @@ func (m AnimeMappingFinder) FindMapping(series mediaHost.Series, seasons []media
 		return nil, err
 	}
 	if len(results) == 0 {
-		slog.Error("No anime found", slog.String("title", cleanedTitle))
+		m.log.Error("No anime found", slog.String("title", cleanedTitle))
 		return nil, errors.New("No anime found")
 	}
 
-	// This could result in some false positives
-	// for _, result := range results {
-	// 	if len(seasons) == 1 && result.Year == seasons[0].Year {
-	// 		return results[0], nil
-	// 	}
-	// }
-
 	matchedResults, err := findMatchingTitleResults(results, cleanedTitle)
 	if err != nil {
-		slog.Error("Failed to find matching title results", slog.Any("error", err), slog.String("title", cleanedTitle))
+		m.log.Error("Failed to find matching title results", slog.Any("error", err), slog.String("title", cleanedTitle))
 		return nil, err
 	}
 	if len(matchedResults) == 0 {
-		slog.Error("Titles filtered out all anime", slog.String("title", cleanedTitle))
+		m.log.Error("Titles filtered out all anime", slog.String("title", cleanedTitle))
 		return nil, errors.New("No anime found")
 	}
 
@@ -101,7 +95,7 @@ func (m AnimeMappingFinder) FindMapping(series mediaHost.Series, seasons []media
 		}
 	}
 
-	slog.Error("No matching anime found", slog.String("title", cleanedTitle), slog.Any("results", matchedResults))
+	m.log.Error("No matching anime found", slog.String("title", cleanedTitle), slog.Any("results", matchedResults))
 	return nil, errors.New("No matching anime found")
 }
 
