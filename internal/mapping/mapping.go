@@ -20,7 +20,7 @@ type AnimeMappingFinder struct {
 	log       *slog.Logger
 }
 
-func NewMapping(animeList animeList.AnimeList, logger *slog.Logger) *AnimeMappingFinder {
+func NewMappingFinder(animeList animeList.AnimeList, logger *slog.Logger) *AnimeMappingFinder {
 	return &AnimeMappingFinder{animeList: animeList, log: logger}
 }
 
