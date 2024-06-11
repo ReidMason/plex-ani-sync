@@ -17,8 +17,8 @@ const APP_NAME = "Plex-anilist-sync"
 type Server struct {
 	mediaHost   mediaHost.MediaHost
 	userManager storage.UserManager
-	listenAddr  string
 	log         *slog.Logger
+	listenAddr  string
 }
 
 func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager storage.UserManager, logger *slog.Logger) *Server {
