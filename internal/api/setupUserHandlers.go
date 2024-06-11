@@ -15,7 +15,14 @@ import (
 )
 
 func (s *Server) getSetupUser(c echo.Context) error {
-	component := views.SetupUser(getDefaultSetupFormData())
+	formData := getDefaultSetupFormData()
+	if user, err := s.userManager.GetUser(); err == nil {
+		formData.Name.Value = user.Name
+		formData.PlexUrl.Value = user.PlexUrl
+		formData.HostUrl.Value = user.HostUrl
+	}
+
+	component := views.SetupUser(formData)
 	return component.Render(c.Request().Context(), c.Response())
 }
 

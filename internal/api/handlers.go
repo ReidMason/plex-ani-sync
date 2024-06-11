@@ -46,8 +46,6 @@ func (s *Server) getIndex(c echo.Context) error {
 		}
 	}
 
-	s.log.Info("Got user", slog.Any("user", user))
-
 	series, err := s.mediaHost.GetSeries("1")
 	if err != nil {
 		s.log.Error("Failed to get series from media host", slog.Any("error", err))
