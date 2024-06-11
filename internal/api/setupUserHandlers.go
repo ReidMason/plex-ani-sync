@@ -7,6 +7,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
@@ -38,28 +39,40 @@ func (s *Server) postSetupUser(c echo.Context) error {
 		return component.Render(c.Request().Context(), c.Response())
 	}
 
-	err := s.userManager.AddUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value, nil)
+	user, err := s.userManager.GetUser()
+	if err == nil {
+		err = s.userManager.UpdateUser(user.Id, storage.UserUpdate{
+			User: &storage.User{
+				Name:    formData.Name.Value,
+				PlexUrl: formData.PlexUrl.Value,
+				HostUrl: formData.HostUrl.Value,
+			},
+		})
+	} else {
+		err = s.userManager.AddUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value, nil)
+	}
+
 	if err != nil {
-		slog.Error("Failed to create user", slog.Any("error", err))
+		s.log.Error("Failed to add user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to create user")
 	}
 
 	forwardUrl, err := url.Parse(formData.HostUrl.Value)
 	if err != nil {
-		slog.Error("Failed to parse host url", slog.Any("error", err))
+		s.log.Error("Failed to parse host url", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to parse host url")
 	}
 
-	user, err := s.userManager.GetUser()
+	user, err = s.userManager.GetUser()
 	if err != nil {
-		slog.Error("Failed to get user", slog.Any("error", err))
+		s.log.Error("Failed to get user", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to get new user")
 	}
 
 	forwardUrl.Path = routes.SETUP_PLEX_AUTH
 	authUrl, err := mediaHost.GetPlexAuthUrl(forwardUrl.String(), user.ClientIdentifier, APP_NAME)
 	if err != nil {
-		slog.Error("Failed to authorize with Plex", slog.Any("error", err))
+		s.log.Error("Failed to authorize with Plex", slog.Any("error", err))
 		return c.String(http.StatusInternalServerError, "Failed to authorize with Plex")
 	}
 
@@ -87,10 +100,11 @@ func getDefaultSetupFormData() components.SetupUserFormData {
 		},
 		HostUrl: ui.Field{
 			Name:          "hostUrl",
-			Label:         "Host url",
+			Label:         "Plex Anisync host url",
 			Placeholder:   "Enter your PlexAnilistSync host url",
 			Valid:         true,
 			ValidateRoute: routes.SETUP_USER_VALIDATE,
+			Value:         "http://localhost:8000",
 		},
 		PlexUrl: ui.Field{
 			Name:          "plexUrl",
@@ -98,6 +112,7 @@ func getDefaultSetupFormData() components.SetupUserFormData {
 			Placeholder:   "Enter your Plex URL",
 			Valid:         true,
 			ValidateRoute: routes.SETUP_USER_VALIDATE,
+			Value:         "http://localhost:32400",
 		},
 	}
 }
