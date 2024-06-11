@@ -11,14 +11,16 @@ templ Index(indexData api.IndexData) {
 		<div class="bg-slate-700 p-8 h-full text-slate-100">
 			<h1 class="font-semibold text-xl">Home</h1>
 			<p>Welcome, { indexData.Name }</p>
-			<div class="mt-4 p-4 border rounded-lg">
-				<p class="text-xl font-semibold">Tracked libraries - <a class="hover:underline" href={ routes.SETUP_LIBRARIES }>Edit</a></p>
-				<ul>
+			<div class="mt-4 p-4 border rounded-lg inline-block">
+				<p class="text-xl font-semibold">Tracked libraries</p>
+				<ul class="mb-4">
 					for _, library := range indexData.Libraries {
 						<li class="pl-4">{ library }</li>
 					}
 				</ul>
+				<a class="hover:underline text-blue-300" href={ routes.SETUP_LIBRARIES }>Edit</a>
 			</div>
+			<a class="hover:underline text-blue-300" href={ routes.SETUP_USER }>Run setup</a>
 		</div>
 	}
 }
