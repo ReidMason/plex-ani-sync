@@ -177,7 +177,7 @@ func (s Sqlite) setSelectedLibraries(userId int64, libraryKeys []string) error {
 	ctx := context.Background()
 
 	if libraryKeys == nil {
-		libraryKeys = []string{}
+		return nil
 	}
 
 	existingLibraries, err := s.queries.GetLibraries(ctx, userId)

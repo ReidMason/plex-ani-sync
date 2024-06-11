@@ -1,6 +1,7 @@
 package mediaHost
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -48,6 +49,10 @@ func buildRequest(method, url, token string) (*http.Request, error) {
 }
 
 func (p Plex) buildHostUrl(path string) (string, error) {
+	if p.hostUrl == nil {
+		return "", errors.New("Plex host URL not set")
+	}
+
 	return url.JoinPath(p.hostUrl.String(), path)
 }
 
