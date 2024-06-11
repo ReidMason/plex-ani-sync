@@ -28,8 +28,8 @@ type Anilist struct {
 	log    *slog.Logger
 }
 
-func NewAnilist(client request.HttpClient, userId int, cache storage.Cache, logger *slog.Logger) *Anilist {
-	return &Anilist{client: client, userId: userId, cache: cache, log: logger}
+func NewAnilist(client request.HttpClient, cache storage.Cache, logger *slog.Logger) *Anilist {
+	return &Anilist{client: client, cache: cache, log: logger}
 }
 
 func (a Anilist) GetAnime(id string) (Anime, error) {
