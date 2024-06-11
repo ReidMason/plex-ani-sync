@@ -16,10 +16,10 @@ type HttpClient interface {
 }
 
 type StaggeredHttpClient struct {
-	client      HttpClient
 	lastRequest time.Time
-	mutex       sync.Mutex
+	client      HttpClient
 	log         *slog.Logger
+	mutex       sync.Mutex
 }
 
 func NewStaggeredHttpClient(client HttpClient, logger *slog.Logger) *StaggeredHttpClient {
