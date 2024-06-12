@@ -1,6 +1,7 @@
 package views
 
 import (
+	"strconv"
 	"github.com/ReidMason/plex-ani-sync/templates/layouts"
 	"github.com/ReidMason/plex-ani-sync/internal/api/index"
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
@@ -11,16 +12,33 @@ templ Index(indexData api.IndexData) {
 		<div class="bg-slate-700 p-8 h-full text-slate-100">
 			<h1 class="font-semibold text-xl">Home</h1>
 			<p>Welcome, { indexData.Name }</p>
-			<div class="mt-4 p-4 border rounded-lg inline-block">
-				<p class="text-xl font-semibold">Tracked libraries</p>
-				<ul class="mb-4">
-					for _, library := range indexData.Libraries {
-						<li class="pl-4">{ library }</li>
-					}
-				</ul>
-				<a class="hover:underline text-blue-300" href={ routes.SETUP_LIBRARIES }>Edit</a>
+			<div class="mt-4 grid grid-cols-12 gap-4">
+				<div class="p-4 border rounded-lg col-span-2">
+					<p class="text-xl font-semibold">Tracked libraries</p>
+					<ul class="mb-4">
+						for _, library := range indexData.Libraries {
+							<li class="pl-4">{ library }</li>
+						}
+					</ul>
+					<a class="hover:underline text-blue-300" href={ routes.SETUP_LIBRARIES }>Edit</a>
+				</div>
+				<div class="p-4 border rounded-lg col-span-2">
+					<p class="text-xl font-semibold">Anime watchlist</p>
+					<div class="mb-4 mr-4 grid grid-cols-2 gap-x-8">
+						<p>Completed:</p>
+						<p>{ strconv.Itoa(indexData.ListData.Completed) }</p>
+						<p>Watching:</p>
+						<p>{ strconv.Itoa(indexData.ListData.Watching) }</p>
+						<p>Paused:</p>
+						<p>{ strconv.Itoa(indexData.ListData.Paused) }</p>
+						<p>Planning:</p>
+						<p>{ strconv.Itoa(indexData.ListData.Planning) }</p>
+						<p>Dropped:</p>
+						<p>{ strconv.Itoa(indexData.ListData.Dropped) }</p>
+					</div>
+				</div>
+				<a class="hover:underline text-blue-300" href={ routes.SETUP_USER }>Run setup</a>
 			</div>
-			<a class="hover:underline text-blue-300" href={ routes.SETUP_USER }>Run setup</a>
 		</div>
 	}
 }
