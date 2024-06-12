@@ -29,7 +29,7 @@ func (q *Queries) AddLibrary(ctx context.Context, arg AddLibraryParams) error {
 const addUser = `-- name: AddUser :one
   INSERT INTO users (name, plex_url, plex_token, host_url, client_identifier)
   VALUES (?, ?, ?, ?, ?)
-  RETURNING id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at
+  RETURNING id, name, plex_url, plex_token, host_url, client_identifier, animelist_api_client_id, animelist_secret, animelist_token, animelist_refresh_token, created_at, updated_at
 `
 
 type AddUserParams struct {
@@ -57,6 +57,10 @@ func (q *Queries) AddUser(ctx context.Context, arg AddUserParams) (User, error) 
 		&i.PlexToken,
 		&i.HostUrl,
 		&i.ClientIdentifier,
+		&i.AnimelistApiClientID,
+		&i.AnimelistSecret,
+		&i.AnimelistToken,
+		&i.AnimelistRefreshToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -119,25 +123,29 @@ func (q *Queries) GetLibraries(ctx context.Context, userID int64) ([]PlexUserLib
 }
 
 const getUser = `-- name: GetUser :many
-SELECT id, name, plex_url, plex_token, host_url, client_identifier, usr.created_at, updated_at, user_id, library_key, spl.created_at FROM (
-    SELECT id, name, plex_url, plex_token, host_url, client_identifier, created_at, updated_at FROM users
+SELECT id, name, plex_url, plex_token, host_url, client_identifier, animelist_api_client_id, animelist_secret, animelist_token, animelist_refresh_token, usr.created_at, updated_at, user_id, library_key, spl.created_at FROM (
+    SELECT id, name, plex_url, plex_token, host_url, client_identifier, animelist_api_client_id, animelist_secret, animelist_token, animelist_refresh_token, created_at, updated_at FROM users
     LIMIT 1
 ) as usr
 LEFT JOIN plex_user_libraries as spl ON spl.user_id = usr.id
 `
 
 type GetUserRow struct {
-	ID               int64
-	Name             string
-	PlexUrl          string
-	PlexToken        sql.NullString
-	HostUrl          string
-	ClientIdentifier string
-	CreatedAt        string
-	UpdatedAt        string
-	UserID           sql.NullInt64
-	LibraryKey       sql.NullString
-	CreatedAt_2      sql.NullString
+	ID                    int64
+	Name                  string
+	PlexUrl               string
+	PlexToken             sql.NullString
+	HostUrl               string
+	ClientIdentifier      string
+	AnimelistApiClientID  sql.NullString
+	AnimelistSecret       sql.NullString
+	AnimelistToken        sql.NullString
+	AnimelistRefreshToken sql.NullString
+	CreatedAt             string
+	UpdatedAt             string
+	UserID                sql.NullInt64
+	LibraryKey            sql.NullString
+	CreatedAt_2           sql.NullString
 }
 
 // GetUser retrieves the user.
@@ -157,6 +165,10 @@ func (q *Queries) GetUser(ctx context.Context) ([]GetUserRow, error) {
 			&i.PlexToken,
 			&i.HostUrl,
 			&i.ClientIdentifier,
+			&i.AnimelistApiClientID,
+			&i.AnimelistSecret,
+			&i.AnimelistToken,
+			&i.AnimelistRefreshToken,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
@@ -182,16 +194,24 @@ const updateUser = `-- name: UpdateUser :exec
       plex_url = ?,
       plex_token = ?,
       host_url = ?,
+      animelist_api_client_id = ?,
+      animelist_secret = ?,
+      animelist_token = ?,
+      animelist_refresh_token = ?,
       updated_at = datetime('now')
   WHERE id = ?
 `
 
 type UpdateUserParams struct {
-	Name      string
-	PlexUrl   string
-	PlexToken sql.NullString
-	HostUrl   string
-	ID        int64
+	Name                  string
+	PlexUrl               string
+	PlexToken             sql.NullString
+	HostUrl               string
+	AnimelistApiClientID  sql.NullString
+	AnimelistSecret       sql.NullString
+	AnimelistToken        sql.NullString
+	AnimelistRefreshToken sql.NullString
+	ID                    int64
 }
 
 // Update a user
@@ -201,6 +221,10 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 		arg.PlexUrl,
 		arg.PlexToken,
 		arg.HostUrl,
+		arg.AnimelistApiClientID,
+		arg.AnimelistSecret,
+		arg.AnimelistToken,
+		arg.AnimelistRefreshToken,
 		arg.ID,
 	)
 	return err

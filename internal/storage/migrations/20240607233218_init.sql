@@ -9,6 +9,10 @@ CREATE TABLE users (
   plex_token TEXT,
   host_url TEXT NOT NULL,
   client_identifier TEXT NOT NULL,
+  animelist_api_client_id TEXT,
+  animelist_secret TEXT,
+  animelist_token TEXT,
+  animelist_refresh_token TEXT,
   created_at TEXT NOT NULL DEFAULT(datetime('now')),
   updated_at TEXT NOT NULL DEFAULT(datetime('now'))
 );

@@ -35,12 +35,16 @@ type PlexUserLibrary struct {
 }
 
 type User struct {
-	ID               int64
-	Name             string
-	PlexUrl          string
-	PlexToken        sql.NullString
-	HostUrl          string
-	ClientIdentifier string
-	CreatedAt        string
-	UpdatedAt        string
+	ID                    int64
+	Name                  string
+	PlexUrl               string
+	PlexToken             sql.NullString
+	HostUrl               string
+	ClientIdentifier      string
+	AnimelistApiClientID  sql.NullString
+	AnimelistSecret       sql.NullString
+	AnimelistToken        sql.NullString
+	AnimelistRefreshToken sql.NullString
+	CreatedAt             string
+	UpdatedAt             string
 }

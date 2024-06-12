@@ -47,13 +47,12 @@ func (s *Server) postSetupUser(c echo.Context) error {
 	}
 
 	user, err := s.userManager.GetUser()
+	user.Name = formData.Name.Value
+	user.PlexUrl = formData.PlexUrl.Value
+	user.HostUrl = formData.HostUrl.Value
 	if err == nil {
 		err = s.userManager.UpdateUser(user.Id, storage.UserUpdate{
-			User: &storage.User{
-				Name:    formData.Name.Value,
-				PlexUrl: formData.PlexUrl.Value,
-				HostUrl: formData.HostUrl.Value,
-			},
+			User: &user,
 		})
 	} else {
 		err = s.userManager.AddUser(formData.Name.Value, formData.PlexUrl.Value, formData.HostUrl.Value, nil)

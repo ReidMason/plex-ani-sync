@@ -24,12 +24,40 @@ type GraphQLRequest struct {
 type Anilist struct {
 	client request.HttpClient
 	cache  storage.Cache
-	userId int
 	log    *slog.Logger
 }
 
 func NewAnilist(client request.HttpClient, cache storage.Cache, logger *slog.Logger) *Anilist {
 	return &Anilist{client: client, cache: cache, log: logger}
+}
+
+type authTokenRequest struct {
+	GrantType    string `json:"grant_type"`
+	ClientId     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectUri  string `json:"redirect_uri"`
+	Code         string `json:"code"`
+}
+
+func (a Anilist) GetAuthToken(clientId, clientSecret, redirectUri, code string) (AuthTokenResponse, error) {
+	url := "https://anilist.co/api/v2/oauth/token"
+	body := authTokenRequest{
+		GrantType:    "authorization_code",
+		ClientId:     clientId,
+		ClientSecret: clientSecret,
+		RedirectUri:  redirectUri,
+		Code:         code,
+	}
+	a.log.Info("Getting Anilist auth token", slog.Any("body", body))
+
+	req, err := buildRequest("POST", url, body)
+
+	if err != nil {
+		a.log.Error("Failed to build Anilist auth token request", slog.Any("error", err))
+		return AuthTokenResponse{}, err
+	}
+
+	return request.MakeRequest[AuthTokenResponse](a.client, req)
 }
 
 func (a Anilist) GetAnime(id string) (Anime, error) {
@@ -96,7 +124,7 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 	if cachedErr != nil || cachedResult == nil {
 		// Make request
 		a.log.Info("Geting Anilist anime", slog.String("id", id))
-		req, err := buildRequest(query, variables)
+		req, err := buildGraphQLRequest(query, variables)
 		if err != nil {
 			a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 			return Anime{}, err
@@ -215,7 +243,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 	if cacheErr != nil || cachedResult == nil {
 		// Make request
 		a.log.Info("Searching Anilist for anime", slog.String("title", title))
-		req, err := buildRequest(query, variables)
+		req, err := buildGraphQLRequest(query, variables)
 		if err != nil {
 			a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 			return nil, err
@@ -276,7 +304,7 @@ func getTitle(title AnimeResult) string {
 	return title.Title.Romaji
 }
 
-func (a Anilist) GetAnimeList() ([]ListEntry, error) {
+func (a Anilist) GetAnimeList(userId int) ([]ListEntry, error) {
 	query := `query($user_id: Int) {
     MediaListCollection(userId: $user_id, type: ANIME) {
       lists {
@@ -292,10 +320,10 @@ func (a Anilist) GetAnimeList() ([]ListEntry, error) {
   }`
 
 	variables := Variables{
-		"user_id": a.userId,
+		"user_id": userId,
 	}
 
-	req, err := buildRequest(query, variables)
+	req, err := buildGraphQLRequest(query, variables)
 	if err != nil {
 		a.log.Error("Failed to build Anilist request", slog.Any("error", err))
 		return nil, err
@@ -325,12 +353,7 @@ func (a Anilist) GetAnimeList() ([]ListEntry, error) {
 	return listEntries, nil
 }
 
-func buildRequest(query string, variables Variables) (*http.Request, error) {
-	body := GraphQLRequest{
-		Query:     query,
-		Variables: variables,
-	}
-
+func buildRequest(method, url string, body interface{}) (*http.Request, error) {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -338,7 +361,7 @@ func buildRequest(query string, variables Variables) (*http.Request, error) {
 
 	requestBody := bytes.NewBuffer(jsonBody)
 
-	req, err := http.NewRequest("POST", HOST, requestBody)
+	req, err := http.NewRequest(method, url, requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +370,15 @@ func buildRequest(query string, variables Variables) (*http.Request, error) {
 	req.Header.Add("Content-Type", "application/json")
 
 	return req, nil
+}
+
+func buildGraphQLRequest(query string, variables Variables) (*http.Request, error) {
+	body := GraphQLRequest{
+		Query:     query,
+		Variables: variables,
+	}
+
+	return buildRequest("POST", HOST, body)
 }
 
 type AnimeSearchResponse struct {

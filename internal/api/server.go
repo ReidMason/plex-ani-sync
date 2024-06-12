@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
@@ -17,12 +18,13 @@ const APP_NAME = "Plex-anilist-sync"
 type Server struct {
 	mediaHost   mediaHost.MediaHost
 	userManager storage.UserManager
+	animeList   animeList.AnimeList
 	log         *slog.Logger
 	listenAddr  string
 }
 
-func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, userManager storage.UserManager, logger *slog.Logger) *Server {
-	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, userManager: userManager, log: logger}
+func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
+	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
 }
 
 func (s *Server) Start() error {
@@ -45,6 +47,11 @@ func (s *Server) Start() error {
 
 	e.GET(routes.SETUP_LIBRARIES, s.getSetupLibraries)
 	e.POST(routes.SETUP_LIBRARIES, s.postSetupLibraries)
+
+	e.GET(routes.SETUP_ANIMELIST, s.getSetupAnimeList)
+	e.POST(routes.SETUP_ANIMELIST, s.postSetupAnimeList)
+
+	e.GET(routes.SETUP_ANIMELIST_VALIDATE, s.getSetupAnimeListValidate)
 
 	e.Logger.Fatal(e.Start(":8000"))
 

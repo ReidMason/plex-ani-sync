@@ -17,6 +17,7 @@ import (
 
 type SetupAnimeListFormData struct {
 	ClientId      ui.Field
+	Secret        ui.Field
 	FormSubmitted string
 }
 
@@ -46,6 +47,10 @@ func SetupAnimeListForm(formData SetupAnimeListFormData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = ui.Input(formData.ClientId, formData.FormSubmitted == "true").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ui.Input(formData.Secret, formData.FormSubmitted == "true").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

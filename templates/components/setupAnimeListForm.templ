@@ -7,12 +7,14 @@ import (
 
 type SetupAnimeListFormData struct {
 	ClientId      ui.Field
+	Secret        ui.Field
 	FormSubmitted string
 }
 
 templ SetupAnimeListForm(formData SetupAnimeListFormData) {
 	<form hx-post={ routes.SETUP_ANIMELIST } class="flex flex-col gap-4">
 		@ui.Input(formData.ClientId, formData.FormSubmitted == "true")
+		@ui.Input(formData.Secret, formData.FormSubmitted == "true")
 		<input type="hidden" name="formSubmitted" value={ formData.FormSubmitted } class="text-black"/>
 		<button class="bg-slate-800 text-slate-100 p-2 rounded-md w-full mt-4 hover:bg-slate-800/60">Authorize Animelist</button>
 	</form>

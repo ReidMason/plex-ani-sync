@@ -23,6 +23,10 @@ LEFT JOIN plex_user_libraries as spl ON spl.user_id = usr.id;
       plex_url = ?,
       plex_token = ?,
       host_url = ?,
+      animelist_api_client_id = ?,
+      animelist_secret = ?,
+      animelist_token = ?,
+      animelist_refresh_token = ?,
       updated_at = datetime('now')
   WHERE id = ?;
 

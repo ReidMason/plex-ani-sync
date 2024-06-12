@@ -1,9 +1,17 @@
 package animeList
 
 type AnimeList interface {
-	GetAnimeList() ([]ListEntry, error)
+	GetAnimeList(userId int) ([]ListEntry, error)
 	SearchAnime(title string) ([]Anime, error)
 	GetAnime(id string) (Anime, error)
+	GetAuthToken(clientId, clientSecret, redirectUri, code string) (AuthTokenResponse, error)
+}
+
+type AuthTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 type Status string

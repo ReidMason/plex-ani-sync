@@ -19,15 +19,19 @@ type UserManager interface {
 }
 
 type User struct {
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	PlexToken        *string
-	PlexUrl          string
-	HostUrl          string
-	Name             string
-	ClientIdentifier string
-	Libraries        []Library
-	Id               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	PlexToken             *string
+	PlexUrl               string
+	HostUrl               string
+	Name                  string
+	ClientIdentifier      string
+	AnimeListClientId     *string
+	AnimeListClientSecret *string
+	AnimeListToken        *string
+	AnimeListRefreshToken *string
+	Libraries             []Library
+	Id                    int64
 }
 
 type Library struct {
@@ -73,11 +77,15 @@ func (s Sqlite) UpdateUser(userId int64, userUpdate UserUpdate) error {
 
 	if userUpdate.User != nil {
 		userUpdateParams := sqlite3Storage.UpdateUserParams{
-			ID:        userId,
-			Name:      userUpdate.User.Name,
-			PlexUrl:   userUpdate.User.PlexUrl,
-			HostUrl:   userUpdate.User.HostUrl,
-			PlexToken: stringToSqlNullString(userUpdate.User.PlexToken),
+			ID:                    userId,
+			Name:                  userUpdate.User.Name,
+			PlexUrl:               userUpdate.User.PlexUrl,
+			HostUrl:               userUpdate.User.HostUrl,
+			PlexToken:             stringToSqlNullString(userUpdate.User.PlexToken),
+			AnimelistApiClientID:  stringToSqlNullString(userUpdate.User.AnimeListClientId),
+			AnimelistSecret:       stringToSqlNullString(userUpdate.User.AnimeListClientSecret),
+			AnimelistToken:        stringToSqlNullString(userUpdate.User.AnimeListToken),
+			AnimelistRefreshToken: stringToSqlNullString(userUpdate.User.AnimeListRefreshToken),
 		}
 
 		if err := s.queries.UpdateUser(ctx, userUpdateParams); err != nil {
@@ -130,6 +138,22 @@ func sqliteUserRowToUser(sqliteUserRows []sqlite3Storage.GetUserRow) (User, erro
 
 	if sqliteUserRow.PlexToken.Valid {
 		user.PlexToken = &sqliteUserRow.PlexToken.String
+	}
+
+	if sqliteUserRow.AnimelistApiClientID.Valid {
+		user.AnimeListClientId = &sqliteUserRow.AnimelistApiClientID.String
+	}
+
+	if sqliteUserRow.AnimelistSecret.Valid {
+		user.AnimeListClientSecret = &sqliteUserRow.AnimelistSecret.String
+	}
+
+	if sqliteUserRow.AnimelistToken.Valid {
+		user.AnimeListToken = &sqliteUserRow.AnimelistToken.String
+	}
+
+	if sqliteUserRow.AnimelistRefreshToken.Valid {
+		user.AnimeListRefreshToken = &sqliteUserRow.AnimelistRefreshToken.String
 	}
 
 	return user, nil
