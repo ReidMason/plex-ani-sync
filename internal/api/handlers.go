@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	api "github.com/ReidMason/plex-ani-sync/internal/api/index"
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
@@ -25,6 +26,33 @@ func (s *Server) getIndex(c echo.Context) error {
 	}
 
 	indexData.Name = user.Name
+
+	if user.AnimeListToken == nil {
+		animeListUser, err := s.animeList.GetCurrentUser(*user.AnimeListToken)
+		if err != nil {
+			s.log.Error("Failed to get anime list user", slog.Any("error", err))
+		} else {
+			watchList, err := s.animeList.GetAnimeList(animeListUser.Id)
+			if err != nil {
+				s.log.Error("Failed to get anime list", slog.Any("error", err))
+			} else {
+				for _, entry := range watchList {
+					switch entry.Status {
+					case animeList.Current:
+						indexData.ListData.Watching++
+					case animeList.Planning:
+						indexData.ListData.Planning++
+					case animeList.Completed:
+						indexData.ListData.Completed++
+					case animeList.Dropped:
+						indexData.ListData.Dropped++
+					case animeList.Paused:
+						indexData.ListData.Paused++
+					}
+				}
+			}
+		}
+	}
 
 	// user, err := s.mediaHost.GetCurrentUser()
 	// if err != nil {

@@ -60,6 +60,28 @@ func (a Anilist) GetAuthToken(clientId, clientSecret, redirectUri, code string) 
 	return request.MakeRequest[AuthTokenResponse](a.client, req)
 }
 
+func (a Anilist) GetCurrentUser(token string) (User, error) {
+	query := `query {
+    Viewer {
+      id
+    }
+  }`
+
+	req, err := buildGraphQLRequest(query, Variables{})
+	if err != nil {
+		a.log.Error("Failed to build Anilist get user request", slog.Any("error", err))
+		return User{}, err
+	}
+
+	response, err := request.MakeRequest[GetViewerResponse](a.client, req)
+	if err != nil {
+		a.log.Error("Failed to make Anilist get user request", slog.Any("error", err))
+		return User{}, err
+	}
+
+	return User{Id: response.Data.Viewer.Id}, nil
+}
+
 func (a Anilist) GetAnime(id string) (Anime, error) {
 	query := `query ($anime_id: Int) {
     Media(id: $anime_id, type: ANIME) {
@@ -304,7 +326,7 @@ func getTitle(title AnimeResult) string {
 	return title.Title.Romaji
 }
 
-func (a Anilist) GetAnimeList(userId int) ([]ListEntry, error) {
+func (a Anilist) GetAnimeList(userId string) ([]ListEntry, error) {
 	query := `query($user_id: Int) {
     MediaListCollection(userId: $user_id, type: ANIME) {
       lists {
@@ -379,6 +401,18 @@ func buildGraphQLRequest(query string, variables Variables) (*http.Request, erro
 	}
 
 	return buildRequest("POST", HOST, body)
+}
+
+type GenericResponse[T any] struct {
+	Data T `json:"data"`
+}
+
+type GetViewerResponse = GenericResponse[struct {
+	Viewer Viewer `json:"Viewer"`
+}]
+
+type Viewer struct {
+	Id string `json:"id"`
 }
 
 type AnimeSearchResponse struct {

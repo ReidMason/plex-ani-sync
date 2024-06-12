@@ -1,10 +1,15 @@
 package animeList
 
 type AnimeList interface {
-	GetAnimeList(userId int) ([]ListEntry, error)
+	GetCurrentUser(token string) (User, error)
+	GetAnimeList(userId string) ([]ListEntry, error)
 	SearchAnime(title string) ([]Anime, error)
 	GetAnime(id string) (Anime, error)
 	GetAuthToken(clientId, clientSecret, redirectUri, code string) (AuthTokenResponse, error)
+}
+
+type User struct {
+	Id string
 }
 
 type AuthTokenResponse struct {
