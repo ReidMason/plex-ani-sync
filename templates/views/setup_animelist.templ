@@ -1,0 +1,16 @@
+package views
+
+import (
+	"github.com/ReidMason/plex-ani-sync/templates/layouts"
+	"github.com/ReidMason/plex-ani-sync/templates/components"
+)
+
+templ SetupAnimelist(formData components.SetupAnimeListFormData, redirectUrl string) {
+	@layouts.Main() {
+		<div class="bg-slate-700 p-8 h-full text-slate-100">
+			<p>Setup Anilist API</p>
+			<p>Redirect URL: { redirectUrl }</p>
+			@components.SetupAnimeListForm(formData)
+		</div>
+	}
+}
