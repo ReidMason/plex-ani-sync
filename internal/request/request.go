@@ -67,7 +67,6 @@ func parseResponse[T any](responseBody io.ReadCloser) (T, error) {
 		return result, err
 	}
 
-	slog.Info("response", slog.String("response", string(body)))
 	if err := json.Unmarshal(body, &result); err != nil {
 		return result, err
 	}
