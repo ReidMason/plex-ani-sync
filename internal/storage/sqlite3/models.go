@@ -17,15 +17,15 @@ type Cache struct {
 }
 
 type Mapping struct {
-	ID                int64
-	AnimeID           int64
-	AnimeEpisodeStart int64
-	AnimeEpisodeEnd   int64
-	MediaID           int64
-	MediaEpisodeStart int64
-	MediaEpisodeEnd   int64
-	CreatedAt         string
-	UpdatedAt         string
+	ID                 int64
+	AnimeID            string
+	AnimeEpisodeStart  int64
+	AnimeEpisodeEnd    int64
+	SeasonID           string
+	SeasonEpisodeStart int64
+	SeasonEpisodeEnd   int64
+	CreatedAt          string
+	UpdatedAt          string
 }
 
 type PlexUserLibrary struct {

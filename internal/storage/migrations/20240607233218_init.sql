@@ -26,12 +26,12 @@ CREATE TABLE plex_user_libraries (
  
 CREATE TABLE mappings (
     id INTEGER NOT NULL PRIMARY KEY,
-    anime_id INTEGER NOT NULL,
+    anime_id TEXT NOT NULL,
     anime_episode_start INTEGER NOT NULL,
     anime_episode_end INTEGER NOT NULL,
-    media_id INTEGER NOT NULL,
-    media_episode_start INTEGER NOT NULL,
-    media_episode_end INTEGER NOT NULL,
+    season_id TEXT NOT NULL,
+    season_episode_start INTEGER NOT NULL,
+    season_episode_end INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT(datetime('now')),
     updated_at TEXT NOT NULL DEFAULT(datetime('now')),
     UNIQUE(media_id, anime_id)
