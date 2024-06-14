@@ -10,8 +10,5 @@ tailwind:
 templ:
   templ generate -watch -proxy="http://localhost:8000/"
 
-migrate-up:
-  goose -dir ./db/migrations sqlite3 ./docker/data/data.db up
-
 new-migration name:
   migrate create -ext sql -dir ./db/migrations -seq "{{name}}"
