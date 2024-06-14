@@ -139,8 +139,10 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 		cachedResult = nil
 	}
 
-	if cachedErr = json.Unmarshal([]byte(*cachedResult), &response); cachedErr != nil {
-		a.log.Error("Failed to unmarshal Anilist get anime result", slog.Any("error", cachedErr))
+	if cachedResult != nil {
+		if cachedErr = json.Unmarshal([]byte(*cachedResult), &response); cachedErr != nil {
+			a.log.Error("Failed to unmarshal Anilist get anime result", slog.Any("error", cachedErr))
+		}
 	}
 
 	if cachedErr != nil || cachedResult == nil {
