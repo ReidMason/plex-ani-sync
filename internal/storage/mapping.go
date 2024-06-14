@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	sqlite3Storage "github.com/ReidMason/plex-ani-sync/internal/storage/sqlite3"
 	"golang.org/x/exp/slices"
@@ -46,26 +45,29 @@ func (s Sqlite) SetMappings(newMappings []Mapping) error {
 		return nil
 	}
 
-	mappingSeason := newMappings[0].SeasonId
-	for _, mapping := range newMappings {
-		if mapping.SeasonId != mappingSeason {
-			return errors.New("All mappings must be for the same season")
-		}
-	}
+	// group mappings by season
+	seasonIdToMappings := make(map[string][]Mapping)
 
-	existingMappings, err := s.GetMappings(mappingSeason)
-	if err != nil {
-		return err
+	for _, mapping := range newMappings {
+		seasonIdToMappings[mapping.SeasonId] = append(seasonIdToMappings[mapping.SeasonId], mapping)
 	}
 
 	mappingsIdsToRemove := make([]int, 0)
-	for _, existingMapping := range existingMappings {
-		mappingExistsInNewMappings := slices.ContainsFunc(newMappings, func(newMapping Mapping) bool {
-			return existingMapping.AnimeId == newMapping.AnimeId && existingMapping.SeasonId == newMapping.SeasonId
-		})
+	for _, mappings := range seasonIdToMappings {
+		mappingSeasonId := mappings[0].SeasonId
+		existingMappings, err := s.GetMappings(mappingSeasonId)
+		if err != nil {
+			return err
+		}
 
-		if !mappingExistsInNewMappings {
-			mappingsIdsToRemove = append(mappingsIdsToRemove, existingMapping.Id)
+		for _, existingMapping := range existingMappings {
+			mappingExistsInNewMappings := slices.ContainsFunc(newMappings, func(newMapping Mapping) bool {
+				return existingMapping.AnimeId == newMapping.AnimeId && existingMapping.SeasonId == newMapping.SeasonId
+			})
+
+			if !mappingExistsInNewMappings {
+				mappingsIdsToRemove = append(mappingsIdsToRemove, existingMapping.Id)
+			}
 		}
 	}
 
