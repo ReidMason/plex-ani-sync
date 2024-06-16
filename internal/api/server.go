@@ -69,5 +69,11 @@ func (s *Server) InitialiseMediaHost() error {
 		return errors.New("Failed to initialise media host: user has no plex token")
 	}
 
-	return s.mediaHost.Initialize(*user.PlexToken, user.PlexUrl, &client)
+	mediaHostService, err := s.mediaHost.Initialize(*user.PlexToken, user.PlexUrl, &client)
+	if err != nil {
+		return err
+	}
+
+	s.mediaHost = mediaHostService
+	return nil
 }

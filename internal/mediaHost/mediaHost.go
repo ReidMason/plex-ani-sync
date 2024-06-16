@@ -3,7 +3,7 @@ package mediaHost
 import "github.com/ReidMason/plex-ani-sync/internal/request"
 
 type MediaHost interface {
-	Initialize(token string, host string, client request.HttpClient) error
+	Initialize(token string, host string, client request.HttpClient) (MediaHost, error)
 	GetLibraries() ([]Library, error)
 	GetCurrentUser() (User, error)
 	GetSeries(libraryKey string) ([]Series, error)
@@ -22,8 +22,10 @@ type User struct {
 }
 
 type Series struct {
-	Id    string
-	Title string
+	Id              string
+	Title           string
+	WatchedEpisodes int
+	TotalEpisodes   int
 }
 
 type Season struct {

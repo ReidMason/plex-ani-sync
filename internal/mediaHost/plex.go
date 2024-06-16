@@ -20,17 +20,17 @@ func NewPlex() *Plex {
 	return &Plex{}
 }
 
-func (p *Plex) Initialize(token, host string, client request.HttpClient) error {
+func (p Plex) Initialize(token, host string, client request.HttpClient) (MediaHost, error) {
 	hostUrl, err := url.Parse(host)
 	if err != nil {
-		return err
+		return p, err
 	}
 
 	p.token = token
 	p.hostUrl = hostUrl
 	p.client = client
 
-	return nil
+	return p, nil
 }
 
 func buildRequest(method, url, token string) (*http.Request, error) {
@@ -75,8 +75,10 @@ func (p Plex) GetSeries(libraryKey string) ([]Series, error) {
 	series := make([]Series, len(response.MediaContainer.Metadata))
 	for i, plexSeries := range response.MediaContainer.Metadata {
 		series[i] = Series{
-			Id:    plexSeries.RatingKey,
-			Title: plexSeries.Title,
+			Id:              plexSeries.RatingKey,
+			Title:           plexSeries.Title,
+			WatchedEpisodes: plexSeries.ViewedLeafCount,
+			TotalEpisodes:   plexSeries.LeafCount,
 		}
 	}
 
