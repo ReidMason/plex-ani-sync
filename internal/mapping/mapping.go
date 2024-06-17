@@ -91,14 +91,38 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 
 	season, seasons := seasons[0], seasons[1:]
 
+	animeEpisodeStart := 1
+	animeEpisodeEnd := season.Episodes
+	if animeEpisodeEnd > anime.Episodes {
+		animeEpisodeEnd = anime.Episodes
+	}
+
+	seasonEpisodeStart := 1
+	if season.partial {
+		previousMapping := mappings[len(mappings)-1]
+		seasonEpisodeStart = previousMapping.SesasonEpisodeEnd + 1
+	}
+
+	seasonEpisodeEnd := animeEpisodeEnd
+	if season.partial {
+		previousMapping := mappings[len(mappings)-1]
+		seasonEpisodeEnd = previousMapping.SesasonEpisodeEnd + (animeEpisodeEnd - animeEpisodeStart) + 1
+	}
+
 	mappings = append(mappings, storage.Mapping{
 		AnimeId:            fmt.Sprint(anime.Id),
 		SeasonId:           season.Id,
-		AnimeEpisodeStart:  1,
-		AnimeEpisodeEnd:    anime.Episodes,
-		SeasonEpisodeStart: 1,
-		SesasonEpisodeEnd:  season.Episodes,
+		AnimeEpisodeStart:  animeEpisodeStart,
+		AnimeEpisodeEnd:    animeEpisodeEnd,
+		SeasonEpisodeStart: seasonEpisodeStart,
+		SesasonEpisodeEnd:  seasonEpisodeEnd,
 	})
+
+	if season.Episodes-animeEpisodeEnd > 0 {
+		season.Episodes = season.Episodes - animeEpisodeEnd
+		season.partial = true
+		seasons = append([]Season{season}, seasons...)
+	}
 
 	return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
 }
@@ -137,6 +161,7 @@ func cleanTitle(title string) string {
 type Season struct {
 	Id       string
 	Episodes int
+	partial  bool
 }
 
 func (m AnimeMappingFinder) findAnime(targetTitle string, totalEpisodes int, anime []animeList.Anime) []animeList.Anime {

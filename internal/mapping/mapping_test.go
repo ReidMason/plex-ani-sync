@@ -147,6 +147,94 @@ func TestCreateMapping(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Split cour",
+			title: "Attack on Titan",
+			seasons: []Season{
+				{
+					Id:       "1",
+					Episodes: 25,
+				},
+				{
+					Id:       "2",
+					Episodes: 12,
+				},
+				{
+					Id:       "3",
+					Episodes: 22,
+				},
+				{
+					Id:       "4",
+					Episodes: 30,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "16498",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    25,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  25,
+				},
+				{
+					AnimeId:            "20958",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  12,
+				},
+				{
+					AnimeId:            "99147",
+					SeasonId:           "3",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  12,
+				},
+				{
+					AnimeId:            "104578",
+					SeasonId:           "3",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    10,
+					SeasonEpisodeStart: 13,
+					SesasonEpisodeEnd:  22,
+				},
+				{
+					AnimeId:            "110277",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    16,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  16,
+				},
+				{
+					AnimeId:            "131681",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 17,
+					SesasonEpisodeEnd:  28,
+				},
+				{
+					AnimeId:            "146984",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    1,
+					SeasonEpisodeStart: 29,
+					SesasonEpisodeEnd:  29,
+				},
+				{
+					AnimeId:            "162314",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    1,
+					SeasonEpisodeStart: 30,
+					SesasonEpisodeEnd:  30,
+				},
+			},
+		},
 	}
 
 	mockLogger := logger.MockLogger{}
@@ -167,17 +255,19 @@ func TestCreateMapping(t *testing.T) {
 
 			result, err := m.CreateMappingsForSeasons(tc.title, tc.seasons)
 			if err != nil {
-				t.Errorf("createMapping(%v, %v, %v) = %v; want %v", tc.title, tc.seasons, nil, result, tc.expected)
+				t.Errorf("createMapping(%v, %v, %v) \nfound %v;\nwant  %v", tc.title, tc.seasons, nil, result, tc.expected)
+				return
 			}
 
 			if len(result) != len(tc.expected) {
-				t.Errorf("createMapping(%v, %v, %v) = %v; want %v", tc.title, tc.seasons, nil, result, tc.expected)
+				t.Errorf("createMapping(%v, %v, %v) \nfound %v;\nwant  %v", tc.title, tc.seasons, nil, result, tc.expected)
+				return
 			}
 
 			for i, mapping := range result {
 				if mapping != tc.expected[i] {
-					fmt.Printf("result  : %v\nexpected: %v\n", result, tc.expected)
-					t.Errorf("createMapping(%v, %v, %v) = %v; want %v", tc.title, tc.seasons, nil, result, tc.expected)
+					t.Errorf("createMapping(%v, %v, %v) \nfound %v;\nwant  %v", tc.title, tc.seasons, nil, result, tc.expected)
+					return
 				}
 			}
 		})
