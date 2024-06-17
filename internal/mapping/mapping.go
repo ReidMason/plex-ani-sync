@@ -9,22 +9,25 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
+	"github.com/ReidMason/plex-ani-sync/internal/utils"
 )
 
 type MappingFinder interface {
-	FindMapping(series mediaHost.Series, seasons []mediaHost.Season) (animeList.Anime, error)
+	CreateMappings(series mediaHost.Series) error
 }
 
 type AnimeMappingFinder struct {
-	animeList animeList.AnimeList
-	log       *slog.Logger
+	animeList        animeList.AnimeList
+	log              *slog.Logger
+	mappingStorage   storage.MappingStorage
+	mediaHostService mediaHost.MediaHost
 }
 
-func NewMappingFinder(animeList animeList.AnimeList, logger *slog.Logger) *AnimeMappingFinder {
-	return &AnimeMappingFinder{animeList: animeList, log: logger}
+func NewMappingFinder(animeList animeList.AnimeList, mappingStorage storage.MappingStorage, mediaHostService mediaHost.MediaHost, logger *slog.Logger) *AnimeMappingFinder {
+	return &AnimeMappingFinder{animeList: animeList, log: logger, mappingStorage: mappingStorage, mediaHostService: mediaHostService}
 }
 
-func (m AnimeMappingFinder) findAnime(totalEpisodes int, anime []animeList.Anime) []animeList.Anime {
+func (m AnimeMappingFinder) findAnime(targetTitle string, totalEpisodes int, anime []animeList.Anime) []animeList.Anime {
 	if anime == nil || len(anime) == 0 {
 		return nil
 	}
@@ -39,6 +42,11 @@ func (m AnimeMappingFinder) findAnime(totalEpisodes int, anime []animeList.Anime
 	}
 
 	latestAnime := anime[len(anime)-1]
+
+	differenceThreshold := 10
+	if utils.ComputeDistance(latestAnime.Title, targetTitle) > differenceThreshold {
+		return nil
+	}
 
 	if latestAnime.Sequel.Id == "" {
 		return nil
@@ -58,20 +66,20 @@ func (m AnimeMappingFinder) findAnime(totalEpisodes int, anime []animeList.Anime
 	if animeEpisodeCount == totalEpisodes {
 		return anime
 	} else if animeEpisodeCount < totalEpisodes {
-		return m.findAnime(totalEpisodes, anime)
+		return m.findAnime(targetTitle, totalEpisodes, anime)
 	}
 
 	return nil
 }
 
-func (m AnimeMappingFinder) FindMapping(series mediaHost.Series, seasons []mediaHost.Season) ([]storage.Mapping, error) {
+func (m AnimeMappingFinder) findMappingsForSeries(series mediaHost.Series, seasons []mediaHost.Season) ([]storage.Mapping, error) {
 	cleanedTitle := cleanTitle(series.Title)
 	results, err := m.animeList.SearchAnime(cleanedTitle)
 	if err != nil {
 		return nil, err
 	}
 	if len(results) == 0 {
-		m.log.Error("No anime found", slog.String("title", cleanedTitle))
+		m.log.Warn("No anime found", slog.String("title", cleanedTitle))
 		return nil, errors.New("No anime found")
 	}
 
@@ -81,7 +89,7 @@ func (m AnimeMappingFinder) FindMapping(series mediaHost.Series, seasons []media
 		return nil, err
 	}
 	if len(matchedResults) == 0 {
-		m.log.Error("Titles filtered out all anime", slog.String("title", cleanedTitle))
+		m.log.Warn("Titles filtered out all anime", slog.String("title", cleanedTitle))
 		return nil, errors.New("No anime found")
 	}
 
@@ -89,13 +97,13 @@ func (m AnimeMappingFinder) FindMapping(series mediaHost.Series, seasons []media
 	for _, result := range matchedResults {
 		anime := make([]animeList.Anime, 0)
 		anime = append(anime, result)
-		anime = m.findAnime(totalEpisodes, anime)
+		anime = m.findAnime(series.Title, totalEpisodes, anime)
 		if anime != nil {
 			return createMapping(seasons, anime), nil
 		}
 	}
 
-	m.log.Error("No matching anime found", slog.String("title", cleanedTitle), slog.Any("results", matchedResults))
+	m.log.Warn("No matching anime found", slog.String("title", cleanedTitle), slog.Any("results", matchedResults))
 	return nil, errors.New("No matching anime found")
 }
 
@@ -129,16 +137,13 @@ func createMapping(selectedSeasons []mediaHost.Season, selectedAnilistEntries []
 				seasonLength = anilistEntryUnmappedEpisodes
 			}
 
-			fmt.Println("Plex end: ", plexEpisodeStart+seasonLength)
-			fmt.Println("Anilist end: ", anilistEpisodeStart+seasonLength)
-
 			mapping := storage.Mapping{
-				AnimeId:           fmt.Sprint(anilistEntry.Id),
-				MediaId:           season.Id,
-				AnimeEpisodeStart: anilistEpisodeStart,
-				AnimeEpisodeEnd:   anilistEpisodeStart + seasonLength,
-				MediaEpisodeStart: plexEpisodeStart,
-				MediaEpisodeEnd:   plexEpisodeStart + seasonLength,
+				AnimeId:            fmt.Sprint(anilistEntry.Id),
+				SeasonId:           season.Id,
+				AnimeEpisodeStart:  anilistEpisodeStart,
+				AnimeEpisodeEnd:    anilistEpisodeStart + seasonLength,
+				SeasonEpisodeStart: plexEpisodeStart,
+				SesasonEpisodeEnd:  plexEpisodeStart + seasonLength,
 			}
 
 			plexEpisodeStart += seasonLength + 1
@@ -201,4 +206,57 @@ func synonymsMatch(title string, synonyms []string) bool {
 	}
 
 	return false
+}
+
+func (m AnimeMappingFinder) CreateMappings(series mediaHost.Series) error {
+	matchedSeries := 0
+	allSeasons, err := m.mediaHostService.GetSeasons(series.Id)
+	if err != nil {
+		m.log.Error("Failed to get seasons", slog.Any("error", err))
+		return err
+	}
+
+	seasons := make([]mediaHost.Season, 0)
+	for _, season := range allSeasons {
+		if season.Index == 0 {
+			continue
+		}
+		seasons = append(seasons, season)
+	}
+
+	total_non_special_episodes := 0
+	for _, season := range seasons {
+		total_non_special_episodes += season.Episodes
+	}
+
+	mappedEpisodes := 0
+	for _, season := range seasons {
+		mappings, err := m.mappingStorage.GetMappings(season.Id)
+		if err != nil {
+			m.log.Error("Failed to get mappings", slog.Any("error", err))
+			return err
+		}
+
+		for _, mapping := range mappings {
+			mappedEpisodes += mapping.SesasonEpisodeEnd - mapping.SeasonEpisodeStart + 1
+		}
+	}
+
+	if mappedEpisodes == total_non_special_episodes {
+		m.log.Info("All episodes already mapped", slog.String("series", series.Title))
+		return nil
+	}
+
+	newMappings, err := m.findMappingsForSeries(series, seasons)
+	if err == nil {
+		matchedSeries += 1
+	}
+
+	err = m.mappingStorage.SetMappings(newMappings)
+	if err != nil {
+		m.log.Error("Failed to add mappings", slog.Any("error", err))
+		return err
+	}
+
+	return nil
 }
