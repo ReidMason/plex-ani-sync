@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
+	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/internal/utils"
@@ -17,14 +18,125 @@ type MappingFinder interface {
 }
 
 type AnimeMappingFinder struct {
-	animeList        animeList.AnimeList
-	log              *slog.Logger
-	mappingStorage   storage.MappingStorage
-	mediaHostService mediaHost.MediaHost
+	animeList animeList.AnimeList
+	log       logger.Logger
 }
 
-func NewMappingFinder(animeList animeList.AnimeList, mappingStorage storage.MappingStorage, mediaHostService mediaHost.MediaHost, logger *slog.Logger) *AnimeMappingFinder {
-	return &AnimeMappingFinder{animeList: animeList, log: logger, mappingStorage: mappingStorage, mediaHostService: mediaHostService}
+func NewMappingFinder(animeList animeList.AnimeList, logger logger.Logger) *AnimeMappingFinder {
+	if animeList == nil {
+		panic("animeList is required")
+	}
+
+	if logger == nil {
+		panic("logger is required")
+	}
+
+	return &AnimeMappingFinder{animeList: animeList, log: logger}
+}
+
+func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Season) ([]storage.Mapping, error) {
+	mappings := make([]storage.Mapping, 0)
+	title = cleanTitle(title)
+	if len(seasons) == 0 || title == "" {
+		return mappings, nil
+	}
+
+	results, err := m.animeList.SearchAnime(title)
+	if err != nil {
+		return nil, err
+	}
+
+	firstSeason := findFirstSeason(title, results)
+
+	if firstSeason.Id == 0 {
+		m.log.Info("No anime found", slog.String("title", title))
+		return mappings, nil
+	}
+
+	mappings = append(mappings, storage.Mapping{
+		AnimeId:            fmt.Sprint(firstSeason.Id),
+		SeasonId:           seasons[0].Id,
+		AnimeEpisodeStart:  1,
+		AnimeEpisodeEnd:    firstSeason.Episodes,
+		SeasonEpisodeStart: 1,
+		SesasonEpisodeEnd:  seasons[0].Episodes,
+	})
+
+	totalEpisodes := 0
+	for _, season := range seasons {
+		totalEpisodes += season.Episodes
+	}
+
+	return m.findSequelMappings(firstSeason, seasons[1:], totalEpisodes, mappings)
+}
+
+func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []Season, totalEpisodes int, mappings []storage.Mapping) ([]storage.Mapping, error) {
+	if anime.Id == 0 || anime.Sequel.Id == "" || len(seasons) == 0 {
+		return mappings, nil
+	}
+
+	unmappedEpisodes := totalEpisodes
+	for _, mapping := range mappings {
+		unmappedEpisodes -= mapping.SesasonEpisodeEnd - mapping.SeasonEpisodeStart + 1
+	}
+
+	if unmappedEpisodes <= 0 {
+		return mappings, nil
+	}
+
+	anime, err := m.animeList.GetAnime(anime.Sequel.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	season, seasons := seasons[0], seasons[1:]
+
+	mappings = append(mappings, storage.Mapping{
+		AnimeId:            fmt.Sprint(anime.Id),
+		SeasonId:           season.Id,
+		AnimeEpisodeStart:  1,
+		AnimeEpisodeEnd:    anime.Episodes,
+		SeasonEpisodeStart: 1,
+		SesasonEpisodeEnd:  season.Episodes,
+	})
+
+	return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
+}
+
+func findFirstSeason(title string, results []animeList.Anime) animeList.Anime {
+	for _, result := range results {
+		if titlesMatch(result.Title, title) {
+			return result
+		}
+	}
+
+	for _, result := range results {
+		for _, synonym := range result.Synonyms {
+			if titlesMatch(synonym, title) {
+				return result
+			}
+		}
+	}
+
+	return animeList.Anime{}
+}
+
+func titlesMatch(title1, title2 string) bool {
+	return cleanTitle(title1) == cleanTitle(title2)
+}
+
+func cleanTitle(title string) string {
+	removeChars := []string{"...", ":", "!", "?", "(TV)", ",", "’", "'", " TV", "-"}
+	for _, char := range removeChars {
+		title = strings.ReplaceAll(title, char, "")
+	}
+
+	return strings.ToLower(strings.TrimSpace(title))
+}
+
+type Season struct {
+	Id       string
+	Episodes int
 }
 
 func (m AnimeMappingFinder) findAnime(targetTitle string, totalEpisodes int, anime []animeList.Anime) []animeList.Anime {
@@ -105,15 +217,6 @@ func (m AnimeMappingFinder) findMappingsForSeries(series mediaHost.Series, seaso
 
 	m.log.Warn("No matching anime found", slog.String("title", cleanedTitle), slog.Any("results", matchedResults))
 	return nil, errors.New("No matching anime found")
-}
-
-func cleanTitle(title string) string {
-	removeChars := []string{"...", ":", "!", "?", "(TV)", "’", "'", " TV", "-"}
-	for _, char := range removeChars {
-		title = strings.ReplaceAll(title, char, "")
-	}
-
-	return strings.TrimSpace(title)
 }
 
 func createMapping(selectedSeasons []mediaHost.Season, selectedAnilistEntries []animeList.Anime) []storage.Mapping {
@@ -206,57 +309,4 @@ func synonymsMatch(title string, synonyms []string) bool {
 	}
 
 	return false
-}
-
-func (m AnimeMappingFinder) CreateMappings(series mediaHost.Series) error {
-	matchedSeries := 0
-	allSeasons, err := m.mediaHostService.GetSeasons(series.Id)
-	if err != nil {
-		m.log.Error("Failed to get seasons", slog.Any("error", err))
-		return err
-	}
-
-	seasons := make([]mediaHost.Season, 0)
-	for _, season := range allSeasons {
-		if season.Index == 0 {
-			continue
-		}
-		seasons = append(seasons, season)
-	}
-
-	total_non_special_episodes := 0
-	for _, season := range seasons {
-		total_non_special_episodes += season.Episodes
-	}
-
-	mappedEpisodes := 0
-	for _, season := range seasons {
-		mappings, err := m.mappingStorage.GetMappings(season.Id)
-		if err != nil {
-			m.log.Error("Failed to get mappings", slog.Any("error", err))
-			return err
-		}
-
-		for _, mapping := range mappings {
-			mappedEpisodes += mapping.SesasonEpisodeEnd - mapping.SeasonEpisodeStart + 1
-		}
-	}
-
-	if mappedEpisodes == total_non_special_episodes {
-		m.log.Info("All episodes already mapped", slog.String("series", series.Title))
-		return nil
-	}
-
-	newMappings, err := m.findMappingsForSeries(series, seasons)
-	if err == nil {
-		matchedSeries += 1
-	}
-
-	err = m.mappingStorage.SetMappings(newMappings)
-	if err != nil {
-		m.log.Error("Failed to add mappings", slog.Any("error", err))
-		return err
-	}
-
-	return nil
 }

@@ -3,9 +3,9 @@ package storage
 import (
 	"database/sql"
 	"embed"
-	"log/slog"
 	"time"
 
+	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	sqlite3Storage "github.com/ReidMason/plex-ani-sync/internal/storage/sqlite3"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pressly/goose/v3"
@@ -17,10 +17,10 @@ var embedMigrations embed.FS
 type Sqlite struct {
 	db      *sql.DB
 	queries *sqlite3Storage.Queries
-	log     *slog.Logger
+	log     logger.Logger
 }
 
-func NewSqliteStorage(databasePath string, logger *slog.Logger) (*Sqlite, error) {
+func NewSqliteStorage(databasePath string, logger logger.Logger) (*Sqlite, error) {
 	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, err

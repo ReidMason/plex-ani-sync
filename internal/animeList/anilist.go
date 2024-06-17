@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/request"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 )
@@ -24,10 +25,10 @@ type GraphQLRequest struct {
 type Anilist struct {
 	client request.HttpClient
 	cache  storage.Cache
-	log    *slog.Logger
+	log    logger.Logger
 }
 
-func NewAnilist(client request.HttpClient, cache storage.Cache, logger *slog.Logger) *Anilist {
+func NewAnilist(client request.HttpClient, cache storage.Cache, logger logger.Logger) *Anilist {
 	return &Anilist{client: client, cache: cache, log: logger}
 }
 
