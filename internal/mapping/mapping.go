@@ -47,7 +47,7 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 
 	firstSeason := findFirstSeason(title, results)
 
-	if firstSeason.Id == 0 {
+	if firstSeason.Id == "" {
 		m.log.Info("No anime found", slog.String("title", title))
 		return mappings, nil
 	}
@@ -61,7 +61,7 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 }
 
 func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []Season, totalEpisodes int, mappings []storage.Mapping) ([]storage.Mapping, error) {
-	if anime.Id == 0 || len(seasons) == 0 {
+	if anime.Id == "" || len(seasons) == 0 {
 		return mappings, nil
 	}
 
@@ -114,11 +114,11 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
 	}
 
-	if anime.Sequel.Id == "" {
+	if anime.Sequel.AnimeId == "" {
 		return mappings, nil
 	}
 
-	sequel, err := m.animeList.GetAnime(fmt.Sprint(anime.Sequel.Id))
+	sequel, err := m.animeList.GetAnime(anime.Sequel.AnimeId)
 	if err != nil {
 		return nil, err
 	}

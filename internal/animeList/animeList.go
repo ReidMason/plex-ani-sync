@@ -4,7 +4,7 @@ type AnimeList interface {
 	GetCurrentUser(token string) (User, error)
 	GetAnimeList(userId string) ([]ListEntry, error)
 	SearchAnime(title string) ([]Anime, error)
-	GetAnime(id string) (Anime, error)
+	GetAnime(id AnimeId) (Anime, error)
 	GetAuthToken(clientId, clientSecret, redirectUri, code string) (AuthTokenResponse, error)
 }
 
@@ -19,6 +19,7 @@ type AuthTokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
+type AnimeId (string)
 type Status string
 
 const (
@@ -30,8 +31,11 @@ const (
 )
 
 type ListEntry struct {
-	AnimeId string
-	Status  Status
+	AnimeId         AnimeId
+	Status          Status
+	WatchedEpisodes int
+	TotalEpisodes   int
+	Title           string
 }
 
 type Anime struct {
@@ -41,10 +45,10 @@ type Anime struct {
 	Sequel   AnimeRelation
 	Prequel  AnimeRelation
 	Synonyms []string
-	Id       int
+	Id       AnimeId
 	Episodes int
 }
 
 type AnimeRelation struct {
-	Id string
+	AnimeId AnimeId
 }

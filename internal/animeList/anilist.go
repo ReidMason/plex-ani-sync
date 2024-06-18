@@ -69,6 +69,7 @@ func (a Anilist) GetCurrentUser(token string) (User, error) {
   }`
 
 	req, err := buildGraphQLRequest(query, Variables{})
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	if err != nil {
 		a.log.Error("Failed to build Anilist get user request", slog.Any("error", err))
 		return User{}, err
@@ -80,10 +81,10 @@ func (a Anilist) GetCurrentUser(token string) (User, error) {
 		return User{}, err
 	}
 
-	return User{Id: response.Data.Viewer.Id}, nil
+	return User{Id: fmt.Sprint(response.Data.Viewer.Id)}, nil
 }
 
-func (a Anilist) GetAnime(id string) (Anime, error) {
+func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 	query := `query ($anime_id: Int) {
     Media(id: $anime_id, type: ANIME) {
       id
@@ -148,7 +149,7 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	if cachedErr != nil || cachedResult == nil {
 		// Make request
-		a.log.Info("Geting Anilist anime", slog.String("id", id))
+		a.log.Info("Geting Anilist anime", slog.Any("id", id))
 		req, err := buildGraphQLRequest(query, variables)
 		if err != nil {
 			a.log.Error("Failed to build Anilist request", slog.Any("error", err))
@@ -174,7 +175,7 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	media := response.Data.Media
 	anime := Anime{
-		Id:       media.ID,
+		Id:       AnimeId(media.ID),
 		Title:    getTitle(media),
 		Format:   media.Format,
 		Episodes: media.Episodes,
@@ -184,15 +185,15 @@ func (a Anilist) GetAnime(id string) (Anime, error) {
 
 	for i, node := range media.Relations.Nodes {
 		relation := media.Relations.Edges[i]
-		if relation.RelationType == "SEQUEL" && anime.Sequel.Id == "" {
+		if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
 			anime.Sequel = AnimeRelation{
-				Id: fmt.Sprint(node.ID),
+				AnimeId: AnimeId(node.ID),
 			}
 		}
 
-		if relation.RelationType == "PREQUEL" && anime.Prequel.Id == "" {
+		if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 			anime.Prequel = AnimeRelation{
-				Id: fmt.Sprint(node.ID),
+				AnimeId: AnimeId(node.ID),
 			}
 		}
 	}
@@ -292,7 +293,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 	results := make([]Anime, 0, len(response.Data.Page.Media))
 	for _, media := range response.Data.Page.Media {
 		anime := Anime{
-			Id:       media.ID,
+			Id:       AnimeId(media.ID),
 			Title:    getTitle(media),
 			Format:   media.Format,
 			Episodes: media.Episodes,
@@ -302,15 +303,15 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 
 		for i, node := range media.Relations.Nodes {
 			relation := media.Relations.Edges[i]
-			if relation.RelationType == "SEQUEL" && anime.Sequel.Id == "" {
+			if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
 				anime.Sequel = AnimeRelation{
-					Id: fmt.Sprint(node.ID),
+					AnimeId: AnimeId(node.ID),
 				}
 			}
 
-			if relation.RelationType == "PREQUEL" && anime.Prequel.Id == "" {
+			if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 				anime.Prequel = AnimeRelation{
-					Id: fmt.Sprint(node.ID),
+					AnimeId: AnimeId(node.ID),
 				}
 			}
 		}
@@ -339,6 +340,13 @@ func (a Anilist) GetAnimeList(userId string) ([]ListEntry, error) {
         entries {
           mediaId
           progress
+          status
+          media {
+            episodes
+            title {
+              userPreferred
+            }
+          }
         }
       }
     }
@@ -369,8 +377,11 @@ func (a Anilist) GetAnimeList(userId string) ([]ListEntry, error) {
 
 		for _, entry := range list.Entries {
 			listEntries = append(listEntries, ListEntry{
-				AnimeId: fmt.Sprint(entry.MediaID),
-				Status:  Status(list.Status),
+				AnimeId:         AnimeId(entry.MediaID),
+				Status:          entry.Status,
+				WatchedEpisodes: entry.Progress,
+				TotalEpisodes:   entry.Media.Episodes,
+				Title:           entry.Media.Title.UserPreferred,
 			})
 		}
 	}
@@ -415,7 +426,7 @@ type GetViewerResponse = GenericResponse[struct {
 }]
 
 type Viewer struct {
-	Id string `json:"id"`
+	Id int `json:"id"`
 }
 
 type AnimeSearchResponse struct {
@@ -476,8 +487,15 @@ type AnilistList struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
 	Entries []struct {
-		MediaID  int `json:"mediaId"`
-		Progress int `json:"progress"`
+		MediaID  int    `json:"mediaId"`
+		Progress int    `json:"progress"`
+		Status   Status `json:"status"`
+		Media    struct {
+			Episodes int `json:"episodes"`
+			Title    struct {
+				UserPreferred string `json:"userPreferred"`
+			} `json:"title"`
+		} `json:"media"`
 	} `json:"entries"`
 	IsCustomList bool `json:"isCustomList"`
 }
