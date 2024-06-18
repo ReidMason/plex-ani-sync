@@ -7,6 +7,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	"github.com/ReidMason/plex-ani-sync/internal/api/routes"
+	"github.com/ReidMason/plex-ani-sync/internal/mapping"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/labstack/echo/v4"
@@ -23,7 +24,7 @@ type Server struct {
 	listenAddr  string
 }
 
-func NewServer(listenAddr string, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
+func NewServer(listenAddr string, mappingFinder mapping.MappingFinder, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
 	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
 }
 
