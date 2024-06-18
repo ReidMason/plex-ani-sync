@@ -78,10 +78,7 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 	season, seasons := seasons[0], seasons[1:]
 
 	animeEpisodeStart := season.Offset + 1
-	animeEpisodeEnd := season.Offset + season.Episodes
-	if animeEpisodeEnd > anime.Episodes {
-		animeEpisodeEnd = anime.Episodes
-	}
+	animeEpisodeEnd := utils.Min(season.Offset+season.Episodes, anime.Episodes)
 
 	seasonEpisodeStart := 1
 	if season.partial {
@@ -89,10 +86,7 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		seasonEpisodeStart = previousMapping.SesasonEpisodeEnd + 1
 	}
 
-	seasonEpisodeEnd := animeEpisodeEnd
-	if season.Episodes < animeEpisodeEnd {
-		seasonEpisodeEnd = season.Episodes
-	}
+	seasonEpisodeEnd := utils.Min(animeEpisodeEnd, season.Episodes)
 	if season.partial {
 		previousMapping := mappings[len(mappings)-1]
 		seasonEpisodeEnd = previousMapping.SesasonEpisodeEnd + (animeEpisodeEnd - animeEpisodeStart) + 1
