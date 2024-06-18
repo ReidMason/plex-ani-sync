@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/logger"
@@ -130,7 +131,7 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
   }`
 
 	variables := Variables{
-		"anime_id": id,
+		"anime_id": string(id),
 	}
 
 	var response GetAnimeResponse
@@ -175,7 +176,7 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 
 	media := response.Data.Media
 	anime := Anime{
-		Id:       AnimeId(media.ID),
+		Id:       AnimeId(strconv.Itoa(media.ID)),
 		Title:    getTitle(media),
 		Format:   media.Format,
 		Episodes: media.Episodes,
@@ -187,13 +188,13 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 		relation := media.Relations.Edges[i]
 		if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
 			anime.Sequel = AnimeRelation{
-				AnimeId: AnimeId(node.ID),
+				AnimeId: AnimeId(strconv.Itoa(node.ID)),
 			}
 		}
 
 		if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 			anime.Prequel = AnimeRelation{
-				AnimeId: AnimeId(node.ID),
+				AnimeId: AnimeId(strconv.Itoa(node.ID)),
 			}
 		}
 	}
@@ -293,7 +294,7 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 	results := make([]Anime, 0, len(response.Data.Page.Media))
 	for _, media := range response.Data.Page.Media {
 		anime := Anime{
-			Id:       AnimeId(media.ID),
+			Id:       AnimeId(strconv.Itoa(media.ID)),
 			Title:    getTitle(media),
 			Format:   media.Format,
 			Episodes: media.Episodes,
@@ -305,13 +306,13 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 			relation := media.Relations.Edges[i]
 			if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
 				anime.Sequel = AnimeRelation{
-					AnimeId: AnimeId(node.ID),
+					AnimeId: AnimeId(strconv.Itoa(node.ID)),
 				}
 			}
 
 			if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 				anime.Prequel = AnimeRelation{
-					AnimeId: AnimeId(node.ID),
+					AnimeId: AnimeId(strconv.Itoa(node.ID)),
 				}
 			}
 		}
@@ -377,7 +378,7 @@ func (a Anilist) GetAnimeList(userId string) ([]ListEntry, error) {
 
 		for _, entry := range list.Entries {
 			listEntries = append(listEntries, ListEntry{
-				AnimeId:         AnimeId(entry.MediaID),
+				AnimeId:         AnimeId(strconv.Itoa(entry.MediaID)),
 				Status:          entry.Status,
 				WatchedEpisodes: entry.Progress,
 				TotalEpisodes:   entry.Media.Episodes,
