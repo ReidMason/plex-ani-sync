@@ -148,7 +148,7 @@ func TestCreateMapping(t *testing.T) {
 			},
 		},
 		{
-			name:  "Split cour",
+			name:  "Split cour animelist",
 			title: "Attack on Titan",
 			seasons: []Season{
 				{
@@ -174,8 +174,7 @@ func TestCreateMapping(t *testing.T) {
 					SeasonId:           "1",
 					AnimeEpisodeStart:  1,
 					AnimeEpisodeEnd:    25,
-					SeasonEpisodeStart: 1,
-					SesasonEpisodeEnd:  25,
+					SeasonEpisodeStart: 1, SesasonEpisodeEnd: 25,
 				},
 				{
 					AnimeId:            "20958",
@@ -232,6 +231,73 @@ func TestCreateMapping(t *testing.T) {
 					AnimeEpisodeEnd:    1,
 					SeasonEpisodeStart: 30,
 					SesasonEpisodeEnd:  30,
+				},
+			},
+		},
+		{
+			name:  "Split cour Plex",
+			title: "Naruto",
+			seasons: []Season{
+				{
+					Id:       "1",
+					Episodes: 35,
+				},
+				{
+					Id:       "2",
+					Episodes: 48,
+				},
+				{
+					Id:       "3",
+					Episodes: 48,
+				},
+				{
+					Id:       "4",
+					Episodes: 48,
+				},
+				{
+					Id:       "5",
+					Episodes: 41,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "20",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    35,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  35,
+				},
+				{
+					AnimeId:            "20",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  36,
+					AnimeEpisodeEnd:    83,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  48,
+				},
+				{
+					AnimeId:            "20",
+					SeasonId:           "3",
+					AnimeEpisodeStart:  84,
+					AnimeEpisodeEnd:    131,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  48,
+				},
+				{
+					AnimeId:            "20",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  132,
+					AnimeEpisodeEnd:    179,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  48,
+				}, {
+					AnimeId:            "20",
+					SeasonId:           "5",
+					AnimeEpisodeStart:  180,
+					AnimeEpisodeEnd:    220,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  41,
 				},
 			},
 		},

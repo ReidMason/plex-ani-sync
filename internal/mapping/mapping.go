@@ -53,25 +53,16 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 		return mappings, nil
 	}
 
-	mappings = append(mappings, storage.Mapping{
-		AnimeId:            fmt.Sprint(firstSeason.Id),
-		SeasonId:           seasons[0].Id,
-		AnimeEpisodeStart:  1,
-		AnimeEpisodeEnd:    firstSeason.Episodes,
-		SeasonEpisodeStart: 1,
-		SesasonEpisodeEnd:  seasons[0].Episodes,
-	})
-
 	totalEpisodes := 0
 	for _, season := range seasons {
 		totalEpisodes += season.Episodes
 	}
 
-	return m.findSequelMappings(firstSeason, seasons[1:], totalEpisodes, mappings)
+	return m.findSequelMappings(firstSeason, seasons, totalEpisodes, mappings)
 }
 
 func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []Season, totalEpisodes int, mappings []storage.Mapping) ([]storage.Mapping, error) {
-	if anime.Id == 0 || anime.Sequel.Id == "" || len(seasons) == 0 {
+	if anime.Id == 0 || len(seasons) == 0 {
 		return mappings, nil
 	}
 
@@ -84,15 +75,10 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		return mappings, nil
 	}
 
-	anime, err := m.animeList.GetAnime(anime.Sequel.Id)
-	if err != nil {
-		return nil, err
-	}
-
 	season, seasons := seasons[0], seasons[1:]
 
-	animeEpisodeStart := 1
-	animeEpisodeEnd := season.Episodes
+	animeEpisodeStart := season.Offset + 1
+	animeEpisodeEnd := season.Offset + season.Episodes
 	if animeEpisodeEnd > anime.Episodes {
 		animeEpisodeEnd = anime.Episodes
 	}
@@ -104,6 +90,9 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 	}
 
 	seasonEpisodeEnd := animeEpisodeEnd
+	if season.Episodes < animeEpisodeEnd {
+		seasonEpisodeEnd = season.Episodes
+	}
 	if season.partial {
 		previousMapping := mappings[len(mappings)-1]
 		seasonEpisodeEnd = previousMapping.SesasonEpisodeEnd + (animeEpisodeEnd - animeEpisodeStart) + 1
@@ -124,7 +113,24 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		seasons = append([]Season{season}, seasons...)
 	}
 
-	return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
+	// There are more episdes in the anime than the season
+	if anime.Episodes > animeEpisodeEnd {
+		if len(seasons) > 0 {
+			seasons[0].Offset = animeEpisodeEnd
+		}
+		return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
+	}
+
+	if anime.Sequel.Id == "" {
+		return mappings, nil
+	}
+
+	sequel, err := m.animeList.GetAnime(fmt.Sprint(anime.Sequel.Id))
+	if err != nil {
+		return nil, err
+	}
+
+	return m.findSequelMappings(sequel, seasons, totalEpisodes, mappings)
 }
 
 func findFirstSeason(title string, results []animeList.Anime) animeList.Anime {
@@ -162,6 +168,7 @@ type Season struct {
 	Id       string
 	Episodes int
 	partial  bool
+	Offset   int
 }
 
 func (m AnimeMappingFinder) findAnime(targetTitle string, totalEpisodes int, anime []animeList.Anime) []animeList.Anime {
