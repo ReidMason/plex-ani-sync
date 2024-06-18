@@ -8,20 +8,22 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	"github.com/ReidMason/plex-ani-sync/internal/api"
+	"github.com/ReidMason/plex-ani-sync/internal/mapping"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
+	"github.com/ReidMason/plex-ani-sync/internal/request"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
-	"github.com/charmbracelet/log"
+
+	synchandler "github.com/ReidMason/plex-ani-sync/internal/syncHandler"
 )
+
+const dbLocation = "data/data.db"
 
 type cmdArgs struct {
 	listenAddr string
-	dbUser     string
-	dbPass     string
-	dbHost     string
-	dbPort     string
-	dbName     string
 }
 
 func run(w io.Writer, args cmdArgs) error {
@@ -29,51 +31,62 @@ func run(w io.Writer, args cmdArgs) error {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
-	storage, err := storage.NewPostgresStorage(args.dbUser, args.dbPass, args.dbHost, args.dbPort, args.dbName)
+	storage, err := storage.NewSqliteStorage(dbLocation, logger)
 	if err != nil {
-		slog.Error("Failed to initialise storage", slog.Any("error", err))
+		logger.Error("Failed to initialise storage", slog.Any("error", err))
+		return err
+	}
+
+	// err = storage.Reset()
+	// if err != nil {
+	// 	logger.Error("Failed to reset database", slog.Any("error", err))
+	// }
+
+	err = storage.ApplyMigrations()
+	if err != nil {
+		logger.Error("Failed to apply migrations", slog.Any("error", err))
 		return err
 	}
 
 	plex := mediaHost.NewPlex()
 
-	client := http.Client{}
-	anilist := animeList.NewAnilist(&client, 392754)
-	animeList, err := anilist.GetAnimeList()
+	client := request.NewStaggeredHttpClient(http.DefaultClient, logger)
+	anilist := animeList.NewAnilist(client, storage, logger)
+
+	server := api.NewServer(args.listenAddr, plex, anilist, storage, logger)
+	mediaHostService, err := server.InitialiseMediaHost()
 	if err != nil {
-		slog.Error("Failed to get anime list", slog.Any("error", err))
-		return err
+		logger.Error("Failed to initialise media host", slog.Any("error", err))
 	}
 
-	for _, entry := range animeList {
-		log.Infof("Anime ID: %s, Status: %s", entry.AnimeId, entry.Status)
-	}
-
-	results, err := anilist.SearchAnime("Naruto")
+	mappingFinder := mapping.NewMappingFinder(anilist, storage, mediaHostService, logger)
+	allSeries, err := mediaHostService.GetSeries("1")
 	if err != nil {
-		slog.Error("Failed to search anime", slog.Any("error", err))
-		return err
+		logger.Error("Failed to get series", slog.Any("error", err))
 	}
+	updateMappings(allSeries, mappingFinder, logger)
 
-	slog.Info("Found anime", slog.Any("anime", results))
+	syncHandler := synchandler.NewSyncHandler(mediaHostService, storage, mappingFinder, anilist, logger)
+	syncHandler.Sync()
 
-	server := api.NewServer(args.listenAddr, plex, storage)
-	if err := server.Start(); err != nil {
-		slog.Error("Failed to start server", slog.Any("error", err))
-		return err
-	}
-
+	server.Start()
 	return nil
+}
+
+func updateMappings(allSeries []mediaHost.Series, mappingFinder mapping.MappingFinder, log *slog.Logger) {
+	log.Info("Updating mappings")
+	for _, series := range allSeries {
+		log.Info("Updating mappings", slog.String("title", series.Title))
+		err := mappingFinder.CreateMappings(series)
+		if err != nil {
+			log.Error("Failed to update mappings", slog.Any("error", err))
+		}
+	}
 }
 
 func main() {
 	args := cmdArgs{
 		listenAddr: *flag.String("listen-addr", ":8000", "server listen address"),
-		dbUser:     *flag.String("db-user", "admin", "database user"),
-		dbPass:     *flag.String("db-pass", "admin", "database password"),
-		dbHost:     *flag.String("db-host", "localhost", "database host"),
-		dbPort:     *flag.String("db-port", "5432", "database port"),
-		dbName:     *flag.String("db-name", "plexanilistsync", "database name"),
 	}
 	flag.Parse()
 
