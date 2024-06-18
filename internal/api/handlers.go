@@ -27,7 +27,7 @@ func (s *Server) getIndex(c echo.Context) error {
 
 	indexData.Name = user.Name
 
-	if user.AnimeListToken == nil {
+	if user.AnimeListToken != nil {
 		animeListUser, err := s.animeList.GetCurrentUser(*user.AnimeListToken)
 		if err != nil {
 			s.log.Error("Failed to get anime list user", slog.Any("error", err))
@@ -36,6 +36,7 @@ func (s *Server) getIndex(c echo.Context) error {
 			if err != nil {
 				s.log.Error("Failed to get anime list", slog.Any("error", err))
 			} else {
+				indexData.FullList = watchList
 				for _, entry := range watchList {
 					switch entry.Status {
 					case animeList.Current:

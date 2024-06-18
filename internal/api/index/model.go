@@ -1,5 +1,7 @@
 package api
 
+import "github.com/ReidMason/plex-ani-sync/internal/animeList"
+
 type IndexData struct {
 	Name      string
 	Libraries []string
@@ -10,4 +12,5 @@ type IndexData struct {
 		Dropped   int
 		Paused    int
 	}
+	FullList []animeList.ListEntry
 }

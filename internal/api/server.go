@@ -32,7 +32,7 @@ func (s *Server) Start() error {
 
 	e.Static(routes.PUBLIC, "public")
 
-	err := s.InitialiseMediaHost()
+	_, err := s.InitialiseMediaHost()
 	if err != nil {
 		log.Warnf("Failed to initialise media host: %v", err)
 	}
@@ -58,22 +58,23 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) InitialiseMediaHost() error {
+func (s *Server) InitialiseMediaHost() (mediaHost.MediaHost, error) {
 	user, err := s.userManager.GetUser()
 	if err != nil {
-		return err
+		return s.mediaHost, err
 	}
 
 	client := http.Client{}
 	if user.PlexToken == nil {
-		return errors.New("Failed to initialise media host: user has no plex token")
+		return s.mediaHost, errors.New("Failed to initialise media host: user has no plex token")
 	}
 
 	mediaHostService, err := s.mediaHost.Initialize(*user.PlexToken, user.PlexUrl, &client)
 	if err != nil {
-		return err
+		return s.mediaHost, err
 	}
 
 	s.mediaHost = mediaHostService
-	return nil
+
+	return mediaHostService, nil
 }
