@@ -42,6 +42,7 @@ type authTokenRequest struct {
 }
 
 func (a Anilist) GetAuthToken(clientId, clientSecret, redirectUri, code string) (AuthTokenResponse, error) {
+	a.log.Debug("Getting Anilist auth token")
 	url := "https://anilist.co/api/v2/oauth/token"
 	body := authTokenRequest{
 		GrantType:    "authorization_code",
@@ -63,6 +64,7 @@ func (a Anilist) GetAuthToken(clientId, clientSecret, redirectUri, code string) 
 }
 
 func (a Anilist) GetCurrentUser(token string) (User, error) {
+	a.log.Debug("Getting Anilist current user")
 	query := `query {
     Viewer {
       id
@@ -86,6 +88,7 @@ func (a Anilist) GetCurrentUser(token string) (User, error) {
 }
 
 func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
+	a.log.Debug("Getting Anilist anime")
 	query := `query ($anime_id: Int) {
     Media(id: $anime_id, type: ANIME) {
       id
@@ -203,6 +206,7 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 }
 
 func (a Anilist) SearchAnime(title string) ([]Anime, error) {
+	a.log.Debug("Searching Anilist for anime", slog.String("title", title))
 	query := `query($title: String) {
     Page(perPage: 10) {
       media(search: $title, type: ANIME, sort: SEARCH_MATCH) {
@@ -332,6 +336,7 @@ func getTitle(title AnimeResult) string {
 }
 
 func (a Anilist) GetAnimeList(userId string) ([]ListEntry, error) {
+	a.log.Debug("Getting Anilist anime list")
 	query := `query($user_id: Int) {
     MediaListCollection(userId: $user_id, type: ANIME) {
       lists {
