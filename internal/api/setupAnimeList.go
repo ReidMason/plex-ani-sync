@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/ReidMason/plex-ani-sync/templates/components/ui"
 	"github.com/ReidMason/plex-ani-sync/templates/views"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/exp/slog"
 )
 
 func (s Server) getSetupAnimeList(c echo.Context) error {

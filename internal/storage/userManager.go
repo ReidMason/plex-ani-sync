@@ -3,12 +3,12 @@ package storage
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	sqlite3Storage "github.com/ReidMason/plex-ani-sync/internal/storage/sqlite3"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
-	"golang.org/x/exp/slog"
 )
 
 type UserManager interface {
