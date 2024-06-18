@@ -7,13 +7,12 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
 	"github.com/ReidMason/plex-ani-sync/internal/logger"
-	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/internal/utils"
 )
 
 type MappingFinder interface {
-	CreateMappings(series mediaHost.Series) error
+	CreateMappingsForSeasons(title string, seasons []Season) ([]storage.Mapping, error)
 }
 
 type AnimeMappingFinder struct {
