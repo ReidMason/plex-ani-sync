@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/request"
 )
@@ -103,12 +104,15 @@ func (p Plex) GetSeasons(seriesKey string) ([]Season, error) {
 
 	seasons := make([]Season, len(response.MediaContainer.Metadata))
 	for i, plexSeason := range response.MediaContainer.Metadata {
+		lastViewedAt := time.Unix(int64(plexSeason.LastViewedAt), 0)
 		seasons[i] = Season{
-			Id:       plexSeason.RatingKey,
-			Title:    plexSeason.ParentTitle,
-			Index:    plexSeason.Index,
-			Episodes: plexSeason.LeafCount,
-			Year:     plexSeason.Year,
+			Id:              plexSeason.RatingKey,
+			Title:           plexSeason.ParentTitle,
+			Index:           plexSeason.Index,
+			Episodes:        plexSeason.LeafCount,
+			WatchedEpisodes: plexSeason.ViewedLeafCount,
+			Year:            plexSeason.Year,
+			LastViewedAt:    lastViewedAt,
 		}
 	}
 
@@ -229,6 +233,7 @@ type PlexSeason struct {
 	ViewedLeafCount int    `json:"viewedLeafCount"`
 	AddedAt         int    `json:"addedAt"`
 	Index           int    `json:"index"`
+	LastViewedAt    int    `json:"lastViewedAt"`
 }
 
 type PlexEpisode struct {

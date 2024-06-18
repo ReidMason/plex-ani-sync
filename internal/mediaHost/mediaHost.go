@@ -1,6 +1,10 @@
 package mediaHost
 
-import "github.com/ReidMason/plex-ani-sync/internal/request"
+import (
+	"time"
+
+	"github.com/ReidMason/plex-ani-sync/internal/request"
+)
 
 type MediaHost interface {
 	Initialize(token string, host string, client request.HttpClient) (MediaHost, error)
@@ -29,11 +33,13 @@ type Series struct {
 }
 
 type Season struct {
-	Id       string
-	Title    string
-	Index    int
-	Episodes int
-	Year     int
+	Id              string
+	Title           string
+	Index           int
+	Episodes        int
+	WatchedEpisodes int
+	Year            int
+	LastViewedAt    time.Time
 }
 
 type Episode struct {

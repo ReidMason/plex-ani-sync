@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"log/slog"
+	"github.com/ReidMason/plex-ani-sync/internal/logger"
 )
 
 type HttpClient interface {
@@ -18,11 +18,11 @@ type HttpClient interface {
 type StaggeredHttpClient struct {
 	lastRequest time.Time
 	client      HttpClient
-	log         *slog.Logger
+	log         logger.Logger
 	mutex       sync.Mutex
 }
 
-func NewStaggeredHttpClient(client HttpClient, logger *slog.Logger) *StaggeredHttpClient {
+func NewStaggeredHttpClient(client HttpClient, logger logger.Logger) *StaggeredHttpClient {
 	return &StaggeredHttpClient{client: client, lastRequest: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), mutex: sync.Mutex{}, log: logger}
 }
 
