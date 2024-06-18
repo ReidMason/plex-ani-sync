@@ -37,6 +37,11 @@ templ Index(indexData api.IndexData) {
 						<p>{ strconv.Itoa(indexData.ListData.Dropped) }</p>
 					</div>
 				</div>
+				<div class="p-4 border rounded-lg col-span-6">
+					for _, entry := range indexData.FullList {
+						<p class="text-xl font-semibold">{ entry.Title } - { string(entry.Status) }</p>
+					}
+				</div>
 				<a class="hover:underline text-blue-300" href={ routes.SETUP_USER }>Run setup</a>
 			</div>
 		</div>

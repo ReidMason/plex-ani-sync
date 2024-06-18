@@ -5,14 +5,14 @@ package views
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"bytes"
-	"context"
-	"io"
+import "github.com/a-h/templ"
+import "context"
+import "io"
+import "bytes"
 
+import (
 	"github.com/ReidMason/plex-ani-sync/templates/components"
 	"github.com/ReidMason/plex-ani-sync/templates/layouts"
-	"github.com/a-h/templ"
 )
 
 func SetupAnimelist(formData components.SetupAnimeListFormData, redirectUrl string) templ.Component {
@@ -34,7 +34,7 @@ func SetupAnimelist(formData components.SetupAnimeListFormData, redirectUrl stri
 				templ_7745c5c3_Buffer = templ.GetBuffer()
 				defer templ.ReleaseBuffer(templ_7745c5c3_Buffer)
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 1)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"bg-slate-700 p-8 h-full text-slate-100\"><p>Setup Anilist API</p><p>Redirect URL: ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -47,7 +47,7 @@ func SetupAnimelist(formData components.SetupAnimeListFormData, redirectUrl stri
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 2)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -55,7 +55,7 @@ func SetupAnimelist(formData components.SetupAnimeListFormData, redirectUrl stri
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templ.WriteWatchModeString(templ_7745c5c3_Buffer, 3)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
