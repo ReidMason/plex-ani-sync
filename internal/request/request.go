@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -30,8 +31,9 @@ func (r *StaggeredHttpClient) Do(request *http.Request) (*http.Response, error) 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if time.Since(r.lastRequest) < 2*time.Second {
-		r.log.Info("Sleeping for 2 seconds")
+	sleepTime := 2 * time.Second
+	if time.Since(r.lastRequest) < sleepTime {
+		r.log.Debug("Staggered HTTP client sleeping", slog.String("duration", sleepTime.String()))
 		time.Sleep(2 * time.Second)
 	}
 	r.lastRequest = time.Now()
