@@ -126,9 +126,9 @@ func (s *Server) startMapping(c echo.Context) error {
 			seasons := make([]mapping.Season, 0)
 			for _, season := range seriesSeasons {
 				seasons = append(seasons, mapping.Season{
-					Id:       season.Id,
-					Episodes: season.Episodes,
-					Offset:   0,
+					Id:          season.Id,
+					Episodes:    season.Episodes,
+					ReleaseYear: season.Year,
 				})
 			}
 

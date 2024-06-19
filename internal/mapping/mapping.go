@@ -140,11 +140,11 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 
 func (m AnimeMappingFinder) findFirstSeason(title string, releaseYear int, results []animeList.Anime) (animeList.Anime, error) {
 	match := animeList.Anime{}
-	closest := 1
+	// This also works as a threshold
+	closest := 5
 
 	for _, result := range results {
 		distance := scoreAnimeMatch(title, releaseYear, result)
-		m.log.Info("Scored anime", slog.String("title", result.Title), slog.Int("score", distance))
 		if distance < closest {
 			match = result
 			closest = distance
