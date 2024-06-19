@@ -95,7 +95,14 @@ func (s SyncHandler) Sync() {
 			if mapping.SeasonId == season.Id {
 				update, ok := allUpdates[mapping.AnimeId]
 				if !ok {
-					update = Update{Name: season.Title, AnimeId: animeList.AnimeId(mapping.AnimeId), Status: animeList.Planning, Progress: 0, New: false, LastWatched: season.LastViewedAt}
+					update = Update{
+						Name:        season.Title,
+						AnimeId:     animeList.AnimeId(mapping.AnimeId),
+						Status:      animeList.Planning,
+						Progress:    0,
+						New:         false,
+						LastWatched: season.LastViewedAt,
+					}
 				}
 
 				update.Progress += season.WatchedEpisodes
@@ -160,10 +167,9 @@ type Update struct {
 
 func (s SyncHandler) getUpdate(currentAnimeList []animeList.ListEntry, update Update) Update {
 	found := false
-	status := animeList.Planning
 
 	if update.Progress > 0 {
-		status = animeList.Current
+		update.Status = animeList.Current
 	}
 
 	for _, anime := range currentAnimeList {
@@ -181,25 +187,24 @@ func (s SyncHandler) getUpdate(currentAnimeList []animeList.ListEntry, update Up
 			}
 
 			if update.Progress == anime.TotalEpisodes {
-				status = animeList.Completed
+				update.Status = animeList.Completed
 			}
 
-			if status == animeList.Planning {
+			if update.Status == animeList.Planning {
 				return Update{}
 			}
 
-			changeRequired := status != anime.Status && statusToWeighting(status) > statusToWeighting(anime.Status)
+			changeRequired := update.Status != anime.Status && statusToWeighting(update.Status) > statusToWeighting(anime.Status)
 			if !changeRequired || anime.Status == animeList.Dropped {
 				return Update{}
 			}
 
-			update.Status = status
 			update.UpdateRequired = true
 			return update
 		}
 	}
 
-	if status == animeList.Planning {
+	if update.Status == animeList.Planning {
 		return Update{}
 	}
 
@@ -221,10 +226,9 @@ func (s SyncHandler) getUpdate(currentAnimeList []animeList.ListEntry, update Up
 		}
 
 		if update.Progress == anime.Episodes {
-			status = animeList.Completed
+			update.Status = animeList.Completed
 		}
 
-		update.Status = status
 		update.UpdateRequired = true
 		return update
 	}
@@ -251,16 +255,4 @@ func (s SyncHandler) getAllSeasons(allSeries []mediaHost.Series) []mediaHost.Sea
 	}
 
 	return allSeasons
-}
-
-func getSeasonWatchStatus(season mediaHost.Season, mappings []storage.Mapping) animeList.Status {
-	status := animeList.Planning
-	if season.WatchedEpisodes > 0 {
-		status = animeList.Current
-	}
-	if season.WatchedEpisodes == season.Episodes {
-		status = animeList.Completed
-	}
-
-	return status
 }
