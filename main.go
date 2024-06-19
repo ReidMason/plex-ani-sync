@@ -63,7 +63,7 @@ func run(w io.Writer, args cmdArgs) error {
 	mappingFinder := mapping.NewMappingFinder(anilist, logger)
 
 	logger.Info("Initialising server")
-	server := api.NewServer(args.listenAddr, mappingFinder, plex, anilist, storage, logger)
+	server := api.NewServer(args.listenAddr, mappingFinder, storage, plex, anilist, storage, logger)
 	logger.Info("Initialising setting up media host")
 	_, err = server.InitialiseMediaHost()
 	if err != nil {

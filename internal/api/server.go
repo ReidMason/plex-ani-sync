@@ -17,15 +17,17 @@ import (
 const APP_NAME = "Plex-anilist-sync"
 
 type Server struct {
-	mediaHost   mediaHost.MediaHost
-	userManager storage.UserManager
-	animeList   animeList.AnimeList
-	log         *slog.Logger
-	listenAddr  string
+	mediaHost      mediaHost.MediaHost
+	userManager    storage.UserManager
+	animeList      animeList.AnimeList
+	mappingFinder  mapping.MappingFinder
+	mappingStorage storage.MappingStorage
+	log            *slog.Logger
+	listenAddr     string
 }
 
-func NewServer(listenAddr string, mappingFinder mapping.MappingFinder, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
-	return &Server{listenAddr: listenAddr, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
+func NewServer(listenAddr string, mappingFinder mapping.MappingFinder, mappingStorage storage.MappingStorage, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
+	return &Server{listenAddr: listenAddr, mappingFinder: mappingFinder, mappingStorage: mappingStorage, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
 }
 
 func (s *Server) Start() error {
@@ -39,6 +41,8 @@ func (s *Server) Start() error {
 	}
 
 	e.GET(routes.INDEX, s.getIndex)
+	e.POST(routes.API_START_MAPPPING, s.startMapping)
+	e.POST(routes.API_START_SYNC, s.startSyncDryRun)
 
 	e.GET(routes.SETUP_USER, s.getSetupUser)
 	e.POST(routes.SETUP_USER, s.postSetupUser)

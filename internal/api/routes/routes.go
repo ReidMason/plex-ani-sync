@@ -9,4 +9,7 @@ const (
 	SETUP_LIBRARIES          = "/setup/libraries"
 	SETUP_ANIMELIST          = "/setup/anime-list"
 	SETUP_ANIMELIST_VALIDATE = "/setup/anime-list/validate"
+
+	API_START_MAPPPING = "/api/start-mapping"
+	API_START_SYNC     = "/api/start-sync"
 )
