@@ -151,12 +151,12 @@ func (m AnimeMappingFinder) findFirstSeason(title string, results []animeList.An
 
 	if match.Id == "" {
 		for match.Prequel.AnimeId != "" {
-			sequel, err := m.animeList.GetAnime(match.Prequel.AnimeId)
+			prequel, err := m.animeList.GetAnime(match.Prequel.AnimeId)
 			if err != nil {
 				m.log.Error("Failed to get anime", slog.Any("error", err))
 				return match, err
 			}
-			match = sequel
+			match = prequel
 		}
 	}
 
