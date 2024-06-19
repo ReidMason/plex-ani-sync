@@ -95,7 +95,7 @@ func (s SyncHandler) Sync() {
 			if mapping.SeasonId == season.Id {
 				update, ok := allUpdates[mapping.AnimeId]
 				if !ok {
-					update = Update{AnimeId: animeList.AnimeId(mapping.AnimeId), Status: animeList.Planning, Progress: 0, New: false, LastWatched: season.LastViewedAt}
+					update = Update{Name: season.Title, AnimeId: animeList.AnimeId(mapping.AnimeId), Status: animeList.Planning, Progress: 0, New: false, LastWatched: season.LastViewedAt}
 				}
 
 				update.Progress += season.WatchedEpisodes
@@ -131,7 +131,7 @@ func (s SyncHandler) Sync() {
 	}
 
 	for _, update := range updates {
-		s.log.Info("Updating anime", slog.Any("animeId", update.AnimeId), slog.String("status", fmt.Sprint(update.Status)), slog.Int("progress", update.Progress), slog.Bool("new", update.New), slog.Time("LastViewedAt", update.LastWatched))
+		s.log.Info("Updating anime", slog.String("name", update.Name), slog.Any("animeId", update.AnimeId), slog.String("status", fmt.Sprint(update.Status)), slog.Int("progress", update.Progress), slog.Bool("new", update.New), slog.Time("LastWatched", update.LastWatched))
 	}
 }
 
@@ -149,6 +149,7 @@ func statusToWeighting(status animeList.Status) int {
 }
 
 type Update struct {
+	Name           string
 	AnimeId        animeList.AnimeId
 	Status         animeList.Status
 	Progress       int

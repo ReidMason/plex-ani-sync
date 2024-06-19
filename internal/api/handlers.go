@@ -153,5 +153,9 @@ func (s *Server) startMapping(c echo.Context) error {
 }
 
 func (s *Server) startSyncDryRun(c echo.Context) error {
-	s.sync
+	s.log.Info("Starting sync dry run")
+	s.SyncService.Sync()
+	s.log.Info("Sync dry run complete")
+
+	return nil
 }

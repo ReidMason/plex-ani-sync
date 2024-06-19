@@ -16,6 +16,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/request"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
+	synchandler "github.com/ReidMason/plex-ani-sync/internal/syncHandler"
 )
 
 const dbLocation = "data/data.db"
@@ -62,13 +63,19 @@ func run(w io.Writer, args cmdArgs) error {
 	logger.Info("Initialising mapping finder")
 	mappingFinder := mapping.NewMappingFinder(anilist, logger)
 
+	logger.Info("Initialising sync service")
+	syncService := synchandler.NewSyncHandler(plex, storage, mappingFinder, anilist, logger)
+
 	logger.Info("Initialising server")
-	server := api.NewServer(args.listenAddr, mappingFinder, storage, plex, anilist, storage, logger)
+	server := api.NewServer(args.listenAddr, syncService, mappingFinder, storage, plex, anilist, storage, logger)
 	logger.Info("Initialising setting up media host")
-	_, err = server.InitialiseMediaHost()
+	mediaHostService, err := server.InitialiseMediaHost()
 	if err != nil {
 		logger.Error("Failed to initialise media host", slog.Any("error", err))
 	}
+
+	syncService = synchandler.NewSyncHandler(mediaHostService, storage, mappingFinder, anilist, logger)
+	server.SyncService = syncService
 
 	logger.Info("Starting server")
 	server.Start()

@@ -10,6 +10,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/mapping"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
+	synchandler "github.com/ReidMason/plex-ani-sync/internal/syncHandler"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 )
@@ -22,12 +23,13 @@ type Server struct {
 	animeList      animeList.AnimeList
 	mappingFinder  mapping.MappingFinder
 	mappingStorage storage.MappingStorage
+	SyncService    *synchandler.SyncHandler
 	log            *slog.Logger
 	listenAddr     string
 }
 
-func NewServer(listenAddr string, mappingFinder mapping.MappingFinder, mappingStorage storage.MappingStorage, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
-	return &Server{listenAddr: listenAddr, mappingFinder: mappingFinder, mappingStorage: mappingStorage, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
+func NewServer(listenAddr string, syncService *synchandler.SyncHandler, mappingFinder mapping.MappingFinder, mappingStorage storage.MappingStorage, mediaHost mediaHost.MediaHost, animeList animeList.AnimeList, userManager storage.UserManager, logger *slog.Logger) *Server {
+	return &Server{listenAddr: listenAddr, SyncService: syncService, mappingFinder: mappingFinder, mappingStorage: mappingStorage, mediaHost: mediaHost, animeList: animeList, userManager: userManager, log: logger}
 }
 
 func (s *Server) Start() error {

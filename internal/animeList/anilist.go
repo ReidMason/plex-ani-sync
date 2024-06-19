@@ -88,7 +88,7 @@ func (a Anilist) GetCurrentUser(token string) (User, error) {
 }
 
 func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
-	a.log.Debug("Getting Anilist anime")
+	a.log.Debug("Getting Anilist anime", slog.String("id", string(id)))
 	query := `query ($anime_id: Int) {
     Media(id: $anime_id, type: ANIME) {
       id
