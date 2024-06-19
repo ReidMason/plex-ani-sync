@@ -128,7 +128,7 @@ func (s *Server) startMapping(c echo.Context) error {
 				seasons = append(seasons, mapping.Season{
 					Id:          season.Id,
 					Episodes:    season.Episodes,
-					ReleaseYear: season.Year,
+					ReleaseYear: season.ParentYear,
 				})
 			}
 

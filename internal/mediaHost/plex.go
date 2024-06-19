@@ -111,7 +111,7 @@ func (p Plex) GetSeasons(seriesKey string) ([]Season, error) {
 			Index:           plexSeason.Index,
 			Episodes:        plexSeason.LeafCount,
 			WatchedEpisodes: plexSeason.ViewedLeafCount,
-			Year:            plexSeason.Year,
+			ParentYear:      plexSeason.ParentYear,
 			LastViewedAt:    lastViewedAt,
 		}
 	}
@@ -226,7 +226,7 @@ type PlexSeason struct {
 	TitleSort       string `json:"titleSort"`
 	Art             string `json:"art"`
 	Thumb           string `json:"thumb"`
-	Year            int    `json:"year"`
+	ParentYear      int    `json:"parentYear"`
 	ParentIndex     int    `json:"parentIndex"`
 	UpdatedAt       int    `json:"updatedAt"`
 	LeafCount       int    `json:"leafCount"`
