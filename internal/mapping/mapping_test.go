@@ -301,6 +301,38 @@ func TestCreateMapping(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Sequel is an OVA",
+			title: "Maken-Ki! Battling Venus",
+			seasons: []Season{
+				{
+					Id:       "1",
+					Episodes: 12,
+				},
+				{
+					Id:       "2",
+					Episodes: 10,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "9936",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  12,
+				},
+				{
+					AnimeId:            "15565",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    10,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  10,
+				},
+			},
+		},
 	}
 
 	mockLogger := logger.MockLogger{}

@@ -190,10 +190,6 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 	for i, node := range media.Relations.Nodes {
 		relation := media.Relations.Edges[i]
 
-		if node.Format != anime.Format {
-			continue
-		}
-
 		if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
 			anime.Sequel = AnimeRelation{
 				AnimeId: AnimeId(strconv.Itoa(node.ID)),

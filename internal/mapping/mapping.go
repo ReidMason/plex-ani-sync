@@ -9,6 +9,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"github.com/ReidMason/plex-ani-sync/internal/utils"
+	"golang.org/x/exp/slices"
 )
 
 type MappingFinder interface {
@@ -44,10 +45,13 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 		return nil, err
 	}
 
-	firstSeason := findFirstSeason(title, results)
+	firstSeason, err := m.findFirstSeason(title, results)
+	if err != nil {
+		return nil, err
+	}
 
 	if firstSeason.Id == "" {
-		m.log.Info("No anime found", slog.String("title", title))
+		m.log.Info("No mappings found", slog.String("title", title))
 		return mappings, nil
 	}
 
@@ -121,30 +125,56 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 	if err != nil {
 		return nil, err
 	}
+	disallowedSequelFormats := []string{"ONA", "OVA", "Music", "Movie"}
+	if slices.Contains(disallowedSequelFormats, sequel.Format) {
+		sequel, err = m.animeList.GetAnime(sequel.Sequel.AnimeId)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return m.findSequelMappings(sequel, seasons, totalEpisodes, mappings)
 }
 
-func findFirstSeason(title string, results []animeList.Anime) animeList.Anime {
+func (m AnimeMappingFinder) findFirstSeason(title string, results []animeList.Anime) (animeList.Anime, error) {
+	match := animeList.Anime{}
+	closest := 1
+
 	for _, result := range results {
-		if titlesMatch(result.Title, title) {
-			return result
+		distance := scoreAnimeMatch(title, result)
+		m.log.Info("Scored anime", slog.String("title", result.Title), slog.Int("score", distance))
+		if distance < closest {
+			match = result
+			closest = distance
 		}
 	}
 
-	for _, result := range results {
-		for _, synonym := range result.Synonyms {
-			if titlesMatch(synonym, title) {
-				return result
+	if match.Id == "" {
+		for match.Prequel.AnimeId != "" {
+			sequel, err := m.animeList.GetAnime(match.Prequel.AnimeId)
+			if err != nil {
+				m.log.Error("Failed to get anime", slog.Any("error", err))
+				return match, err
 			}
+			match = sequel
 		}
 	}
 
-	return animeList.Anime{}
+	return match, nil
 }
 
-func titlesMatch(title1, title2 string) bool {
-	return cleanTitle(title1) == cleanTitle(title2)
+func scoreAnimeMatch(targetTitle string, result animeList.Anime) int {
+	distance := 0
+
+	targetTitle = cleanTitle(targetTitle)
+	closestTitleDistance := utils.ComputeDistance(targetTitle, cleanTitle(result.Title))
+	for _, synonym := range result.Synonyms {
+		synonymScore := utils.ComputeDistance(targetTitle, cleanTitle(synonym))
+		closestTitleDistance = utils.Min(closestTitleDistance, synonymScore)
+	}
+	distance += closestTitleDistance
+
+	return distance
 }
 
 func cleanTitle(title string) string {
