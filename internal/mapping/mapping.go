@@ -126,7 +126,7 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		return nil, err
 	}
 	disallowedSequelFormats := []string{"ONA", "OVA", "Music", "Movie"}
-	if slices.Contains(disallowedSequelFormats, sequel.Format) {
+	if sequel.Sequel.AnimeId != "" && slices.Contains(disallowedSequelFormats, sequel.Format) {
 		sequel, err = m.animeList.GetAnime(sequel.Sequel.AnimeId)
 		if err != nil {
 			return nil, err
