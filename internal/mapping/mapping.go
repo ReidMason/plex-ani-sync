@@ -53,7 +53,7 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 	}
 
 	if firstSeason.Id == "" {
-		m.log.Info("No mappings found", slog.String("title", title))
+		m.log.Info("Failed to find first season", slog.String("title", title))
 		return mappings, nil
 	}
 
@@ -185,7 +185,10 @@ func scoreAnimeMatch(targetTitle string, releaseYear int, result animeList.Anime
 func cleanTitle(title string) string {
 	var re = regexp.MustCompile(`(?m)\([^)]*\)`)
 	title = re.ReplaceAllString(title, "")
-	removeChars := []string{"...", ":", "!", "?", ",", "’", "'", " TV", "-"}
+	re = regexp.MustCompile(`[^a-zA-Z0-9/ ]`)
+	title = re.ReplaceAllString(title, "")
+
+	removeChars := []string{" TV"}
 	for _, char := range removeChars {
 		title = strings.ReplaceAll(title, char, "")
 	}

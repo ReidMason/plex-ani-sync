@@ -38,7 +38,7 @@ type Season struct {
 	Index           int
 	Episodes        int
 	WatchedEpisodes int
-	ParentYear      int
+	Year            int
 	LastViewedAt    time.Time
 }
 

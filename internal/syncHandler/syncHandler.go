@@ -230,6 +230,7 @@ func (s SyncHandler) getUpdate(currentAnimeList []animeList.ListEntry, update Up
 		}
 
 		update.UpdateRequired = true
+		update.New = true
 		return update
 	}
 

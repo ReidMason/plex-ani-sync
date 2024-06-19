@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/request"
+	"github.com/ReidMason/plex-ani-sync/internal/utils"
 )
 
 type Plex struct {
@@ -105,13 +106,18 @@ func (p Plex) GetSeasons(seriesKey string) ([]Season, error) {
 	seasons := make([]Season, len(response.MediaContainer.Metadata))
 	for i, plexSeason := range response.MediaContainer.Metadata {
 		lastViewedAt := time.Unix(int64(plexSeason.LastViewedAt), 0)
+		year := utils.Max(plexSeason.Year, response.MediaContainer.ParentYear)
+		if year == 0 {
+			fmt.Println("Year is zero for Plex season", seriesKey)
+			panic("Year is 0")
+		}
 		seasons[i] = Season{
 			Id:              plexSeason.RatingKey,
 			Title:           plexSeason.ParentTitle,
 			Index:           plexSeason.Index,
 			Episodes:        plexSeason.LeafCount,
 			WatchedEpisodes: plexSeason.ViewedLeafCount,
-			ParentYear:      plexSeason.ParentYear,
+			Year:            year,
 			LastViewedAt:    lastViewedAt,
 		}
 	}
@@ -226,7 +232,7 @@ type PlexSeason struct {
 	TitleSort       string `json:"titleSort"`
 	Art             string `json:"art"`
 	Thumb           string `json:"thumb"`
-	ParentYear      int    `json:"parentYear"`
+	Year            int    `json:"year"`
 	ParentIndex     int    `json:"parentIndex"`
 	UpdatedAt       int    `json:"updatedAt"`
 	LeafCount       int    `json:"leafCount"`
@@ -270,10 +276,10 @@ type PlexEpisode struct {
 }
 
 type MetadataMediaContainer[T any] struct {
-	Metadata  T      `json:"metadata"`
-	Title1    string `json:"title1"`
-	Size      int    `json:"size"`
-	AllowSync bool   `json:"allowSync"`
+	Metadata   T    `json:"metadata"`
+	ParentYear int  `json:"parentYear"`
+	Size       int  `json:"size"`
+	AllowSync  bool `json:"allowSync"`
 }
 
 type DirectoryMediaContainer[T any] struct {

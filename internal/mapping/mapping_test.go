@@ -368,6 +368,68 @@ func TestCreateMapping(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Re: ZERO",
+			title: "Re:ZERO -Starting Life in Another World-",
+			seasons: []Season{
+				{
+					Id:          "1",
+					Episodes:    25,
+					ReleaseYear: 2016,
+				},
+				{
+					Id:       "2",
+					Episodes: 25,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "21355",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    25,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  25,
+				},
+				{
+					AnimeId:            "108632",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    13,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  13,
+				},
+				{
+					AnimeId:            "119661",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 14,
+					SesasonEpisodeEnd:  25,
+				},
+			},
+		},
+		{
+			name:  "Frieren",
+			title: "Frieren: Beyond Journey's End",
+			seasons: []Season{
+				{
+					Id:          "1",
+					Episodes:    28,
+					ReleaseYear: 2023,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "154587",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    28,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  28,
+				},
+			},
+		},
 	}
 
 	mockLogger := logger.MockLogger{}
