@@ -3,6 +3,7 @@ package mapping
 import (
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
@@ -45,7 +46,8 @@ func (m AnimeMappingFinder) CreateMappingsForSeasons(title string, seasons []Sea
 		return nil, err
 	}
 
-	firstSeason, err := m.findFirstSeason(title, results)
+	season := seasons[0]
+	firstSeason, err := m.findFirstSeason(title, season.ReleaseYear, results)
 	if err != nil {
 		return nil, err
 	}
@@ -136,12 +138,12 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 	return m.findSequelMappings(sequel, seasons, totalEpisodes, mappings)
 }
 
-func (m AnimeMappingFinder) findFirstSeason(title string, results []animeList.Anime) (animeList.Anime, error) {
+func (m AnimeMappingFinder) findFirstSeason(title string, releaseYear int, results []animeList.Anime) (animeList.Anime, error) {
 	match := animeList.Anime{}
 	closest := 1
 
 	for _, result := range results {
-		distance := scoreAnimeMatch(title, result)
+		distance := scoreAnimeMatch(title, releaseYear, result)
 		m.log.Info("Scored anime", slog.String("title", result.Title), slog.Int("score", distance))
 		if distance < closest {
 			match = result
@@ -163,7 +165,7 @@ func (m AnimeMappingFinder) findFirstSeason(title string, results []animeList.An
 	return match, nil
 }
 
-func scoreAnimeMatch(targetTitle string, result animeList.Anime) int {
+func scoreAnimeMatch(targetTitle string, releaseYear int, result animeList.Anime) int {
 	distance := 0
 
 	targetTitle = cleanTitle(targetTitle)
@@ -174,11 +176,16 @@ func scoreAnimeMatch(targetTitle string, result animeList.Anime) int {
 	}
 	distance += closestTitleDistance
 
+	yearDifference := releaseYear - result.Year
+	distance += utils.Max(yearDifference, -yearDifference)
+
 	return distance
 }
 
 func cleanTitle(title string) string {
-	removeChars := []string{"...", ":", "!", "?", "(TV)", ",", "’", "'", " TV", "-"}
+	var re = regexp.MustCompile(`(?m)\([^)]*\)`)
+	title = re.ReplaceAllString(title, "")
+	removeChars := []string{"...", ":", "!", "?", ",", "’", "'", " TV", "-"}
 	for _, char := range removeChars {
 		title = strings.ReplaceAll(title, char, "")
 	}
@@ -187,8 +194,9 @@ func cleanTitle(title string) string {
 }
 
 type Season struct {
-	Id       string
-	Episodes int
-	partial  bool
-	Offset   int
+	Id          string
+	Episodes    int
+	partial     bool
+	Offset      int
+	ReleaseYear int
 }

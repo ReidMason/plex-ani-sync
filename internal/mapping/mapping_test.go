@@ -40,8 +40,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "No Game No Life",
 			seasons: []Season{
 				{
-					Id:       "12345",
-					Episodes: 12,
+					Id:          "12345",
+					Episodes:    12,
+					ReleaseYear: 2014,
 				},
 			},
 			expected: []storage.Mapping{
@@ -60,8 +61,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "Jujutsu Kaisen",
 			seasons: []Season{
 				{
-					Id:       "1",
-					Episodes: 24,
+					Id:          "1",
+					Episodes:    24,
+					ReleaseYear: 2020,
 				},
 				{
 					Id:       "2",
@@ -92,8 +94,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "My Hero Academia",
 			seasons: []Season{
 				{
-					Id:       "1",
-					Episodes: 13,
+					Id:          "1",
+					Episodes:    13,
+					ReleaseYear: 2016,
 				},
 				{
 					Id:       "2",
@@ -103,22 +106,6 @@ func TestCreateMapping(t *testing.T) {
 					Id:       "3",
 					Episodes: 25,
 				},
-				// {
-				//   Id:       "4",
-				//   Episodes: 25,
-				// },
-				// {
-				//   Id:       "5",
-				//   Episodes: 25,
-				// },
-				// {
-				//   Id:       "6",
-				//   Episodes: 25,
-				// },
-				// {
-				//   Id:       "7",
-				//   Episodes: 25,
-				// },
 			},
 			expected: []storage.Mapping{
 				{
@@ -152,8 +139,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "Attack on Titan",
 			seasons: []Season{
 				{
-					Id:       "1",
-					Episodes: 25,
+					Id:          "1",
+					Episodes:    25,
+					ReleaseYear: 2013,
 				},
 				{
 					Id:       "2",
@@ -239,8 +227,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "Naruto",
 			seasons: []Season{
 				{
-					Id:       "1",
-					Episodes: 35,
+					Id:          "1",
+					Episodes:    35,
+					ReleaseYear: 2002,
 				},
 				{
 					Id:       "2",
@@ -306,8 +295,9 @@ func TestCreateMapping(t *testing.T) {
 			title: "Maken-Ki! Battling Venus",
 			seasons: []Season{
 				{
-					Id:       "1",
-					Episodes: 12,
+					Id:          "1",
+					Episodes:    12,
+					ReleaseYear: 2011,
 				},
 				{
 					Id:       "2",
@@ -330,6 +320,51 @@ func TestCreateMapping(t *testing.T) {
 					AnimeEpisodeEnd:    10,
 					SeasonEpisodeStart: 1,
 					SesasonEpisodeEnd:  10,
+				},
+			},
+		},
+		{
+			name:  "An earlier remake exists",
+			title: "Hunter x Hunter",
+			seasons: []Season{
+				{
+					Id:          "1",
+					Episodes:    58,
+					ReleaseYear: 2011,
+				},
+				{
+					Id:       "2",
+					Episodes: 78,
+				},
+				{
+					Id:       "3",
+					Episodes: 12,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "11061",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    58,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  58,
+				},
+				{
+					AnimeId:            "11061",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  59,
+					AnimeEpisodeEnd:    136,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  78,
+				},
+				{
+					AnimeId:            "11061",
+					SeasonId:           "3",
+					AnimeEpisodeStart:  137,
+					AnimeEpisodeEnd:    148,
+					SeasonEpisodeStart: 1,
+					SesasonEpisodeEnd:  12,
 				},
 			},
 		},
