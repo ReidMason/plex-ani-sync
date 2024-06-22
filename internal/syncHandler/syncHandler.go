@@ -56,18 +56,6 @@ func (s SyncHandler) Sync() {
 		}
 	}
 
-	s.log.Info("Got all series", slog.Int("count", len(allSeries)))
-
-	count := 0
-	for _, series := range allSeries {
-		if series.WatchedEpisodes == 0 {
-			continue
-		}
-
-		count += 1
-	}
-
-	s.log.Info("Total series with watched episodes", slog.Int("count", count))
 	// Now we have a list of all the series with watched episodes
 	// We need to get all the sesasons and episodes for each series
 	allSeasons := s.getAllSeasons(allSeries)
