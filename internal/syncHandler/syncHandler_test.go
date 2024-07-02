@@ -6,17 +6,10 @@ import (
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
+	"github.com/ReidMason/plex-ani-sync/internal/clock"
 	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 )
-
-type MockTimeProvider struct {
-	current time.Time
-}
-
-func (t MockTimeProvider) Now() time.Time {
-	return t.current
-}
 
 func TestGetUpdate(t *testing.T) {
 	testCases := []struct {
@@ -284,7 +277,7 @@ func TestGetUpdate(t *testing.T) {
 	}
 
 	mockLogger := logger.MockLogger{}
-	mockTimeProvider := MockTimeProvider{current: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)}
+	mockTimeProvider := clock.NewMockClock(time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC))
 	syncHandler := NewSyncHandler(mockLogger, mockTimeProvider)
 
 	for _, tc := range testCases {

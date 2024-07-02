@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
+	"github.com/ReidMason/plex-ani-sync/internal/clock"
 	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 )
@@ -21,7 +22,7 @@ type Update struct {
 
 type SyncHandler struct {
 	log  logger.Logger
-	time TimeProvider
+	time clock.Clock
 }
 
 type Season struct {
@@ -35,12 +36,8 @@ type Episode struct {
 	Watched     bool
 }
 
-type TimeProvider interface {
-	Now() time.Time
-}
-
-func NewSyncHandler(logger logger.Logger, timeProvider TimeProvider) *SyncHandler {
-	return &SyncHandler{log: logger, time: timeProvider}
+func NewSyncHandler(logger logger.Logger, clock clock.Clock) *SyncHandler {
+	return &SyncHandler{log: logger, time: clock}
 }
 
 func (s SyncHandler) GetUpdate(seasons []Season, mappings []storage.Mapping) []Update {
