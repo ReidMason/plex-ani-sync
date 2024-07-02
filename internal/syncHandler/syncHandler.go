@@ -30,9 +30,9 @@ type Season struct {
 }
 
 type Episode struct {
+	LastWatched time.Time
 	Id          string
 	Watched     bool
-	LastWatched time.Time
 }
 
 type TimeProvider interface {
