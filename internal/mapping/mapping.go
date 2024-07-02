@@ -72,7 +72,7 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 
 	unmappedEpisodes := totalEpisodes
 	for _, mapping := range mappings {
-		unmappedEpisodes -= mapping.SesasonEpisodeEnd - mapping.SeasonEpisodeStart + 1
+		unmappedEpisodes -= mapping.SeasonEpisodeEnd - mapping.SeasonEpisodeStart + 1
 	}
 
 	if unmappedEpisodes <= 0 {
@@ -87,13 +87,13 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 	seasonEpisodeStart := 1
 	if season.partial {
 		previousMapping := mappings[len(mappings)-1]
-		seasonEpisodeStart = previousMapping.SesasonEpisodeEnd + 1
+		seasonEpisodeStart = previousMapping.SeasonEpisodeEnd + 1
 	}
 
 	seasonEpisodeEnd := utils.Min(animeEpisodeEnd, season.Episodes)
 	if season.partial {
 		previousMapping := mappings[len(mappings)-1]
-		seasonEpisodeEnd = previousMapping.SesasonEpisodeEnd + (animeEpisodeEnd - animeEpisodeStart) + 1
+		seasonEpisodeEnd = previousMapping.SeasonEpisodeEnd + (animeEpisodeEnd - animeEpisodeStart) + 1
 	}
 
 	mappings = append(mappings, storage.Mapping{
@@ -102,7 +102,7 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		AnimeEpisodeStart:  animeEpisodeStart,
 		AnimeEpisodeEnd:    animeEpisodeEnd,
 		SeasonEpisodeStart: seasonEpisodeStart,
-		SesasonEpisodeEnd:  seasonEpisodeEnd,
+		SeasonEpisodeEnd:   seasonEpisodeEnd,
 	})
 
 	if season.Episodes-animeEpisodeEnd > 0 {

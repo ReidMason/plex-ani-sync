@@ -31,7 +31,7 @@ func (s Sqlite) GetMappings(seasonId string) ([]Mapping, error) {
 			AnimeEpisodeStart:  int(result.AnimeEpisodeStart),
 			AnimeEpisodeEnd:    int(result.AnimeEpisodeEnd),
 			SeasonEpisodeStart: int(result.SeasonEpisodeStart),
-			SesasonEpisodeEnd:  int(result.SeasonEpisodeEnd),
+			SeasonEpisodeEnd:   int(result.SeasonEpisodeEnd),
 		}
 	}
 
@@ -85,7 +85,7 @@ func (s Sqlite) SetMappings(newMappings []Mapping) error {
 			AnimeEpisodeEnd:    int64(mapping.AnimeEpisodeEnd),
 			SeasonID:           mapping.SeasonId,
 			SeasonEpisodeStart: int64(mapping.SeasonEpisodeStart),
-			SeasonEpisodeEnd:   int64(mapping.SesasonEpisodeEnd),
+			SeasonEpisodeEnd:   int64(mapping.SeasonEpisodeEnd),
 		})
 		if err != nil {
 			return err
@@ -102,5 +102,5 @@ type Mapping struct {
 	AnimeEpisodeStart  int
 	AnimeEpisodeEnd    int
 	SeasonEpisodeStart int
-	SesasonEpisodeEnd  int
+	SeasonEpisodeEnd   int
 }
