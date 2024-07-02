@@ -144,8 +144,9 @@ func (p Plex) GetEpisodes(seasonKey string) ([]Episode, error) {
 	episodes := make([]Episode, len(response.MediaContainer.Metadata))
 	for i, plexEpisode := range response.MediaContainer.Metadata {
 		episodes[i] = Episode{
-			Id:      plexEpisode.RatingKey,
-			Watched: plexEpisode.ViewCount > 0,
+			Id:           plexEpisode.RatingKey,
+			Watched:      plexEpisode.ViewCount > 0,
+			LastViewedAt: time.Unix(int64(plexEpisode.LastViewedAt), 0),
 		}
 	}
 
@@ -245,6 +246,7 @@ type PlexSeason struct {
 
 type PlexEpisode struct {
 	ViewCount             int     `json:"viewCount"`
+	LastViewedAt          int     `json:"lastViewedAt"`
 	OriginalTitle         string  `json:"originalTitle"`
 	Art                   string  `json:"art"`
 	ContentRating         string  `json:"contentRating"`
