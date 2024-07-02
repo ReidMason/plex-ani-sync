@@ -2,16 +2,131 @@ package synchandler
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"log/slog"
 
 	"github.com/ReidMason/plex-ani-sync/internal/animeList"
+	"github.com/ReidMason/plex-ani-sync/internal/logger"
 	"github.com/ReidMason/plex-ani-sync/internal/mapping"
 	"github.com/ReidMason/plex-ani-sync/internal/mediaHost"
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 	"golang.org/x/exp/slices"
 )
+
+type SyncHandlerInterface interface {
+	GetUpdate(currentAnimeList []animeList.ListEntry, series mediaHost.Series, seasons mediaHost.Season) []UpdateV2
+}
+
+type UpdateV2 struct {
+	AnimeId  animeList.AnimeId
+	Status   animeList.Status
+	Progress int
+}
+
+type SyncHandlerV2 struct {
+	log  logger.Logger
+	time TimeProvider
+}
+
+type Season struct {
+	Id       string
+	Episodes []Episode
+}
+
+type Episode struct {
+	Id          string
+	Watched     bool
+	LastWatched time.Time
+}
+
+type TimeProvider interface {
+	Now() time.Time
+}
+
+func NewSyncHandlerV2(logger logger.Logger, timeProvider TimeProvider) *SyncHandlerV2 {
+	return &SyncHandlerV2{log: logger, time: timeProvider}
+}
+
+func (s SyncHandlerV2) GetUpdate(currentAnimeList []animeList.ListEntry, seasons []Season, mappings []storage.Mapping) []UpdateV2 {
+	updates := make([]UpdateV2, 0)
+	relevantMappings := make([]storage.Mapping, 0)
+
+	// Get all the mappings for the seasons
+	for _, season := range seasons {
+		for _, mapping := range mappings {
+			if mapping.SeasonId == season.Id {
+				relevantMappings = append(relevantMappings, mapping)
+			}
+		}
+	}
+
+	// Group the mappings by anime
+	goupedMappings := make(map[string][]storage.Mapping)
+	for _, mapping := range relevantMappings {
+		goupedMappings[mapping.AnimeId] = append(goupedMappings[mapping.AnimeId], mapping)
+	}
+
+	// Get the updates for each anime
+	for animeId, mappings := range goupedMappings {
+		updates = append(updates, s.getAnimeUpdate(animeList.AnimeId(animeId), mappings, seasons))
+	}
+
+	// Make sure the updates are ordered consistently
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].AnimeId < updates[j].AnimeId
+	})
+
+	return updates
+}
+
+func (s SyncHandlerV2) getAnimeUpdate(animeId animeList.AnimeId, mappings []storage.Mapping, seasons []Season) UpdateV2 {
+	totalEpisodes := 0
+	for _, mapping := range mappings {
+		totalEpisodes += mapping.AnimeEpisodeEnd - mapping.AnimeEpisodeStart + 1
+	}
+
+	episodes := make([]Episode, 0)
+	for _, season := range seasons {
+		for _, mapping := range mappings {
+			if mapping.SeasonId == season.Id {
+				for i := mapping.SeasonEpisodeStart - 1; i < mapping.SeasonEpisodeEnd; i++ {
+					episodes = append(episodes, season.Episodes[i])
+				}
+			}
+		}
+	}
+
+	watchedEpisodes := 0
+	lastWatched := time.Time{}
+	for _, episode := range episodes {
+		if episode.Watched {
+			watchedEpisodes++
+			if episode.LastWatched.After(lastWatched) {
+				lastWatched = episode.LastWatched
+			}
+		}
+	}
+
+	fmt.Println("bleh", lastWatched)
+	status := animeList.Planning
+	if watchedEpisodes == totalEpisodes {
+		status = animeList.Completed
+	} else if watchedEpisodes > 0 && lastWatched.Before(s.time.Now().AddDate(0, 0, -30)) {
+		status = animeList.Dropped
+	} else if watchedEpisodes > 0 && lastWatched.Before(s.time.Now().AddDate(0, 0, -7)) {
+		status = animeList.Paused
+	} else if watchedEpisodes > 0 {
+		status = animeList.Current
+	}
+
+	return UpdateV2{
+		AnimeId:  animeId,
+		Status:   status,
+		Progress: watchedEpisodes,
+	}
+}
 
 type SyncHandler struct {
 	mediaHostService mediaHost.MediaHost
@@ -23,6 +138,16 @@ type SyncHandler struct {
 
 func NewSyncHandler(mediaHostService mediaHost.MediaHost, storageService *storage.Sqlite, mappingFinder mapping.MappingFinder, animeListService animeList.AnimeList, logger *slog.Logger) *SyncHandler {
 	return &SyncHandler{mediaHostService: mediaHostService, storageService: storageService, mappingFinder: mappingFinder, animeListService: animeListService, log: logger}
+}
+
+type Update struct {
+	Name           string
+	AnimeId        animeList.AnimeId
+	Status         animeList.Status
+	Progress       int
+	LastWatched    time.Time
+	New            bool
+	UpdateRequired bool
 }
 
 func (s SyncHandler) Sync() {
@@ -140,16 +265,6 @@ func statusToWeighting(status animeList.Status) int {
 	default:
 		return 0
 	}
-}
-
-type Update struct {
-	Name           string
-	AnimeId        animeList.AnimeId
-	Status         animeList.Status
-	Progress       int
-	LastWatched    time.Time
-	New            bool
-	UpdateRequired bool
 }
 
 func (s SyncHandler) getUpdate(currentAnimeList []animeList.ListEntry, update Update) Update {

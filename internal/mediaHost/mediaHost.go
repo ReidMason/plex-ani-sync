@@ -43,5 +43,6 @@ type Season struct {
 }
 
 type Episode struct {
-	Id string
+	Id      string
+	Watched bool
 }
