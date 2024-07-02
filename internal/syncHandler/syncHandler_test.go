@@ -20,15 +20,13 @@ func (t MockTimeProvider) Now() time.Time {
 
 func TestGetUpdate(t *testing.T) {
 	testCases := []struct {
-		name      string
-		animeList []animeList.ListEntry
-		seasons   []Season
-		mappings  []storage.Mapping
-		expected  []UpdateV2
+		name     string
+		seasons  []Season
+		mappings []storage.Mapping
+		expected []Update
 	}{
 		{
-			name:      "Completed series not in anime list",
-			animeList: []animeList.ListEntry{},
+			name: "Completed series not in anime list",
 			seasons: []Season{
 				{
 					Id: "1",
@@ -59,7 +57,7 @@ func TestGetUpdate(t *testing.T) {
 					SeasonEpisodeEnd:   12,
 				},
 			},
-			expected: []UpdateV2{
+			expected: []Update{
 				{
 					AnimeId:  "1",
 					Status:   animeList.Completed,
@@ -68,8 +66,7 @@ func TestGetUpdate(t *testing.T) {
 			},
 		},
 		{
-			name:      "Two mappings for one season",
-			animeList: []animeList.ListEntry{},
+			name: "Two mappings for one season",
 			seasons: []Season{
 				{
 					Id: "1",
@@ -109,7 +106,7 @@ func TestGetUpdate(t *testing.T) {
 					SeasonEpisodeEnd:   12,
 				},
 			},
-			expected: []UpdateV2{
+			expected: []Update{
 				{
 					AnimeId:  "1",
 					Status:   animeList.Completed,
@@ -123,8 +120,7 @@ func TestGetUpdate(t *testing.T) {
 			},
 		},
 		{
-			name:      "Two mappings for one season, season two watching",
-			animeList: []animeList.ListEntry{},
+			name: "Two mappings for one season, season two watching",
 			seasons: []Season{
 				{
 					Id: "1",
@@ -164,7 +160,7 @@ func TestGetUpdate(t *testing.T) {
 					SeasonEpisodeEnd:   12,
 				},
 			},
-			expected: []UpdateV2{
+			expected: []Update{
 				{
 					AnimeId:  "1",
 					Status:   animeList.Completed,
@@ -178,8 +174,7 @@ func TestGetUpdate(t *testing.T) {
 			},
 		},
 		{
-			name:      "Two mappings for one season, season two dropped",
-			animeList: []animeList.ListEntry{},
+			name: "Two mappings for one season, season two dropped",
 			seasons: []Season{
 				{
 					Id: "1",
@@ -219,7 +214,7 @@ func TestGetUpdate(t *testing.T) {
 					SeasonEpisodeEnd:   12,
 				},
 			},
-			expected: []UpdateV2{
+			expected: []Update{
 				{
 					AnimeId:  "1",
 					Status:   animeList.Completed,
@@ -233,8 +228,7 @@ func TestGetUpdate(t *testing.T) {
 			},
 		},
 		{
-			name:      "Two mappings for one season, season two paused",
-			animeList: []animeList.ListEntry{},
+			name: "Two mappings for one season, season two paused",
 			seasons: []Season{
 				{
 					Id: "1",
@@ -274,7 +268,7 @@ func TestGetUpdate(t *testing.T) {
 					SeasonEpisodeEnd:   12,
 				},
 			},
-			expected: []UpdateV2{
+			expected: []Update{
 				{
 					AnimeId:  "1",
 					Status:   animeList.Completed,
@@ -291,13 +285,13 @@ func TestGetUpdate(t *testing.T) {
 
 	mockLogger := logger.MockLogger{}
 	mockTimeProvider := MockTimeProvider{current: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)}
-	syncHandler := NewSyncHandlerV2(mockLogger, mockTimeProvider)
+	syncHandler := NewSyncHandler(mockLogger, mockTimeProvider)
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			t.Parallel()
 
-			result := syncHandler.GetUpdate(tc.animeList, tc.seasons, tc.mappings)
+			result := syncHandler.GetUpdate(tc.seasons, tc.mappings)
 
 			if len(result) != len(tc.expected) {
 				t.Errorf("Expected %d updates, got %d", len(tc.expected), len(result))
