@@ -119,6 +119,26 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
 	}
 
+	// If there is a side story that would complete the season, add it to the mappings
+	if season.Episodes > 0 && len(anime.SideStories) > 0 {
+		sideStory, err := m.animeList.GetAnime(anime.SideStories[0].AnimeId)
+		if err == nil {
+			if sideStory.Episodes == season.Episodes {
+				mappings = append(mappings, storage.Mapping{
+					AnimeId:            fmt.Sprint(sideStory.Id),
+					SeasonId:           season.Id,
+					AnimeEpisodeStart:  animeEpisodeStart,
+					AnimeEpisodeEnd:    sideStory.Episodes,
+					SeasonEpisodeStart: animeEpisodeEnd + 1,
+					SeasonEpisodeEnd:   animeEpisodeEnd + sideStory.Episodes,
+				})
+				if len(seasons) > 0 {
+					seasons = seasons[1:]
+				}
+			}
+		}
+	}
+
 	if len(anime.Sequels) == 0 {
 		return mappings, nil
 	}

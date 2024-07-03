@@ -14,6 +14,7 @@ import (
 // TODO: Tests to add
 // - Monogatari: Something is really messed up here
 // - YuHiOh: This is matching to a movie, it probably shouldn't match at all or only match to the first season
+// - Baki: This one is also very strange and results in some very odd mappings
 
 func TestCreateMapping(t *testing.T) {
 	testCases := []struct {
@@ -496,6 +497,55 @@ func TestCreateMapping(t *testing.T) {
 					AnimeEpisodeEnd:    11,
 					SeasonEpisodeStart: 13,
 					SeasonEpisodeEnd:   23,
+				},
+			},
+		},
+		{
+			name:  "Ah! My Goddess",
+			title: "Ah! My Goddess",
+			seasons: []Season{
+				{
+					Id:          "1",
+					Episodes:    26,
+					ReleaseYear: 2005,
+				},
+				{
+					Id:       "2",
+					Episodes: 24,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "50",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    24,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   24,
+				},
+				{
+					AnimeId:            "1003",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    2,
+					SeasonEpisodeStart: 25,
+					SeasonEpisodeEnd:   26,
+				},
+				{
+					AnimeId:            "880",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    22,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   22,
+				},
+				{
+					AnimeId:            "2198",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    2,
+					SeasonEpisodeStart: 23,
+					SeasonEpisodeEnd:   24,
 				},
 			},
 		},
