@@ -119,23 +119,49 @@ func (m AnimeMappingFinder) findSequelMappings(anime animeList.Anime, seasons []
 		return m.findSequelMappings(anime, seasons, totalEpisodes, mappings)
 	}
 
-	if anime.Sequel.AnimeId == "" {
+	if len(anime.Sequels) == 0 {
 		return mappings, nil
 	}
 
-	sequel, err := m.animeList.GetAnime(anime.Sequel.AnimeId)
+	// Find best sequel
+	sequelRelation := getBestSequel(anime)
+
+	// Get the full sequel data
+	sequel, err := m.animeList.GetAnime(sequelRelation.AnimeId)
 	if err != nil {
 		return nil, err
 	}
-	disallowedSequelFormats := []string{"ONA", "OVA", "Music", "Movie"}
-	if sequel.Sequel.AnimeId != "" && slices.Contains(disallowedSequelFormats, sequel.Format) {
-		sequel, err = m.animeList.GetAnime(sequel.Sequel.AnimeId)
+
+	// Skip the sequel if it's a disallowed format
+	disallowedSequelFormats := []string{"ONA", "OVA", "MUSIC", "MOVIE"}
+	if slices.Contains(disallowedSequelFormats, sequel.Format) {
+		sequelRelation = getBestSequel(sequel)
+		if sequelRelation.AnimeId == "" {
+			return mappings, nil
+		}
+
+		sequel, err = m.animeList.GetAnime(sequelRelation.AnimeId)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return m.findSequelMappings(sequel, seasons, totalEpisodes, mappings)
+}
+
+func getBestSequel(anime animeList.Anime) animeList.AnimeRelation {
+	if len(anime.Sequels) == 0 {
+		return animeList.AnimeRelation{}
+	}
+
+	// Find best sequel
+	for _, sequel := range anime.Sequels {
+		if sequel.Format == anime.Format {
+			return sequel
+		}
+	}
+
+	return anime.Sequels[0]
 }
 
 func (m AnimeMappingFinder) findFirstSeason(title string, releaseYear int, results []animeList.Anime) (animeList.Anime, error) {

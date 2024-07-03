@@ -11,6 +11,10 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/storage"
 )
 
+// TODO: Tests to add
+// - Monogatari: Something is really messed up here
+// - YuHiOh: This is matching to a movie, it probably shouldn't match at all or only match to the first season
+
 func TestCreateMapping(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -427,6 +431,71 @@ func TestCreateMapping(t *testing.T) {
 					AnimeEpisodeEnd:    28,
 					SeasonEpisodeStart: 1,
 					SeasonEpisodeEnd:   28,
+				},
+			},
+		},
+		{
+			name:  "Sword Art Online",
+			title: "Sword Art Online",
+			seasons: []Season{
+				{
+					Id:          "1",
+					Episodes:    25,
+					ReleaseYear: 2012,
+				},
+				{
+					Id:       "2",
+					Episodes: 24,
+				},
+				{
+					Id:       "3",
+					Episodes: 24,
+				},
+				{
+					Id:       "4",
+					Episodes: 23,
+				},
+			},
+			expected: []storage.Mapping{
+				{
+					AnimeId:            "11757",
+					SeasonId:           "1",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    25,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   25,
+				},
+				{
+					AnimeId:            "20594",
+					SeasonId:           "2",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    24,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   24,
+				},
+				{
+					AnimeId:            "100182",
+					SeasonId:           "3",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    24,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   24,
+				},
+				{
+					AnimeId:            "108759",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    12,
+					SeasonEpisodeStart: 1,
+					SeasonEpisodeEnd:   12,
+				},
+				{
+					AnimeId:            "114308",
+					SeasonId:           "4",
+					AnimeEpisodeStart:  1,
+					AnimeEpisodeEnd:    11,
+					SeasonEpisodeStart: 13,
+					SeasonEpisodeEnd:   23,
 				},
 			},
 		},
