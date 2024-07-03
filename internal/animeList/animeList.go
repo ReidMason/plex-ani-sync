@@ -42,7 +42,7 @@ type Anime struct {
 	Title    string
 	Year     int
 	Format   string
-	Sequel   AnimeRelation
+	Sequels  []AnimeRelation
 	Prequel  AnimeRelation
 	Synonyms []string
 	Id       AnimeId
@@ -51,4 +51,5 @@ type Anime struct {
 
 type AnimeRelation struct {
 	AnimeId AnimeId
+	Format  string
 }

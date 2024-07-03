@@ -185,20 +185,23 @@ func (a Anilist) GetAnime(id AnimeId) (Anime, error) {
 		Episodes: media.Episodes,
 		Synonyms: media.Synonyms,
 		Year:     media.StartDate.Year,
+		Sequels:  make([]AnimeRelation, 0),
 	}
 
 	for i, node := range media.Relations.Nodes {
 		relation := media.Relations.Edges[i]
 
-		if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
-			anime.Sequel = AnimeRelation{
+		if relation.RelationType == "SEQUEL" {
+			anime.Sequels = append(anime.Sequels, AnimeRelation{
 				AnimeId: AnimeId(strconv.Itoa(node.ID)),
-			}
+				Format:  node.Format,
+			})
 		}
 
 		if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 			anime.Prequel = AnimeRelation{
 				AnimeId: AnimeId(strconv.Itoa(node.ID)),
+				Format:  node.Format,
 			}
 		}
 	}
@@ -305,19 +308,22 @@ func (a Anilist) SearchAnime(title string) ([]Anime, error) {
 			Episodes: media.Episodes,
 			Synonyms: media.Synonyms,
 			Year:     media.StartDate.Year,
+			Sequels:  make([]AnimeRelation, 0),
 		}
 
 		for i, node := range media.Relations.Nodes {
 			relation := media.Relations.Edges[i]
-			if relation.RelationType == "SEQUEL" && anime.Sequel.AnimeId == "" {
-				anime.Sequel = AnimeRelation{
+			if relation.RelationType == "SEQUEL" {
+				anime.Sequels = append(anime.Sequels, AnimeRelation{
 					AnimeId: AnimeId(strconv.Itoa(node.ID)),
-				}
+					Format:  node.Format,
+				})
 			}
 
 			if relation.RelationType == "PREQUEL" && anime.Prequel.AnimeId == "" {
 				anime.Prequel = AnimeRelation{
 					AnimeId: AnimeId(strconv.Itoa(node.ID)),
+					Format:  node.Format,
 				}
 			}
 		}
