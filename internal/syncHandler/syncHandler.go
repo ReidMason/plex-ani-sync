@@ -118,6 +118,31 @@ func (s SyncHandler) getAnimeUpdate(animeId animeList.AnimeId, mappings []storag
 	}
 }
 
+func NeedsUpdate(animeListEntry animeList.ListEntry, update Update) bool {
+	if animeListEntry.AnimeId != update.AnimeId {
+		return false
+	}
+
+	// We don't want to touch completed anime
+	if animeListEntry.Status == animeList.Completed {
+		return false
+	}
+
+	if animeListEntry.Status != update.Status {
+		return true
+	}
+
+	if animeListEntry.WatchedEpisodes != update.Progress {
+		return true
+	}
+
+	if statusToWeighting(animeListEntry.Status) < statusToWeighting(update.Status) {
+		return true
+	}
+
+	return false
+}
+
 func statusToWeighting(status animeList.Status) int {
 	switch status {
 	case animeList.Planning:
