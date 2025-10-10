@@ -24,7 +24,7 @@ func main() {
 	plexAuth := plex.NewPlexAuth(clientIdentifier, appName, http.DefaultClient)
 
 	controllers := []common.Controller{
-		plexController.New(plexAuth),
+		plexController.New(plexAuth, plexAuth),
 	}
 	server := server.New(controllers, http.DefaultServeMux, port)
 
