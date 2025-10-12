@@ -18,7 +18,7 @@ func (p *PlexController) GetAuthURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := p.plexAuth.CreatePlexPin(forwardUrl)
+	authURL, err := p.plexAuth.GetAuthUrl(forwardUrl)
 	if err != nil {
 		responseFactory.InternalServerError(w, err, "Failed to generate Plex authentication URL")
 		return

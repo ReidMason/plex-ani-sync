@@ -1,23 +1,17 @@
 package plexAuth
 
-type PlexPin struct {
-	Pin              string
-	PinId            int
-	ClientIdentifier string
-	AppName          string
-	AuthToken        *string
-}
-
-type PlexPinCreator interface {
-	GeneratePin(appName string, clientIdentifier string) (PlexPin, error)
-}
+import "github.com/ReidMason/plex-ani-sync/internal/domain/common"
 
 type PlexAuth struct {
-	PlexPinCreator PlexPinCreator
+	PlexAuthApiRegistry PlexAuthApiRepository
+	StorageRepository   StorageRepository
+	time                common.TimeRepository
 }
 
-func New(plexPinCreator PlexPinCreator) *PlexAuth {
+func New(plexAuthApiRegistry PlexAuthApiRepository, storageRepository StorageRepository, time common.TimeRepository) *PlexAuth {
 	return &PlexAuth{
-		PlexPinCreator: plexPinCreator,
+		PlexAuthApiRegistry: plexAuthApiRegistry,
+		StorageRepository:   storageRepository,
+		time:                time,
 	}
 }

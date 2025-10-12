@@ -6,6 +6,8 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
 	plexAuthApi "github.com/ReidMason/plex-ani-sync/repository/PlexAuthApi"
+	"github.com/ReidMason/plex-ani-sync/repository/storage"
+	"github.com/ReidMason/plex-ani-sync/repository/timeRepository"
 	"github.com/ReidMason/plex-ani-sync/server"
 	"github.com/ReidMason/plex-ani-sync/server/common"
 	"github.com/ReidMason/plex-ani-sync/server/controllers/plexController"
@@ -17,8 +19,11 @@ func main() {
 		port = "8080"
 	}
 
-	plexAuthApiService := plexAuthApi.NewPlexAuthApi(http.DefaultClient)
-	plexAuth := plexAuth.New(plexAuthApiService)
+	timeRepository := timeRepository.New()
+	plexAuthApiService := plexAuthApi.NewPlexAuthApi()
+	storageService := storage.NewPostgres()
+
+	plexAuth := plexAuth.New(plexAuthApiService, storageService, timeRepository)
 
 	controllers := []common.Controller{
 		plexController.New(plexAuth),
@@ -29,7 +34,7 @@ func main() {
 }
 
 // func testing() {
-// 	pubKey, _, err := getKeyPair()
+// pubKey, _, err := getKeyPair()
 // 	if err != nil {
 // 		fmt.Println("Error getting keypair:", err)
 // 		return

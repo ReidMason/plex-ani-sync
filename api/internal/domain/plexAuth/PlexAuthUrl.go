@@ -5,9 +5,6 @@ import (
 	"strconv"
 )
 
-type PlexAuthURl string
-type PlexToken string
-
 func BuildPlexAuthUrl(pin string, pinId int, clientIdentifier string, appName string, forwardUrl string) (PlexAuthURl, error) {
 	u := url.URL{
 		Scheme: "https",
@@ -30,8 +27,4 @@ func BuildPlexAuthUrl(pin string, pinId int, clientIdentifier string, appName st
 	q.Set("forwardUrl", forwardUrlPath.String())
 
 	return PlexAuthURl(u.String() + "#?" + q.Encode()), nil
-}
-
-func RefreshPlexToken(token PlexToken) error {
-	return nil
 }
