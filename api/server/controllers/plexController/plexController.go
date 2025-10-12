@@ -3,7 +3,7 @@ package plexController
 import (
 	"net/http"
 
-	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
+	"github.com/ReidMason/plex-ani-sync/internal/application/plexAuth"
 	"github.com/ReidMason/plex-ani-sync/server/common"
 )
 

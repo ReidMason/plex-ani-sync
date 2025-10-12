@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
+	"github.com/ReidMason/plex-ani-sync/internal/application/plexAuth"
 )
 
 type PlexApi struct{}

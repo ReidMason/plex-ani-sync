@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
+	"github.com/ReidMason/plex-ani-sync/internal/application/plexAuth"
 )
 
 func (p *PlexAuthApi) GetNonce(clientIdentifier string) (string, error) {
