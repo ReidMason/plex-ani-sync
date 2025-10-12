@@ -4,15 +4,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ReidMason/plex-ani-sync/internal/plex"
+	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
+	plexAuthApi "github.com/ReidMason/plex-ani-sync/repository/PlexAuthApi"
 	"github.com/ReidMason/plex-ani-sync/server"
 	"github.com/ReidMason/plex-ani-sync/server/common"
 	"github.com/ReidMason/plex-ani-sync/server/controllers/plexController"
-)
-
-const (
-	appName          = "Plex Ani Sync"
-	clientIdentifier = "plex-ani-sync-go-v2" // TODO: Generate a random client identifier and store it
 )
 
 func main() {
@@ -21,41 +17,67 @@ func main() {
 		port = "8080"
 	}
 
-	plexAuth := plex.NewPlexAuth(clientIdentifier, appName, http.DefaultClient)
+	plexAuthApiService := plexAuthApi.NewPlexAuthApi(http.DefaultClient)
+	plexAuth := plexAuth.New(plexAuthApiService)
 
 	controllers := []common.Controller{
-		plexController.New(plexAuth, plexAuth),
+		plexController.New(plexAuth),
 	}
 	server := server.New(controllers, http.DefaultServeMux, port)
 
 	server.Start()
 }
 
-// pubKeyB64 := base64.RawURLEncoding.EncodeToString(pubKey)
-// fmt.Printf("Public Key (base64url): %s\n\n", pubKeyB64)
+// func testing() {
+// 	pubKey, _, err := getKeyPair()
+// 	if err != nil {
+// 		fmt.Println("Error getting keypair:", err)
+// 		return
+// 	}
 
-// req, err := http.NewRequest("POST", "https://clients.plex.tv/api/v2/auth/jwk", nil)
-// if err != nil {
-// 	fmt.Println("Error creating request:", err)
-// 	return
+// 	pubKeyB64 := base64.RawURLEncoding.EncodeToString(pubKey)
+// 	fmt.Printf("Public Key (base64url): %s\n\n", pubKeyB64)
+
+// 	// Prepare request body
+// 	requestBody := map[string]interface{}{
+// 		"jwk": map[string]interface{}{
+// 			"kty": "OKP",
+// 			"crv": "Ed25519",
+// 			"x":   pubKeyB64,
+// 			"use": "sig",
+// 			"alg": "EdDSA",
+// 		},
+// 	}
+// 	body, err := json.Marshal(requestBody)
+// 	if err != nil {
+// 		fmt.Println("Error marshalling request body:", err)
+// 		return
+// 	}
+
+// 	req, err := http.NewRequest("POST", "https://clients.plex.tv/api/v2/auth/jwk", bytes.NewBuffer(body))
+// 	if err != nil {
+// 		fmt.Println("Error creating request:", err)
+// 		return
+// 	}
+// 	req.Header.Set("Content-Type", "application/json")
+// 	req.Header.Set("X-Plex-Client-Identifier", clientIdentifier)
+// 	req.Header.Set("X-Plex-Token", "")
+
+// 	resp, err := http.DefaultClient.Do(req)
+// 	if err != nil {
+// 		fmt.Println("Error sending request:", err)
+// 		return
+// 	}
+// 	defer resp.Body.Close()
+
+// 	responseBody, err := io.ReadAll(resp.Body)
+// 	if err != nil {
+// 		fmt.Println("Error reading response body:", err)
+// 		return
+// 	}
+
+// 	fmt.Printf("Response: %s\n", string(responseBody))
 // }
-// req.Header.Set("X-Plex-Client-Identifier", clientIdentifier)
-// // req.Header.Set("X-Plex-Token", "your-existing-token")
-
-// resp, err := http.DefaultClient.Do(req)
-// if err != nil {
-// 	fmt.Println("Error sending request:", err)
-// 	return
-// }
-// defer resp.Body.Close()
-
-// body, err := io.ReadAll(resp.Body)
-// if err != nil {
-// 	fmt.Println("Error reading response body:", err)
-// 	return
-// }
-
-// fmt.Printf("Response: %s\n", string(body))
 
 // type KeyPair struct {
 // 	PrivateKey string `json:"private_key"`

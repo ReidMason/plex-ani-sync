@@ -18,11 +18,11 @@ func (p *PlexController) GetAuthURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := p.AuthURLGenerator.GetPlexAuthUrl(forwardUrl)
+	authURL, err := p.plexAuth.CreatePlexPin(forwardUrl)
 	if err != nil {
 		responseFactory.InternalServerError(w, err, "Failed to generate Plex authentication URL")
 		return
 	}
 
-	responseFactory.Ok(w, GetPlexAuthUrlResponseDto{authURL}, "Successfully generated Plex authentication URL")
+	responseFactory.Ok(w, GetPlexAuthUrlResponseDto{AuthURL: string(authURL)}, "Successfully generated Plex authentication URL")
 }

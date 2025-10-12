@@ -1,9 +1,13 @@
-package plex
+package plexAuthApi
 
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
 )
+
+type PlexApi struct{}
 
 type GeneratePinResponse struct {
 	ID               int      `json:"id"`
@@ -34,25 +38,31 @@ type Location struct {
 	Coordinates                string `json:"coordinates"`
 }
 
-func (p *PlexAuth) generatePin() (GeneratePinResponse, error) {
+func (p *PlexAuthApi) GeneratePin(appName string, clientIdentifier string) (plexAuth.PlexPin, error) {
 	req, err := http.NewRequest("POST", "https://plex.tv/api/v2/pins?strong=true", nil)
 	if err != nil {
-		return GeneratePinResponse{}, err
+		return plexAuth.PlexPin{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Product", p.appName)
-	req.Header.Set("X-Plex-Client-Identifier", p.clientIdentifier)
+	req.Header.Set("X-Plex-Product", appName)
+	req.Header.Set("X-Plex-Client-Identifier", clientIdentifier)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return GeneratePinResponse{}, err
+		return plexAuth.PlexPin{}, err
 	}
 	defer resp.Body.Close()
 
 	var pinResponse GeneratePinResponse
 	if err := json.NewDecoder(resp.Body).Decode(&pinResponse); err != nil {
-		return GeneratePinResponse{}, err
+		return plexAuth.PlexPin{}, err
 	}
 
-	return pinResponse, nil
+	return plexAuth.PlexPin{
+		Pin:              pinResponse.Code,
+		PinId:            pinResponse.ID,
+		ClientIdentifier: pinResponse.ClientIdentifier,
+		AppName:          pinResponse.Product,
+		AuthToken:        pinResponse.AuthToken,
+	}, nil
 }

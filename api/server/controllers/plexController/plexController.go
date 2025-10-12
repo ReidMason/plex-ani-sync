@@ -3,26 +3,20 @@ package plexController
 import (
 	"net/http"
 
+	"github.com/ReidMason/plex-ani-sync/application/plexAuth"
 	"github.com/ReidMason/plex-ani-sync/server/common"
 )
 
 type PlexController struct {
-	AuthURLGenerator PlexAuthURLGenerator
-	PinIdValidator   PlexPinIdValidator
+	plexAuth *plexAuth.PlexAuth
 }
 
-type PlexAuthURLGenerator interface {
-	GetPlexAuthUrl(forwardUrl string) (string, error)
-}
-
-func New(plexAuthUrlGenerator PlexAuthURLGenerator, pinIdValidator PlexPinIdValidator) *PlexController {
+func New(plexAuth *plexAuth.PlexAuth) *PlexController {
 	return &PlexController{
-		AuthURLGenerator: plexAuthUrlGenerator,
-		PinIdValidator:   pinIdValidator,
+		plexAuth: plexAuth,
 	}
 }
 
 func (p *PlexController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc(common.BuildEndpointUrl("plex/authUrl"), p.GetAuthURL)
-	mux.HandleFunc(common.BuildEndpointUrl("plex/pins/{pinId}"), p.GetPin)
 }
