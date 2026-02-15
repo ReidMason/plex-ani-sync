@@ -2,14 +2,28 @@ package main
 
 import (
 	"fmt"
+	"log"
 
+	"github.com/ReidMason/plex-ani-sync/internal/application"
 	"github.com/ReidMason/plex-ani-sync/internal/service"
 )
 
 func main() {
-	fmt.Println("Hello, World!")
+	fmt.Println("Plex-Ani-Sync Starting...")
+	fmt.Println()
 
-	anime := service.GetAnime()
+	// Wire up dependencies
+	plexService := service.NewPlexService()
+	getAnimeListUseCase := application.NewGetAnimeListUseCase(plexService)
 
-	fmt.Println(anime)
+	// Execute use case
+	animeList, err := getAnimeListUseCase.Execute()
+	if err != nil {
+		log.Fatalf("Failed to get anime list: %v", err)
+	}
+
+	fmt.Printf("Found %d anime:\n", len(animeList))
+	for _, anime := range animeList {
+		fmt.Printf("  [%s] %s\n", anime.GetID(), anime.GetTitle())
+	}
 }
