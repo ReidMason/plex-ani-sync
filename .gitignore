@@ -1,9 +1,10 @@
-api/tmp/
-api/data/
-api/cover.out
+tmp/
+data/
+cover.out
 
 # build output
 dist/
+bin/
 
 # generated types
 .astro/
