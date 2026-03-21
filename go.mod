@@ -1,3 +1,3 @@
-module github.com/ReidMason/plex-ani-sync
+module myapp
 
-go 1.24.3
+go 1.22.0

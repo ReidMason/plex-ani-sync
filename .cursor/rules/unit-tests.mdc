@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+- Prefer integration tests over unit tests
+- Only mock external dependencies
+- Try to consolidate similar tests (table driven tests)
