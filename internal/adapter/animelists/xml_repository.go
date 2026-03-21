@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"myapp/internal/domain"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -21,6 +23,10 @@ const (
 type XMLRepository struct {
 	httpClient *http.Client
 	cacheDir   string
+
+	once     sync.Once
+	mappings map[domain.TvDbID][]domain.TvDbToAniDbMapping
+	loadErr  error
 }
 
 func NewXMLRepository(cacheDir string) *XMLRepository {
@@ -46,12 +52,14 @@ func (r *XMLRepository) fetchOrLoad(ctx context.Context) ([]byte, error) {
 
 	data, err := os.ReadFile(cachePath)
 	if err == nil {
+		log.Printf("animelists: loaded TvDB→AniDB mapping from cache (%s)", cachePath)
 		return data, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("reading cache file: %w", err)
 	}
 
+	log.Printf("animelists: downloading TvDB→AniDB mapping from %s", animeListURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, animeListURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
@@ -80,19 +88,27 @@ func (r *XMLRepository) fetchOrLoad(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("writing cache file: %w", err)
 	}
 
+	log.Printf("animelists: cached TvDB→AniDB mapping to %s (%d bytes)", cachePath, len(data))
 	return data, nil
 }
 
 func (r *XMLRepository) GetTvDbToAniDbMapping(ctx context.Context) (map[domain.TvDbID][]domain.TvDbToAniDbMapping, error) {
+	r.once.Do(func() { r.mappings, r.loadErr = r.load(ctx) })
+	return r.mappings, r.loadErr
+}
+
+func (r *XMLRepository) load(ctx context.Context) (map[domain.TvDbID][]domain.TvDbToAniDbMapping, error) {
 	data, err := r.fetchOrLoad(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Printf("animelists: parsing TvDB→AniDB mapping (%d bytes)", len(data))
 	var list animeListXML
 	if err := xml.Unmarshal(data, &list); err != nil {
 		return nil, fmt.Errorf("parsing anime list XML: %w", err)
 	}
+	log.Printf("animelists: loaded %d TvDB→AniDB entries", len(list.Anime))
 
 	mappings := make(map[domain.TvDbID][]domain.TvDbToAniDbMapping)
 	for _, a := range list.Anime {

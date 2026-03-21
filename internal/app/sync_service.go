@@ -38,7 +38,7 @@ func (s *SyncService) SyncAnime(ctx context.Context) ([]domain.AnimeStatus, erro
 		for _, mapping := range mappings {
 			offset := int(mapping.EpisodeOffset)
 			count := mapping.EpisodeCount
-			if offset+count > len(episodes) {
+			if offset < 0 || offset+count > len(episodes) {
 				continue
 			}
 			statuses = append(statuses, domain.AnimeStatus{

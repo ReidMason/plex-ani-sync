@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"myapp/internal/domain"
 	"net/http"
 	"strings"
@@ -109,10 +110,12 @@ func (r *Repository) GetAnime(ctx context.Context) ([]domain.MediaHostAnime, err
 			continue
 		}
 
+		log.Printf("plex: scanning section %q", section.Title)
 		sectionAnime, err := r.getAnimeForSection(ctx, section.Key)
 		if err != nil {
 			return nil, fmt.Errorf("section %q (%s): %w", section.Title, section.Key, err)
 		}
+		log.Printf("plex: found %d shows in section %q", len(sectionAnime), section.Title)
 		anime = append(anime, sectionAnime...)
 	}
 
@@ -121,6 +124,7 @@ func (r *Repository) GetAnime(ctx context.Context) ([]domain.MediaHostAnime, err
 
 func (r *Repository) getAnimeForSection(ctx context.Context, sectionKey string) ([]domain.MediaHostAnime, error) {
 	// includeGuids=1 is required for Plex to include external IDs (e.g. tvdb://) in the response.
+	log.Printf("plex: fetching shows for section %s", sectionKey)
 	var shows showsResponse
 	if err := r.get(ctx, fmt.Sprintf("/library/sections/%s/all?includeGuids=1", sectionKey), &shows); err != nil {
 		return nil, fmt.Errorf("fetching shows: %w", err)
@@ -140,10 +144,12 @@ func (r *Repository) getAnimeForSection(ctx context.Context, sectionKey string) 
 		return nil, nil
 	}
 
+	log.Printf("plex: fetching all episodes for section %s (%d shows with TvDB IDs)", sectionKey, len(tvdbByKey))
 	var episodes episodesResponse
 	if err := r.get(ctx, fmt.Sprintf("/library/sections/%s/allLeaves", sectionKey), &episodes); err != nil {
 		return nil, fmt.Errorf("fetching episodes: %w", err)
 	}
+	log.Printf("plex: fetched %d episodes", len(episodes.MediaContainer.Metadata))
 
 	// Group episodes: showRatingKey → seasonNumber → []MediaHostEpisode
 	type showSeasonKey struct {

@@ -84,6 +84,32 @@ func TestSyncAnime_AnimeWithNoMappingIsSkipped(t *testing.T) {
 	}
 }
 
+func TestSyncAnime_NegativeOffsetIsSkipped(t *testing.T) {
+	svc := makeSyncService(
+		[]domain.MediaHostAnime{{
+			ID:      "tvdb-1",
+			Seasons: []domain.MediaHostSeason{{Number: 1, Episodes: watched(12)}},
+		}},
+		nil,
+		&mockMappingSourceRepo{
+			tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+				"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-1", EpisodeOffset: -1}},
+			},
+			aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+				"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
+			},
+		},
+	)
+
+	statuses, err := svc.SyncAnime(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(statuses) != 0 {
+		t.Errorf("expected no statuses, got %d", len(statuses))
+	}
+}
+
 func TestSyncAnime_InsufficientEpisodesIsSkipped(t *testing.T) {
 	// Mapping claims 13 episodes starting at offset 12, but the anime only has 12.
 	svc := makeSyncService(
