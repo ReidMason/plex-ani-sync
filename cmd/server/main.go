@@ -30,6 +30,6 @@ func main() {
 	}
 
 	for _, s := range statuses {
-		fmt.Printf("anilist=%s completed=%v\n", s.AnilistId, s.Completed)
+		fmt.Printf("anilist=%s status=%s\n", s.AnilistId, s.Status)
 	}
 }

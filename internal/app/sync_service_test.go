@@ -132,15 +132,31 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Completed: true}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted}},
 		},
 		{
-			name: "one episode unwatched",
+			name: "no episodes watched",
+			anime: []domain.MediaHostAnime{{
+				ID:      "tvdb-1",
+				Seasons: []domain.MediaHostSeason{{Number: 1, Episodes: unwatched(12)}},
+			}},
+			mapping: &mockMappingSourceRepo{
+				tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+					"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-1", EpisodeOffset: 0}},
+				},
+				aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
+				},
+			},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusNotStarted}},
+		},
+		{
+			name: "some episodes watched",
 			anime: []domain.MediaHostAnime{{
 				ID: "tvdb-1",
 				Seasons: []domain.MediaHostSeason{{
 					Number:   1,
-					Episodes: append(watched(11), domain.MediaHostEpisode{Number: 12, Watched: false}),
+					Episodes: append(watched(6), unwatched(6)...),
 				}},
 			}},
 			mapping: &mockMappingSourceRepo{
@@ -151,7 +167,7 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Completed: false}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusInProgress}},
 		},
 		{
 			name: "split cour mapped via episode offset",
@@ -175,8 +191,8 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				},
 			},
 			want: []domain.AnimeStatus{
-				{AnilistId: "anilist-100", Completed: true},
-				{AnilistId: "anilist-101", Completed: true},
+				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted},
+				{AnilistId: "anilist-101", Status: domain.WatchStatusCompleted},
 			},
 		},
 		{
@@ -199,7 +215,7 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Completed: true}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted}},
 		},
 		{
 			name: "multiple anime each produce a status",
@@ -218,8 +234,8 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				},
 			},
 			want: []domain.AnimeStatus{
-				{AnilistId: "anilist-100", Completed: true},
-				{AnilistId: "anilist-200", Completed: false},
+				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted},
+				{AnilistId: "anilist-200", Status: domain.WatchStatusNotStarted},
 			},
 		},
 	}

@@ -43,7 +43,7 @@ func (s *SyncService) SyncAnime(ctx context.Context) ([]domain.AnimeStatus, erro
 			}
 			statuses = append(statuses, domain.AnimeStatus{
 				AnilistId: mapping.AnilistId,
-				Completed: allWatched(episodes[offset : offset+count]),
+				Status:    watchStatus(episodes[offset : offset+count]),
 			})
 		}
 	}
@@ -72,11 +72,19 @@ func flattenEpisodes(anime domain.MediaHostAnime) []domain.MediaHostEpisode {
 	return episodes
 }
 
-func allWatched(episodes []domain.MediaHostEpisode) bool {
+func watchStatus(episodes []domain.MediaHostEpisode) domain.WatchStatus {
+	watched := 0
 	for _, ep := range episodes {
-		if !ep.Watched {
-			return false
+		if ep.Watched {
+			watched++
 		}
 	}
-	return true
+	switch {
+	case watched == len(episodes):
+		return domain.WatchStatusCompleted
+	case watched > 0:
+		return domain.WatchStatusInProgress
+	default:
+		return domain.WatchStatusNotStarted
+	}
 }

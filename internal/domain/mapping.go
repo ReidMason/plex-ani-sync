@@ -27,7 +27,15 @@ type Mapping struct {
 	EpisodeCount  int
 }
 
+type WatchStatus string
+
+const (
+	WatchStatusNotStarted WatchStatus = "not_started"
+	WatchStatusInProgress WatchStatus = "in_progress"
+	WatchStatusCompleted  WatchStatus = "completed"
+)
+
 type AnimeStatus struct {
 	AnilistId AniListID
-	Completed bool
+	Status    WatchStatus
 }
