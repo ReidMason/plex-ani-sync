@@ -9,17 +9,31 @@ import (
 	"myapp/internal/adapter/animelists"
 	"myapp/internal/adapter/plex"
 	"myapp/internal/app"
+	"myapp/internal/port"
+	"os"
+
+	"github.com/joho/godotenv"
 )
 
 const cacheDir = "data"
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Fatalf("loading .env: %v", err)
+	}
+
 	ctx := context.Background()
 
 	mappingRepo := animelists.NewMappingRepository(cacheDir)
 	mappingService := app.NewMappingService(mappingRepo)
 
-	plexRepo := plex.NewMockRepository()
+	var plexRepo port.MediaHostRepository
+	if url, token := os.Getenv("PLEX_URL"), os.Getenv("PLEX_TOKEN"); url != "" && token != "" {
+		plexRepo = plex.NewRepository(url, token)
+	} else {
+		log.Println("PLEX_URL or PLEX_TOKEN not set — using mock Plex repository")
+		plexRepo = plex.NewMockRepository()
+	}
 
 	// TODO: wire port.AnimeListRepository (AniList adapter)
 	syncService := app.NewSyncService(nil, plexRepo, mappingService)
