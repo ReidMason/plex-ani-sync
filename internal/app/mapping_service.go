@@ -35,7 +35,10 @@ func (s *MappingService) GetMapping(ctx context.Context, tvDbID domain.TvDbID) (
 
 	animeMappings := make([]domain.Mapping, 0)
 	for _, aniDbMapping := range aniDbMapping {
-		aniDbToListIdMapping := aniDbToListIdMappings[aniDbMapping.AniDbID]
+		aniDbToListIdMapping, ok := aniDbToListIdMappings[aniDbMapping.AniDbID]
+		if !ok {
+			continue
+		}
 		animeMappings = append(animeMappings, domain.Mapping{
 			TvDbID:        tvDbID,
 			AnilistId:     aniDbToListIdMapping.AnilistId,

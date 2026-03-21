@@ -84,15 +84,13 @@ func TestGetMapping_ReturnsCorrectMappings(t *testing.T) {
 			},
 		},
 		{
-			name: "anidb id missing from list id mapping produces zero-value mapping",
+			name: "anidb id missing from list id mapping is skipped",
 			tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
 				"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-missing", EpisodeOffset: 0}},
 			},
 			aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{},
 			tvDbID:               "tvdb-1",
-			want: []domain.Mapping{
-				{TvDbID: "tvdb-1", AnilistId: "", EpisodeOffset: 0, EpisodeCount: 0},
-			},
+			want:                 []domain.Mapping{},
 		},
 		{
 			name: "only returns mappings for the requested tvdb id",
