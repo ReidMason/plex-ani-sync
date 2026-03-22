@@ -9,8 +9,11 @@ type AniListID string
 type EpisodeOffset int
 
 type TvDbToAniDbMapping struct {
-	TvDbID        TvDbID
-	AniDbID       AniDbID
+	TvDbID  TvDbID
+	AniDbID AniDbID
+	// TvDbSeason is the TvDB season the episode offset applies to.
+	// "a" means absolute numbering across all seasons.
+	TvDbSeason    string
 	EpisodeOffset EpisodeOffset
 }
 
@@ -21,8 +24,11 @@ type AniDbToListIdMapping struct {
 }
 
 type Mapping struct {
-	TvDbID        TvDbID
-	AnilistId     AniListID // TODO: Support other anime lists
+	TvDbID    TvDbID
+	AnilistId AniListID // TODO: Support other anime lists
+	// TvDbSeason is the TvDB season the episode offset applies to.
+	// "a" means absolute numbering across all seasons.
+	TvDbSeason    string
 	EpisodeOffset EpisodeOffset
 	EpisodeCount  int
 }
@@ -32,10 +38,25 @@ type WatchStatus string
 const (
 	WatchStatusNotStarted WatchStatus = "not_started"
 	WatchStatusInProgress WatchStatus = "in_progress"
+	WatchStatusPaused     WatchStatus = "paused"
+	WatchStatusDropped    WatchStatus = "dropped"
 	WatchStatusCompleted  WatchStatus = "completed"
 )
 
 type AnimeStatus struct {
 	AnilistId AniListID
 	Status    WatchStatus
+}
+
+type AnimeListEntry struct {
+	AnilistId AniListID
+	Title     string
+	Status    WatchStatus
+}
+
+type SyncResult struct {
+	AnilistId     AniListID
+	Title         string
+	PlexStatus    WatchStatus
+	AnilistStatus WatchStatus
 }

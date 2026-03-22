@@ -44,6 +44,7 @@ type animeListXML struct {
 type animeXML struct {
 	AniDbID       string `xml:"anidbid,attr"`
 	TvDbID        string `xml:"tvdbid,attr"`
+	TvDbSeason    string `xml:"defaulttvdbseason,attr"`
 	EpisodeOffset string `xml:"episodeoffset,attr"`
 }
 
@@ -124,10 +125,16 @@ func (r *XMLRepository) load(ctx context.Context) (map[domain.TvDbID][]domain.Tv
 			}
 		}
 
+		tvDbSeason := a.TvDbSeason
+		if tvDbSeason == "" {
+			tvDbSeason = "1"
+		}
+
 		tvDbID := domain.TvDbID(a.TvDbID)
 		mappings[tvDbID] = append(mappings[tvDbID], domain.TvDbToAniDbMapping{
 			TvDbID:        tvDbID,
 			AniDbID:       domain.AniDbID(a.AniDbID),
+			TvDbSeason:    tvDbSeason,
 			EpisodeOffset: domain.EpisodeOffset(offset),
 		})
 	}

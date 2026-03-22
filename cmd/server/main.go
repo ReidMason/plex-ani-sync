@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"myapp/internal/adapter/anilist"
 	"myapp/internal/adapter/animelists"
 	"myapp/internal/adapter/plex"
 	"myapp/internal/app"
@@ -35,15 +36,30 @@ func main() {
 		plexRepo = plex.NewMockRepository()
 	}
 
-	// TODO: wire port.AnimeListRepository (AniList adapter)
-	syncService := app.NewSyncService(nil, plexRepo, mappingService)
+	anilistToken := os.Getenv("ANILIST_TOKEN")
+	if anilistToken == "" {
+		log.Fatal("ANILIST_TOKEN not set — see internal/adapter/anilist/repository.go for how to obtain one")
+	}
+	anilistRepo := anilist.NewRepository(anilistToken)
 
-	statuses, err := syncService.SyncAnime(ctx)
+	syncService := app.NewSyncService(anilistRepo, plexRepo, mappingService)
+
+	plexStatuses, err := syncService.SyncAnime(ctx)
 	if err != nil {
-		log.Fatalf("sync failed: %v", err)
+		log.Fatalf("fetching Plex statuses: %v", err)
 	}
 
-	for _, s := range statuses {
-		fmt.Printf("anilist=%s status=%s\n", s.AnilistId, s.Status)
+	results, err := syncService.CompareWithAniList(ctx, plexStatuses)
+	if err != nil {
+		log.Fatalf("comparing with AniList: %v", err)
 	}
+
+	needsUpdate := 0
+	for _, r := range results {
+		if r.PlexStatus != r.AnilistStatus {
+			fmt.Printf("~ %-40s  plex=%-12s  anilist=%s\n", r.Title, r.PlexStatus, r.AnilistStatus)
+			needsUpdate++
+		}
+	}
+	fmt.Printf("\n%d/%d entries need updating\n", needsUpdate, len(results))
 }

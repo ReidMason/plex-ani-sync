@@ -6,5 +6,5 @@ import (
 )
 
 type AnimeListRepository interface {
-	GetAnimeList(ctx context.Context) ([]domain.MediaHostAnime, error)
+	GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry, error)
 }

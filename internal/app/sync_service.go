@@ -6,6 +6,7 @@ import (
 	"myapp/internal/domain"
 	"myapp/internal/port"
 	"sort"
+	"strconv"
 )
 
 type SyncService struct {
@@ -34,8 +35,14 @@ func (s *SyncService) SyncAnime(ctx context.Context) ([]domain.AnimeStatus, erro
 			return nil, err
 		}
 
-		episodes := flattenEpisodes(a)
 		for _, mapping := range mappings {
+			var episodes []domain.MediaHostEpisode
+			if mapping.TvDbSeason == "a" {
+				episodes = flattenEpisodes(a)
+			} else {
+				episodes = seasonEpisodes(a, mapping.TvDbSeason)
+			}
+
 			offset := int(mapping.EpisodeOffset)
 			count := mapping.EpisodeCount
 			if offset < 0 || offset+count > len(episodes) {
@@ -70,6 +77,61 @@ func flattenEpisodes(anime domain.MediaHostAnime) []domain.MediaHostEpisode {
 		episodes = append(episodes, eps...)
 	}
 	return episodes
+}
+
+// CompareWithAniList fetches the current AniList statuses and returns a
+// SyncResult for every Plex entry that is in_progress or completed,
+// paired with what AniList currently has (empty string if not on the list).
+func (s *SyncService) CompareWithAniList(ctx context.Context, plexStatuses []domain.AnimeStatus) ([]domain.SyncResult, error) {
+	entries, err := s.animeListRepo.GetAnimeList(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	type anilistEntry struct {
+		title  string
+		status domain.WatchStatus
+	}
+	anilistByID := make(map[domain.AniListID]anilistEntry, len(entries))
+	for _, e := range entries {
+		anilistByID[e.AnilistId] = anilistEntry{title: e.Title, status: e.Status}
+	}
+
+	var results []domain.SyncResult
+	for _, ps := range plexStatuses {
+		if ps.Status != domain.WatchStatusInProgress && ps.Status != domain.WatchStatusCompleted {
+			continue
+		}
+		al := anilistByID[ps.AnilistId]
+		results = append(results, domain.SyncResult{
+			AnilistId:     ps.AnilistId,
+			Title:         al.title,
+			PlexStatus:    ps.Status,
+			AnilistStatus: al.status,
+		})
+	}
+
+	return results, nil
+}
+
+// seasonEpisodes returns the sorted episodes from the TvDB season identified by
+// the season string (e.g. "1", "0"). Returns nil if the season is not present.
+func seasonEpisodes(anime domain.MediaHostAnime, season string) []domain.MediaHostEpisode {
+	seasonNum, err := strconv.Atoi(season)
+	if err != nil {
+		return nil
+	}
+	for _, s := range anime.Seasons {
+		if int(s.Number) == seasonNum {
+			eps := make([]domain.MediaHostEpisode, len(s.Episodes))
+			copy(eps, s.Episodes)
+			sort.Slice(eps, func(i, j int) bool {
+				return eps[i].Number < eps[j].Number
+			})
+			return eps
+		}
+	}
+	return nil
 }
 
 func watchStatus(episodes []domain.MediaHostEpisode) domain.WatchStatus {

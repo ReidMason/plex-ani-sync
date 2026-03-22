@@ -42,6 +42,7 @@ func (s *MappingService) GetMapping(ctx context.Context, tvDbID domain.TvDbID) (
 		animeMappings = append(animeMappings, domain.Mapping{
 			TvDbID:        tvDbID,
 			AnilistId:     aniDbToListIdMapping.AnilistId,
+			TvDbSeason:    aniDbMapping.TvDbSeason,
 			EpisodeOffset: aniDbMapping.EpisodeOffset,
 			EpisodeCount:  aniDbToListIdMapping.EpisodeCount,
 		})
