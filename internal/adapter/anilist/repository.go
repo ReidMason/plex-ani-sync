@@ -24,7 +24,10 @@ const graphqlEndpoint = "https://graphql.anilist.co"
 //
 // For local runs without the API, set ANILIST_MOCK=1 (see mock_repository.go).
 // Set saveListPath (e.g. via ANILIST_SAVE_LIST) to persist each successful list fetch as JSON for ANILIST_MOCK_FILE.
-// Set ANILIST_APPLY=1 in the app to run SaveMediaListEntry for rows that need updates (see cmd/server).
+// Set ANILIST_APPLY=1 to run SaveMediaListEntry for rows that need updates (cmd/server).
+// Safety helpers (same binary): ANILIST_BACKUP_BEFORE_APPLY=1 writes your full list to
+// ANILIST_BACKUP_DIR (default data/) as anilist-backup-YYYYMMDD-HHMMSS.json before any save;
+// ANILIST_SAVE_LIST=path saves the fetched list on each run (no writes). Default is dry-run until ANILIST_APPLY is set.
 
 type Repository struct {
 	httpClient   *http.Client

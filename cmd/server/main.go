@@ -12,6 +12,7 @@ import (
 	"myapp/internal/app"
 	"myapp/internal/port"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,11 @@ import (
 )
 
 const cacheDir = "data"
+
+func envTruthy(v string) bool {
+	s := strings.TrimSpace(v)
+	return s != "" && !strings.EqualFold(s, "0") && !strings.EqualFold(s, "false")
+}
 
 func main() {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
@@ -109,18 +115,33 @@ func main() {
 	}
 	fmt.Printf("\n%d/%d entries need updating\n", needsUpdate, len(results))
 
-	applyEnv := strings.TrimSpace(os.Getenv("ANILIST_APPLY"))
-	wantApply := applyEnv != "" && !strings.EqualFold(applyEnv, "0") && !strings.EqualFold(applyEnv, "false")
+	wantApply := envTruthy(os.Getenv("ANILIST_APPLY"))
 	if wantApply {
 		if anilistMock {
 			log.Fatal("ANILIST_APPLY is set but ANILIST_MOCK is enabled — refusing to write (mock list is not the API)")
 		}
+		if envTruthy(os.Getenv("ANILIST_BACKUP_BEFORE_APPLY")) {
+			backupDir := strings.TrimSpace(os.Getenv("ANILIST_BACKUP_DIR"))
+			if backupDir == "" {
+				backupDir = cacheDir
+			}
+			entries, err := anilistRepo.GetAnimeList(ctx)
+			if err != nil {
+				log.Fatalf("AniList backup (fetch list): %v", err)
+			}
+			backupPath := filepath.Join(backupDir, fmt.Sprintf("anilist-backup-%s.json", time.Now().Format("20060102-150405")))
+			if err := anilist.SaveAnimeListEntries(backupPath, entries); err != nil {
+				log.Fatalf("AniList backup (write file): %v", err)
+			}
+			log.Printf("AniList: backup saved (%d entries) → %s", len(entries), backupPath)
+		}
+
 		applied, err := syncService.ApplyAniListUpdates(ctx, results)
 		log.Printf("AniList: applied %d update(s)", applied)
 		if err != nil {
 			log.Fatalf("AniList apply: %v", err)
 		}
 	} else if needsUpdate > 0 {
-		log.Println("dry-run: set ANILIST_APPLY=1 to run SaveMediaListEntry for rows marked with ~")
+		log.Println("dry-run: set ANILIST_APPLY=1 to push changes (~ rows). Safety: ANILIST_BACKUP_BEFORE_APPLY=1, ANILIST_SAVE_LIST (fetch snapshot)")
 	}
 }

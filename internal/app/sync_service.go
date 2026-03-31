@@ -362,7 +362,7 @@ func (s *SyncService) CompareWithAniList(ctx context.Context, plexStatuses []dom
 
 // ApplyAniListUpdates runs SaveMediaListEntry for every result that
 // NeedsAniListChange, using Plex-derived status and TargetWatchedForAniList.
-// Returns how many saves succeeded; failures are joined into the returned error.
+// Failures are joined into the returned error.
 func (s *SyncService) ApplyAniListUpdates(ctx context.Context, results []domain.SyncResult) (applied int, err error) {
 	var errs []error
 	for _, r := range results {
