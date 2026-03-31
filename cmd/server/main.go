@@ -87,21 +87,23 @@ func main() {
 
 	needsUpdate := 0
 	for _, r := range results {
-		if r.PlexStatus != r.AnilistStatus || r.PlexWatchedEpisodes != r.AnilistProgress {
-			curSt := string(r.AnilistStatus)
-			if curSt == "" {
-				curSt = "—"
-			}
-			tot := r.TotalEpisodes
-			if tot <= 0 {
-				fmt.Printf("~ %-45s  %s -> %s   %d -> %d\n",
-					r.Title, curSt, r.PlexStatus, r.AnilistProgress, r.PlexWatchedEpisodes)
-			} else {
-				fmt.Printf("~ %-45s  %s -> %s   %d/%d -> %d/%d\n",
-					r.Title, curSt, r.PlexStatus, r.AnilistProgress, tot, r.PlexWatchedEpisodes, tot)
-			}
-			needsUpdate++
+		if !r.NeedsAniListChange() {
+			continue
 		}
+		curSt := string(r.AnilistStatus)
+		if curSt == "" {
+			curSt = "—"
+		}
+		targetWatched := r.TargetWatchedForAniList()
+		tot := r.TotalEpisodes
+		if tot <= 0 {
+			fmt.Printf("~ %-45s  %s -> %s   %d -> %d\n",
+				r.Title, curSt, r.PlexStatus, r.AnilistProgress, targetWatched)
+		} else {
+			fmt.Printf("~ %-45s  %s -> %s   %d/%d -> %d/%d\n",
+				r.Title, curSt, r.PlexStatus, r.AnilistProgress, tot, targetWatched, tot)
+		}
+		needsUpdate++
 	}
 	fmt.Printf("\n%d/%d entries need updating\n", needsUpdate, len(results))
 }

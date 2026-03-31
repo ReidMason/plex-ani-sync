@@ -67,3 +67,22 @@ type SyncResult struct {
 	PlexWatchedEpisodes int         // target watched count from Plex
 	TotalEpisodes       int         // episodes in this mapping / list slice
 }
+
+// TargetWatchedForAniList is the episode progress to aim for on AniList: never
+// below current AniList progress when Plex reports fewer watched episodes.
+func (r SyncResult) TargetWatchedForAniList() int {
+	if r.AnilistProgress > r.PlexWatchedEpisodes {
+		return r.AnilistProgress
+	}
+	return r.PlexWatchedEpisodes
+}
+
+// NeedsAniListChange is true when list status should change or episode progress
+// should increase. We do not flag rows that only differ by Plex being behind
+// AniList on episode count.
+func (r SyncResult) NeedsAniListChange() bool {
+	if r.PlexStatus != r.AnilistStatus {
+		return true
+	}
+	return r.PlexWatchedEpisodes > r.AnilistProgress
+}
