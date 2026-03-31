@@ -8,6 +8,7 @@ import (
 	"log"
 	"myapp/internal/domain"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -122,7 +123,109 @@ func (r *Repository) GetAnime(ctx context.Context) ([]domain.MediaHostAnime, err
 		anime = append(anime, sectionAnime...)
 	}
 
-	return anime, nil
+	return mergeAnimeByTvDbID(anime), nil
+}
+
+// mergeAnimeByTvDbID combines duplicate series that appear in more than one
+// Plex library section (same TheTVDB id). Episodes are merged per season with
+// de-duplication by episode number; watched if any copy is watched.
+func mergeAnimeByTvDbID(in []domain.MediaHostAnime) []domain.MediaHostAnime {
+	if len(in) == 0 {
+		return nil
+	}
+
+	type agg struct {
+		title   domain.MediaHostAnimeTitle
+		seasons map[int]map[int]domain.MediaHostEpisode // seasonNum -> epNum -> ep
+	}
+	byID := make(map[domain.TvDbID]*agg)
+
+	for _, a := range in {
+		ac := byID[a.ID]
+		if ac == nil {
+			ac = &agg{seasons: make(map[int]map[int]domain.MediaHostEpisode)}
+			byID[a.ID] = ac
+		}
+		if a.Title != "" {
+			ac.title = a.Title
+		}
+		for _, s := range a.Seasons {
+			sn := int(s.Number)
+			if ac.seasons[sn] == nil {
+				ac.seasons[sn] = make(map[int]domain.MediaHostEpisode)
+			}
+			for _, ep := range s.Episodes {
+				en := int(ep.Number)
+				if prev, ok := ac.seasons[sn][en]; ok {
+					ac.seasons[sn][en] = mergeMediaHostEpisode(prev, ep)
+				} else {
+					ac.seasons[sn][en] = ep
+				}
+			}
+		}
+	}
+
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, string(id))
+	}
+	sort.Strings(ids)
+
+	out := make([]domain.MediaHostAnime, 0, len(byID))
+	for _, sid := range ids {
+		id := domain.TvDbID(sid)
+		a := byID[id]
+		var seasonNums []int
+		for sn := range a.seasons {
+			seasonNums = append(seasonNums, sn)
+		}
+		sort.Ints(seasonNums)
+		seasons := make([]domain.MediaHostSeason, 0, len(seasonNums))
+		for _, sn := range seasonNums {
+			epMap := a.seasons[sn]
+			nums := make([]int, 0, len(epMap))
+			for n := range epMap {
+				nums = append(nums, n)
+			}
+			sort.Ints(nums)
+			eps := make([]domain.MediaHostEpisode, 0, len(nums))
+			for _, n := range nums {
+				eps = append(eps, epMap[n])
+			}
+			seasons = append(seasons, domain.MediaHostSeason{
+				Number:   domain.MediaHostSeasonNumber(sn),
+				Episodes: eps,
+			})
+		}
+		out = append(out, domain.MediaHostAnime{
+			ID:      id,
+			Title:   a.title,
+			Seasons: seasons,
+		})
+	}
+	return out
+}
+
+func mergeMediaHostEpisode(a, b domain.MediaHostEpisode) domain.MediaHostEpisode {
+	watched := a.Watched || b.Watched
+	var last *time.Time
+	switch {
+	case a.LastWatchedAt != nil && b.LastWatchedAt != nil:
+		if a.LastWatchedAt.After(*b.LastWatchedAt) {
+			last = a.LastWatchedAt
+		} else {
+			last = b.LastWatchedAt
+		}
+	case a.LastWatchedAt != nil:
+		last = a.LastWatchedAt
+	default:
+		last = b.LastWatchedAt
+	}
+	return domain.MediaHostEpisode{
+		Number:        a.Number,
+		Watched:       watched,
+		LastWatchedAt: last,
+	}
 }
 
 func (r *Repository) getAnimeForSection(ctx context.Context, sectionKey string) ([]domain.MediaHostAnime, error) {

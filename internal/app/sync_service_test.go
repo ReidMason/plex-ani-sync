@@ -69,6 +69,80 @@ func unwatched(n int) []domain.MediaHostEpisode {
 	return eps
 }
 
+func TestMergeAnimeStatusesForAnilist_duplicatePlexMatchesCollapse(t *testing.T) {
+	id := domain.AniListID("1")
+	parts := []domain.AnimeStatus{
+		{AnilistId: id, PlexTitle: "Naruto", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+		{AnilistId: id, PlexTitle: "Naruto", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+		{AnilistId: id, PlexTitle: "Naruto", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+	}
+	got := mergeAnimeStatusesForAnilist(id, parts)
+	want := parts[0]
+	if got != want {
+		t.Fatalf("got %+v want %+v", got, want)
+	}
+}
+
+func TestCollapseDuplicatePlexTitles_fiveNarutoOneRow(t *testing.T) {
+	in := []domain.AnimeStatus{
+		{AnilistId: "300", PlexTitle: "Naruto", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+		{AnilistId: "100", PlexTitle: "Naruto", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+		{AnilistId: "200", PlexTitle: "naruto ", Status: domain.WatchStatusCompleted, WatchedEpisodes: 3, TotalEpisodes: 3},
+	}
+	got := collapseDuplicatePlexTitles(in)
+	if len(got) != 1 {
+		t.Fatalf("len %d want 1: %+v", len(got), got)
+	}
+	if got[0].AnilistId != "100" {
+		t.Fatalf("expected smallest id when tied, got %+v", got[0])
+	}
+}
+
+func TestCollapseDuplicatePlexTitles_prefersLargerScope(t *testing.T) {
+	in := []domain.AnimeStatus{
+		{AnilistId: "1", PlexTitle: "Naruto", WatchedEpisodes: 3, TotalEpisodes: 3},
+		{AnilistId: "2", PlexTitle: "Naruto", WatchedEpisodes: 50, TotalEpisodes: 220},
+	}
+	got := collapseDuplicatePlexTitles(in)
+	if len(got) != 1 || got[0].AnilistId != "2" || got[0].TotalEpisodes != 220 {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestCollapseDuplicatePlexTitles_doesNotMergeEmptyTitlesAcrossIds(t *testing.T) {
+	in := []domain.AnimeStatus{
+		{AnilistId: "1", PlexTitle: "", WatchedEpisodes: 1, TotalEpisodes: 2},
+		{AnilistId: "2", PlexTitle: "", WatchedEpisodes: 1, TotalEpisodes: 2},
+	}
+	got := collapseDuplicatePlexTitles(in)
+	if len(got) != 2 {
+		t.Fatalf("len %d want 2", len(got))
+	}
+}
+
+func TestPlexTitleMergeKey_isLowercase(t *testing.T) {
+	k := plexTitleMergeKey(domain.AnimeStatus{PlexTitle: "ABC", AnilistId: "1"})
+	if k != "abc" {
+		t.Fatalf("got %q", k)
+	}
+}
+
+func TestMergeAnimeStatusesForAnilist_disjointSplitsSum(t *testing.T) {
+	id := domain.AniListID("1")
+	parts := []domain.AnimeStatus{
+		{AnilistId: id, PlexTitle: "X", Status: domain.WatchStatusCompleted, WatchedEpisodes: 2, TotalEpisodes: 2},
+		{AnilistId: id, PlexTitle: "X", Status: domain.WatchStatusInProgress, WatchedEpisodes: 1, TotalEpisodes: 3},
+	}
+	got := mergeAnimeStatusesForAnilist(id, parts)
+	want := domain.AnimeStatus{
+		AnilistId: id, PlexTitle: "X", Status: domain.WatchStatusInProgress,
+		WatchedEpisodes: 3, TotalEpisodes: 5,
+	}
+	if got != want {
+		t.Fatalf("got %+v want %+v", got, want)
+	}
+}
+
 func TestSyncAnime_MediaHostError(t *testing.T) {
 	repoErr := errors.New("plex unavailable")
 	svc := makeSyncService(nil, repoErr, &mockMappingSourceRepo{})
@@ -354,6 +428,45 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
 				{AnilistId: "anilist-200", Status: domain.WatchStatusNotStarted, WatchedEpisodes: 0, TotalEpisodes: 12},
 			},
+		},
+		{
+			name: "single season span overrides anime offline DB episodes set to one",
+			anime: []domain.MediaHostAnime{{
+				ID:      "tvdb-1",
+				Seasons: []domain.MediaHostSeason{{Number: 1, Episodes: watched(12)}},
+			}},
+			mapping: &mockMappingSourceRepo{
+				tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+					"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-1", TvDbSeason: "1", EpisodeOffset: 0}},
+				},
+				aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 1},
+				},
+			},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12}},
+		},
+		{
+			name: "same anilist id across tvdb seasons merges into one status",
+			anime: []domain.MediaHostAnime{{
+				ID: "tvdb-1",
+				Seasons: []domain.MediaHostSeason{
+					{Number: 1, Episodes: watched(3)},
+					{Number: 2, Episodes: watched(3)},
+				},
+			}},
+			mapping: &mockMappingSourceRepo{
+				tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+					"tvdb-1": {
+						{TvDbID: "tvdb-1", AniDbID: "anidb-1", TvDbSeason: "1", EpisodeOffset: 0},
+						{TvDbID: "tvdb-1", AniDbID: "anidb-2", TvDbSeason: "2", EpisodeOffset: 0},
+					},
+				},
+				aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-900", EpisodeCount: 3},
+					"anidb-2": {AniDbID: "anidb-2", AnilistId: "anilist-900", EpisodeCount: 3},
+				},
+			},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-900", Status: domain.WatchStatusCompleted, WatchedEpisodes: 6, TotalEpisodes: 6}},
 		},
 	}
 
