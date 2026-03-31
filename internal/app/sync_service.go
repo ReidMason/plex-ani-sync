@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"myapp/internal/domain"
 	"myapp/internal/port"
 	"sort"
@@ -357,6 +358,24 @@ func (s *SyncService) CompareWithAniList(ctx context.Context, plexStatuses []dom
 	}
 
 	return results, nil
+}
+
+// ApplyAniListUpdates runs SaveMediaListEntry for every result that
+// NeedsAniListChange, using Plex-derived status and TargetWatchedForAniList.
+// Returns how many saves succeeded; failures are joined into the returned error.
+func (s *SyncService) ApplyAniListUpdates(ctx context.Context, results []domain.SyncResult) (applied int, err error) {
+	var errs []error
+	for _, r := range results {
+		if !r.NeedsAniListChange() {
+			continue
+		}
+		if err := s.animeListRepo.SaveAnimeListEntry(ctx, r.AnilistId, r.PlexStatus, r.TargetWatchedForAniList()); err != nil {
+			errs = append(errs, fmt.Errorf("%s (AniList %s): %w", r.Title, r.AnilistId, err))
+			continue
+		}
+		applied++
+	}
+	return applied, errors.Join(errs...)
 }
 
 // seasonEpisodes returns the sorted episodes from the TvDB season identified by

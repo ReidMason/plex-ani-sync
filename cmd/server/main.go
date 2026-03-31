@@ -40,7 +40,9 @@ func main() {
 	}
 
 	var anilistRepo port.AnimeListRepository
+	anilistMock := false
 	if mock := strings.TrimSpace(os.Getenv("ANILIST_MOCK")); mock != "" && !strings.EqualFold(mock, "0") && !strings.EqualFold(mock, "false") {
+		anilistMock = true
 		if path := strings.TrimSpace(os.Getenv("ANILIST_MOCK_FILE")); path != "" {
 			entries, err := anilist.LoadMockEntriesFile(path)
 			if err != nil {
@@ -106,4 +108,19 @@ func main() {
 		needsUpdate++
 	}
 	fmt.Printf("\n%d/%d entries need updating\n", needsUpdate, len(results))
+
+	applyEnv := strings.TrimSpace(os.Getenv("ANILIST_APPLY"))
+	wantApply := applyEnv != "" && !strings.EqualFold(applyEnv, "0") && !strings.EqualFold(applyEnv, "false")
+	if wantApply {
+		if anilistMock {
+			log.Fatal("ANILIST_APPLY is set but ANILIST_MOCK is enabled — refusing to write (mock list is not the API)")
+		}
+		applied, err := syncService.ApplyAniListUpdates(ctx, results)
+		log.Printf("AniList: applied %d update(s)", applied)
+		if err != nil {
+			log.Fatalf("AniList apply: %v", err)
+		}
+	} else if needsUpdate > 0 {
+		log.Println("dry-run: set ANILIST_APPLY=1 to run SaveMediaListEntry for rows marked with ~")
+	}
 }

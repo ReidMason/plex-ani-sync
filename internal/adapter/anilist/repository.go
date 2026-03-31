@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const graphqlEndpoint = "https://graphql.anilist.co"
@@ -23,6 +24,7 @@ const graphqlEndpoint = "https://graphql.anilist.co"
 //
 // For local runs without the API, set ANILIST_MOCK=1 (see mock_repository.go).
 // Set saveListPath (e.g. via ANILIST_SAVE_LIST) to persist each successful list fetch as JSON for ANILIST_MOCK_FILE.
+// Set ANILIST_APPLY=1 in the app to run SaveMediaListEntry for rows that need updates (see cmd/server).
 
 type Repository struct {
 	httpClient   *http.Client
@@ -38,7 +40,7 @@ func NewRepository(token, saveListPath string) *Repository {
 	}
 }
 
-func (r *Repository) query(ctx context.Context, q string, variables map[string]any, result any) error {
+func (r *Repository) graphql(ctx context.Context, q string, variables map[string]any, dataInto any) error {
 	body, err := json.Marshal(map[string]any{"query": q, "variables": variables})
 	if err != nil {
 		return fmt.Errorf("marshalling request: %w", err)
@@ -54,7 +56,7 @@ func (r *Repository) query(ctx context.Context, q string, variables map[string]a
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("executing query: %w", err)
+		return fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -67,10 +69,32 @@ func (r *Repository) query(ctx context.Context, q string, variables map[string]a
 		return fmt.Errorf("AniList HTTP %d: %s", resp.StatusCode, summarizeAniListErrorBody(data))
 	}
 
-	if err := json.Unmarshal(data, result); err != nil {
+	return decodeAniListGraphQLResponse(data, dataInto)
+}
+
+func decodeAniListGraphQLResponse(raw []byte, dataInto any) error {
+	var env struct {
+		Data   json.RawMessage `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
 		return fmt.Errorf("parsing response: %w", err)
 	}
-
+	if len(env.Errors) > 0 && env.Errors[0].Message != "" {
+		return fmt.Errorf("graphql: %s", env.Errors[0].Message)
+	}
+	if dataInto == nil {
+		return nil
+	}
+	s := strings.TrimSpace(string(env.Data))
+	if s == "" || s == "null" {
+		return fmt.Errorf("graphql: empty data")
+	}
+	if err := json.Unmarshal(env.Data, dataInto); err != nil {
+		return fmt.Errorf("parsing data: %w", err)
+	}
 	return nil
 }
 
@@ -99,18 +123,16 @@ func summarizeAniListErrorBody(data []byte) string {
 func (r *Repository) viewerID(ctx context.Context) (int, error) {
 	const q = `query { Viewer { id } }`
 
-	var resp struct {
-		Data struct {
-			Viewer struct {
-				ID int `json:"id"`
-			} `json:"Viewer"`
-		} `json:"data"`
+	var data struct {
+		Viewer struct {
+			ID int `json:"id"`
+		} `json:"Viewer"`
 	}
 
-	if err := r.query(ctx, q, nil, &resp); err != nil {
+	if err := r.graphql(ctx, q, nil, &data); err != nil {
 		return 0, fmt.Errorf("fetching viewer: %w", err)
 	}
-	return resp.Data.Viewer.ID, nil
+	return data.Viewer.ID, nil
 }
 
 func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry, error) {
@@ -139,32 +161,30 @@ func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry,
 			}
 		}`
 
-	var resp struct {
-		Data struct {
-			MediaListCollection struct {
-				Lists []struct {
-					Entries []struct {
-						MediaID  int    `json:"mediaId"`
-						Status   string `json:"status"`
-						Progress int    `json:"progress"`
-						Media    struct {
-							Title struct {
-								English string `json:"english"`
-								Romaji  string `json:"romaji"`
-							} `json:"title"`
-						} `json:"media"`
-					} `json:"entries"`
-				} `json:"lists"`
-			} `json:"MediaListCollection"`
-		} `json:"data"`
+	var data struct {
+		MediaListCollection struct {
+			Lists []struct {
+				Entries []struct {
+					MediaID  int    `json:"mediaId"`
+					Status   string `json:"status"`
+					Progress int    `json:"progress"`
+					Media    struct {
+						Title struct {
+							English string `json:"english"`
+							Romaji  string `json:"romaji"`
+						} `json:"title"`
+					} `json:"media"`
+				} `json:"entries"`
+			} `json:"lists"`
+		} `json:"MediaListCollection"`
 	}
 
-	if err := r.query(ctx, q, map[string]any{"userId": userID}, &resp); err != nil {
+	if err := r.graphql(ctx, q, map[string]any{"userId": userID}, &data); err != nil {
 		return nil, fmt.Errorf("fetching anime list: %w", err)
 	}
 
 	var entries []domain.AnimeListEntry
-	for _, list := range resp.Data.MediaListCollection.Lists {
+	for _, list := range data.MediaListCollection.Lists {
 		for _, e := range list.Entries {
 			title := e.Media.Title.English
 			if title == "" {
@@ -188,6 +208,66 @@ func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry,
 
 	log.Printf("anilist: fetched %d entries", len(entries))
 	return entries, nil
+}
+
+// SaveAnimeListEntry calls SaveMediaListEntry (create or update). Sleeps briefly
+// after success to stay under AniList's per-minute rate limit (~90/min).
+func (r *Repository) SaveAnimeListEntry(ctx context.Context, mediaID domain.AniListID, status domain.WatchStatus, progress int) error {
+	id, err := strconv.Atoi(string(mediaID))
+	if err != nil || id <= 0 {
+		return fmt.Errorf("invalid media id %q", mediaID)
+	}
+	st, err := domainWatchStatusToMediaListStatus(status)
+	if err != nil {
+		return err
+	}
+
+	const q = `
+mutation ($mediaId: Int!, $status: MediaListStatus, $progress: Int) {
+  SaveMediaListEntry(mediaId: $mediaId, status: $status, progress: $progress) {
+    id
+    status
+    progress
+  }
+}`
+
+	var data struct {
+		SaveMediaListEntry struct {
+			ID       int    `json:"id"`
+			Status   string `json:"status"`
+			Progress int    `json:"progress"`
+		} `json:"SaveMediaListEntry"`
+	}
+
+	if err := r.graphql(ctx, q, map[string]any{
+		"mediaId":  id,
+		"status":   st,
+		"progress": progress,
+	}, &data); err != nil {
+		return err
+	}
+
+	log.Printf("anilist: saved mediaId=%d status=%s progress=%d (entry id=%d)",
+		id, data.SaveMediaListEntry.Status, data.SaveMediaListEntry.Progress, data.SaveMediaListEntry.ID)
+	time.Sleep(700 * time.Millisecond)
+	return nil
+}
+
+func domainWatchStatusToMediaListStatus(s domain.WatchStatus) (string, error) {
+	switch s {
+	case domain.WatchStatusInProgress:
+		return "CURRENT", nil
+	case domain.WatchStatusCompleted:
+		return "COMPLETED", nil
+	case domain.WatchStatusPaused:
+		return "PAUSED", nil
+	case domain.WatchStatusDropped:
+		return "DROPPED", nil
+	case domain.WatchStatusNotStarted:
+		return "PLANNING", nil
+	default:
+		return "", fmt.Errorf("unsupported watch status %q", s)
+	}
 }
 
 // anilistStatus maps AniList's status strings to our domain WatchStatus.

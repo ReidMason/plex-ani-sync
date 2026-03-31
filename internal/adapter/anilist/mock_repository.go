@@ -23,6 +23,10 @@ func (r *MockRepository) GetAnimeList(_ context.Context) ([]domain.AnimeListEntr
 	return append([]domain.AnimeListEntry(nil), r.entries...), nil
 }
 
+func (r *MockRepository) SaveAnimeListEntry(_ context.Context, _ domain.AniListID, _ domain.WatchStatus, _ int) error {
+	return nil
+}
+
 // DefaultMockEntriesPlex295222 matches internal/adapter/plex.MockRepository
 // (TvDB 295222, Gate) and Anime-Lists master + anime-offline-database IDs:
 // AniDB 10982 → AniList 20994 (12 eps), AniDB 11602 → AniList 21364 (12 eps, offset 12).

@@ -19,12 +19,25 @@ func (m *mockMediaHostRepo) GetAnime(_ context.Context) ([]domain.MediaHostAnime
 
 // mockAnimeListRepo implements port.AnimeListRepository for testing.
 type mockAnimeListRepo struct {
-	entries []domain.AnimeListEntry
-	err     error
+	entries   []domain.AnimeListEntry
+	err       error
+	saveErr   error
+	saveCalls []anilistSaveCall
+}
+
+type anilistSaveCall struct {
+	id       domain.AniListID
+	status   domain.WatchStatus
+	progress int
 }
 
 func (m *mockAnimeListRepo) GetAnimeList(_ context.Context) ([]domain.AnimeListEntry, error) {
 	return m.entries, m.err
+}
+
+func (m *mockAnimeListRepo) SaveAnimeListEntry(_ context.Context, id domain.AniListID, status domain.WatchStatus, progress int) error {
+	m.saveCalls = append(m.saveCalls, anilistSaveCall{id: id, status: status, progress: progress})
+	return m.saveErr
 }
 
 // makeSyncService builds a SyncService backed by the provided mocks.
@@ -633,6 +646,76 @@ func TestCompareWithAniList(t *testing.T) {
 			for i, w := range tt.want {
 				if got[i] != w {
 					t.Errorf("result[%d]: expected %+v, got %+v", i, w, got[i])
+				}
+			}
+		})
+	}
+}
+
+func TestApplyAniListUpdates(t *testing.T) {
+	tests := []struct {
+		name      string
+		results   []domain.SyncResult
+		saveErr   error
+		wantCalls []anilistSaveCall
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:      "no rows need change",
+			results:   []domain.SyncResult{{AnilistId: "1", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, PlexWatchedEpisodes: 3, AnilistProgress: 3}},
+			wantCalls: nil,
+			wantCount: 0,
+		},
+		{
+			name: "status mismatch triggers save",
+			results: []domain.SyncResult{
+				{AnilistId: "10", Title: "A", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress, PlexWatchedEpisodes: 12, AnilistProgress: 8, TotalEpisodes: 12},
+			},
+			wantCalls: []anilistSaveCall{{id: "10", status: domain.WatchStatusCompleted, progress: 12}},
+			wantCount: 1,
+		},
+		{
+			name: "plex ahead on episodes only",
+			results: []domain.SyncResult{
+				{AnilistId: "11", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, PlexWatchedEpisodes: 7, AnilistProgress: 5, TotalEpisodes: 12},
+			},
+			wantCalls: []anilistSaveCall{{id: "11", status: domain.WatchStatusInProgress, progress: 7}},
+			wantCount: 1,
+		},
+		{
+			name: "save error is returned",
+			results: []domain.SyncResult{
+				{AnilistId: "9", Title: "ErrShow", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress, PlexWatchedEpisodes: 1, AnilistProgress: 0},
+			},
+			saveErr:   errors.New("api down"),
+			wantCalls: []anilistSaveCall{{id: "9", status: domain.WatchStatusCompleted, progress: 1}},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockAnimeListRepo{saveErr: tt.saveErr}
+			svc := NewSyncService(repo, nil, nil, DefaultSyncConfig())
+			gotCount, err := svc.ApplyAniListUpdates(context.Background(), tt.results)
+			if gotCount != tt.wantCount {
+				t.Fatalf("applied count: want %d, got %d", tt.wantCount, gotCount)
+			}
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(repo.saveCalls) != len(tt.wantCalls) {
+				t.Fatalf("save calls: want %d, got %d (%+v)", len(tt.wantCalls), len(repo.saveCalls), repo.saveCalls)
+			}
+			for i, w := range tt.wantCalls {
+				if repo.saveCalls[i] != w {
+					t.Errorf("saveCalls[%d]: want %+v, got %+v", i, w, repo.saveCalls[i])
 				}
 			}
 		})
