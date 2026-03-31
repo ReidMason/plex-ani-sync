@@ -10,6 +10,7 @@ import (
 	"myapp/internal/domain"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const graphqlEndpoint = "https://graphql.anilist.co"
@@ -19,16 +20,21 @@ const graphqlEndpoint = "https://graphql.anilist.co"
 //  2. Visit https://anilist.co/api/v2/oauth/authorize?client_id={clientId}&response_type=token
 //  3. Authorize, then copy the access_token value from the redirect URL fragment.
 //  4. Set it as ANILIST_TOKEN in your .env file.
+//
+// For local runs without the API, set ANILIST_MOCK=1 (see mock_repository.go).
+// Set saveListPath (e.g. via ANILIST_SAVE_LIST) to persist each successful list fetch as JSON for ANILIST_MOCK_FILE.
 
 type Repository struct {
-	httpClient *http.Client
-	token      string
+	httpClient   *http.Client
+	token        string
+	saveListPath string
 }
 
-func NewRepository(token string) *Repository {
+func NewRepository(token, saveListPath string) *Repository {
 	return &Repository{
-		httpClient: &http.Client{},
-		token:      token,
+		httpClient:   &http.Client{},
+		token:        token,
+		saveListPath: saveListPath,
 	}
 }
 
@@ -52,13 +58,13 @@ func (r *Repository) query(ctx context.Context, q string, variables map[string]a
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d from AniList", resp.StatusCode)
-	}
-
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("AniList HTTP %d: %s", resp.StatusCode, summarizeAniListErrorBody(data))
 	}
 
 	if err := json.Unmarshal(data, result); err != nil {
@@ -66,6 +72,28 @@ func (r *Repository) query(ctx context.Context, q string, variables map[string]a
 	}
 
 	return nil
+}
+
+// summarizeAniListErrorBody prefers the first GraphQL error message when present
+// (e.g. API disabled notices), otherwise returns a trimmed raw body.
+func summarizeAniListErrorBody(data []byte) string {
+	const max = 500
+	var payload struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if json.Unmarshal(data, &payload) == nil && len(payload.Errors) > 0 && payload.Errors[0].Message != "" {
+		return payload.Errors[0].Message
+	}
+	s := strings.TrimSpace(string(data))
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	if s == "" {
+		return "(empty body)"
+	}
+	return s
 }
 
 func (r *Repository) viewerID(ctx context.Context) (int, error) {
@@ -99,6 +127,7 @@ func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry,
 					entries {
 						mediaId
 						status
+						progress
 						media {
 							title {
 								english
@@ -115,9 +144,10 @@ func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry,
 			MediaListCollection struct {
 				Lists []struct {
 					Entries []struct {
-						MediaID int    `json:"mediaId"`
-						Status  string `json:"status"`
-						Media   struct {
+						MediaID  int    `json:"mediaId"`
+						Status   string `json:"status"`
+						Progress int    `json:"progress"`
+						Media    struct {
 							Title struct {
 								English string `json:"english"`
 								Romaji  string `json:"romaji"`
@@ -144,8 +174,16 @@ func (r *Repository) GetAnimeList(ctx context.Context) ([]domain.AnimeListEntry,
 				AnilistId: domain.AniListID(strconv.Itoa(e.MediaID)),
 				Title:     title,
 				Status:    anilistStatus(e.Status),
+				Progress:  e.Progress,
 			})
 		}
+	}
+
+	if r.saveListPath != "" {
+		if err := SaveAnimeListEntries(r.saveListPath, entries); err != nil {
+			return nil, fmt.Errorf("saving anime list to %s: %w", r.saveListPath, err)
+		}
+		log.Printf("anilist: wrote %d entries to %s", len(entries), r.saveListPath)
 	}
 
 	log.Printf("anilist: fetched %d entries", len(entries))

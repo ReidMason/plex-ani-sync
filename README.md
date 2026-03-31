@@ -14,6 +14,8 @@ internal/port/      interfaces (repository + service contracts)
 internal/domain/    pure entities & value objects — no internal imports
 ```
 
+https://anilist.co/api/v2/oauth/authorize?client_id=3054&response_type=token
+
 ## Dependency Direction (enforced by Go's import cycle checker)
 
 ```
@@ -23,13 +25,13 @@ domain ← port ← app ← adapter ← cmd
 Inner layers **never** import outer layers. Violating this direction produces a
 compile-time import-cycle error — the compiler is the enforcer, not convention.
 
-| Layer | May import | Must NOT import |
-|-------|-----------|-----------------|
-| `domain` | stdlib only | anything in `internal/` |
-| `port` | `domain` | `app`, `adapter`, `cmd` |
-| `app` | `domain`, `port` | `adapter`, `cmd` |
-| `adapter/*` | `app`, `port`, `domain` | `cmd` |
-| `cmd/server` | everything | — |
+| Layer        | May import              | Must NOT import         |
+| ------------ | ----------------------- | ----------------------- |
+| `domain`     | stdlib only             | anything in `internal/` |
+| `port`       | `domain`                | `app`, `adapter`, `cmd` |
+| `app`        | `domain`, `port`        | `adapter`, `cmd`        |
+| `adapter/*`  | `app`, `port`, `domain` | `cmd`                   |
+| `cmd/server` | everything              | —                       |
 
 ## Directory Structure
 

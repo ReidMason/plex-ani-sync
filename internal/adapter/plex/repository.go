@@ -9,6 +9,7 @@ import (
 	"myapp/internal/domain"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Repository struct {
@@ -62,6 +63,8 @@ type episodesResponse struct {
 			ParentIndex          int    `json:"parentIndex"`
 			GrandparentRatingKey string `json:"grandparentRatingKey"`
 			ViewCount            int    `json:"viewCount"`
+			// LastViewedAt is a Unix timestamp (seconds). Only present when watched.
+			LastViewedAt int64 `json:"lastViewedAt"`
 		} `json:"Metadata"`
 	} `json:"MediaContainer"`
 }
@@ -162,10 +165,15 @@ func (r *Repository) getAnimeForSection(ctx context.Context, sectionKey string) 
 			continue
 		}
 		key := showSeasonKey{ep.GrandparentRatingKey, ep.ParentIndex}
-		seasonEps[key] = append(seasonEps[key], domain.MediaHostEpisode{
+		episode := domain.MediaHostEpisode{
 			Number:  domain.MediaHostEpisodeNumber(ep.Index),
 			Watched: ep.ViewCount > 0,
-		})
+		}
+		if ep.LastViewedAt > 0 {
+			t := time.Unix(ep.LastViewedAt, 0)
+			episode.LastWatchedAt = &t
+		}
+		seasonEps[key] = append(seasonEps[key], episode)
 	}
 
 	// Collect unique show keys seen in the episode list.
@@ -199,7 +207,9 @@ func (r *Repository) getAnimeForSection(ctx context.Context, sectionKey string) 
 // tvdbGUID extracts the TvDB ID, first from the modern Guid slice
 // (e.g. "tvdb://295222") then falling back to the legacy agent string
 // (e.g. "com.plexapp.agents.thetvdb://295222/1/1?lang=en").
-func tvdbGUID(guids []struct{ ID string `json:"id"` }, legacy string) (domain.TvDbID, bool) {
+func tvdbGUID(guids []struct {
+	ID string `json:"id"`
+}, legacy string) (domain.TvDbID, bool) {
 	for _, g := range guids {
 		if id, ok := strings.CutPrefix(g.ID, "tvdb://"); ok && id != "" {
 			return domain.TvDbID(id), true

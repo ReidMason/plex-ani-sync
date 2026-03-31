@@ -44,19 +44,26 @@ const (
 )
 
 type AnimeStatus struct {
-	AnilistId AniListID
-	Status    WatchStatus
+	AnilistId       AniListID
+	PlexTitle       string
+	Status          WatchStatus
+	WatchedEpisodes int
+	TotalEpisodes   int
 }
 
 type AnimeListEntry struct {
 	AnilistId AniListID
 	Title     string
 	Status    WatchStatus
+	Progress  int // episodes marked watched on AniList (API "progress")
 }
 
 type SyncResult struct {
-	AnilistId     AniListID
-	Title         string
-	PlexStatus    WatchStatus
-	AnilistStatus WatchStatus
+	AnilistId           AniListID
+	Title               string
+	PlexStatus          WatchStatus // target list status from Plex
+	AnilistStatus       WatchStatus // current on AniList (empty if not on list)
+	AnilistProgress     int         // current watched count on AniList
+	PlexWatchedEpisodes int         // target watched count from Plex
+	TotalEpisodes       int         // episodes in this mapping / list slice
 }

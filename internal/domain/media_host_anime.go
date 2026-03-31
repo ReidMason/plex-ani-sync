@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 type MediaHostAnimeTitle string
 
 type MediaHostAnime struct {
@@ -14,9 +16,11 @@ type MediaHostSeason struct {
 }
 
 type MediaHostSeasonNumber int
+
 type MediaHostEpisode struct {
-	Number  MediaHostEpisodeNumber
-	Watched bool
+	Number       MediaHostEpisodeNumber
+	Watched      bool
+	LastWatchedAt *time.Time
 }
 
 type MediaHostEpisodeNumber int

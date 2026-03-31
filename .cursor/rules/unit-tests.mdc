@@ -5,3 +5,6 @@ alwaysApply: true
 - Prefer integration tests over unit tests
 - Only mock external dependencies
 - Try to consolidate similar tests (table driven tests)
+- We should be testing the entire flow from the entry point
+- When validating responses also check the response body
+- Don't test log statements

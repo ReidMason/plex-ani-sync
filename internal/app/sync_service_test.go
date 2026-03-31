@@ -5,6 +5,7 @@ import (
 	"errors"
 	"myapp/internal/domain"
 	"testing"
+	"time"
 )
 
 type mockMediaHostRepo struct {
@@ -27,20 +28,34 @@ func (m *mockAnimeListRepo) GetAnimeList(_ context.Context) ([]domain.AnimeListE
 }
 
 // makeSyncService builds a SyncService backed by the provided mocks.
-// animeListRepo is not yet used in SyncAnime so nil is passed.
 func makeSyncService(anime []domain.MediaHostAnime, animeErr error, mappingRepo *mockMappingSourceRepo) *SyncService {
 	return NewSyncService(
 		nil,
 		&mockMediaHostRepo{anime: anime, animeErr: animeErr},
 		NewMappingService(mappingRepo),
+		DefaultSyncConfig(),
 	)
 }
 
-// watched returns n watched episodes numbered sequentially from 1.
+// watched returns n watched episodes numbered sequentially from 1, with no timestamps.
 func watched(n int) []domain.MediaHostEpisode {
 	eps := make([]domain.MediaHostEpisode, n)
 	for i := range eps {
 		eps[i] = domain.MediaHostEpisode{Number: domain.MediaHostEpisodeNumber(i + 1), Watched: true}
+	}
+	return eps
+}
+
+// watchedAt returns n watched episodes all with the given last-watched timestamp.
+func watchedAt(n int, t time.Time) []domain.MediaHostEpisode {
+	eps := make([]domain.MediaHostEpisode, n)
+	ts := t
+	for i := range eps {
+		eps[i] = domain.MediaHostEpisode{
+			Number:        domain.MediaHostEpisodeNumber(i + 1),
+			Watched:       true,
+			LastWatchedAt: &ts,
+		}
 	}
 	return eps
 }
@@ -168,7 +183,7 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12}},
 		},
 		{
 			name: "no episodes watched",
@@ -184,10 +199,10 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusNotStarted}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusNotStarted, WatchedEpisodes: 0, TotalEpisodes: 12}},
 		},
 		{
-			name: "some episodes watched",
+			name: "some episodes watched without timestamps is in_progress",
 			anime: []domain.MediaHostAnime{{
 				ID: "tvdb-1",
 				Seasons: []domain.MediaHostSeason{{
@@ -203,7 +218,7 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusInProgress}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusInProgress, WatchedEpisodes: 6, TotalEpisodes: 12}},
 		},
 		{
 			// Split-cour show: TvDB holds all episodes in one season; two AniList
@@ -228,8 +243,8 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				},
 			},
 			want: []domain.AnimeStatus{
-				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted},
-				{AnilistId: "anilist-101", Status: domain.WatchStatusCompleted},
+				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 13, TotalEpisodes: 13},
+				{AnilistId: "anilist-101", Status: domain.WatchStatusCompleted, WatchedEpisodes: 11, TotalEpisodes: 11},
 			},
 		},
 		{
@@ -256,8 +271,8 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				},
 			},
 			want: []domain.AnimeStatus{
-				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted},
-				{AnilistId: "anilist-101", Status: domain.WatchStatusNotStarted},
+				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 13, TotalEpisodes: 13},
+				{AnilistId: "anilist-101", Status: domain.WatchStatusNotStarted, WatchedEpisodes: 0, TotalEpisodes: 13},
 			},
 		},
 		{
@@ -279,7 +294,45 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
 				},
 			},
-			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted}},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12}},
+		},
+		{
+			name: "last watched over paused threshold is paused",
+			anime: []domain.MediaHostAnime{{
+				ID: "tvdb-1",
+				Seasons: []domain.MediaHostSeason{{
+					Number:   1,
+					Episodes: append(watchedAt(6, time.Now().Add(-20*24*time.Hour)), unwatched(6)...),
+				}},
+			}},
+			mapping: &mockMappingSourceRepo{
+				tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+					"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-1", TvDbSeason: "1", EpisodeOffset: 0}},
+				},
+				aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
+				},
+			},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusPaused, WatchedEpisodes: 6, TotalEpisodes: 12}},
+		},
+		{
+			name: "last watched over dropped threshold is dropped",
+			anime: []domain.MediaHostAnime{{
+				ID: "tvdb-1",
+				Seasons: []domain.MediaHostSeason{{
+					Number:   1,
+					Episodes: append(watchedAt(6, time.Now().Add(-45*24*time.Hour)), unwatched(6)...),
+				}},
+			}},
+			mapping: &mockMappingSourceRepo{
+				tvDbToAniDbMapping: map[domain.TvDbID][]domain.TvDbToAniDbMapping{
+					"tvdb-1": {{TvDbID: "tvdb-1", AniDbID: "anidb-1", TvDbSeason: "1", EpisodeOffset: 0}},
+				},
+				aniDbToListIdMapping: map[domain.AniDbID]domain.AniDbToListIdMapping{
+					"anidb-1": {AniDbID: "anidb-1", AnilistId: "anilist-100", EpisodeCount: 12},
+				},
+			},
+			want: []domain.AnimeStatus{{AnilistId: "anilist-100", Status: domain.WatchStatusDropped, WatchedEpisodes: 6, TotalEpisodes: 12}},
 		},
 		{
 			name: "multiple anime each produce a status",
@@ -298,8 +351,8 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 				},
 			},
 			want: []domain.AnimeStatus{
-				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted},
-				{AnilistId: "anilist-200", Status: domain.WatchStatusNotStarted},
+				{AnilistId: "anilist-100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
+				{AnilistId: "anilist-200", Status: domain.WatchStatusNotStarted, WatchedEpisodes: 0, TotalEpisodes: 12},
 			},
 		},
 	}
@@ -326,7 +379,7 @@ func TestSyncAnime_CompletionStatus(t *testing.T) {
 
 func TestCompareWithAniList_AniListError(t *testing.T) {
 	repoErr := errors.New("anilist unavailable")
-	svc := NewSyncService(&mockAnimeListRepo{err: repoErr}, nil, nil)
+	svc := NewSyncService(&mockAnimeListRepo{err: repoErr}, nil, nil, DefaultSyncConfig())
 
 	_, err := svc.CompareWithAniList(context.Background(), []domain.AnimeStatus{})
 	if !errors.Is(err, repoErr) {
@@ -352,58 +405,96 @@ func TestCompareWithAniList(t *testing.T) {
 		{
 			name: "in_progress included with matching anilist status",
 			plexStatuses: []domain.AnimeStatus{
-				{AnilistId: "100", Status: domain.WatchStatusInProgress},
+				{AnilistId: "100", Status: domain.WatchStatusInProgress, WatchedEpisodes: 5, TotalEpisodes: 12},
 			},
 			anilistList: []domain.AnimeListEntry{
-				{AnilistId: "100", Status: domain.WatchStatusInProgress},
+				{AnilistId: "100", Status: domain.WatchStatusInProgress, Progress: 5},
 			},
 			want: []domain.SyncResult{
-				{AnilistId: "100", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress},
+				{AnilistId: "100", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 5, PlexWatchedEpisodes: 5, TotalEpisodes: 12},
 			},
 		},
 		{
 			name: "completed included with differing anilist status",
 			plexStatuses: []domain.AnimeStatus{
-				{AnilistId: "100", Status: domain.WatchStatusCompleted},
+				{AnilistId: "100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
 			},
 			anilistList: []domain.AnimeListEntry{
-				{AnilistId: "100", Status: domain.WatchStatusInProgress},
+				{AnilistId: "100", Status: domain.WatchStatusInProgress, Progress: 8},
 			},
 			want: []domain.SyncResult{
-				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress},
+				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 8, PlexWatchedEpisodes: 12, TotalEpisodes: 12},
 			},
 		},
 		{
 			name: "not yet on anilist has empty anilist status",
 			plexStatuses: []domain.AnimeStatus{
-				{AnilistId: "100", Status: domain.WatchStatusCompleted},
+				{AnilistId: "100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
 			},
 			anilistList: []domain.AnimeListEntry{},
 			want: []domain.SyncResult{
-				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: ""},
+				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: "", AnilistProgress: 0, PlexWatchedEpisodes: 12, TotalEpisodes: 12},
 			},
 		},
 		{
-			name: "mixed statuses only include in_progress and completed",
+			name: "not_started excluded; in_progress, paused, dropped, completed included",
 			plexStatuses: []domain.AnimeStatus{
-				{AnilistId: "100", Status: domain.WatchStatusCompleted},
-				{AnilistId: "101", Status: domain.WatchStatusInProgress},
+				{AnilistId: "100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
+				{AnilistId: "101", Status: domain.WatchStatusInProgress, WatchedEpisodes: 3, TotalEpisodes: 12},
 				{AnilistId: "102", Status: domain.WatchStatusNotStarted},
+				{AnilistId: "103", Status: domain.WatchStatusPaused, WatchedEpisodes: 4, TotalEpisodes: 12},
+				{AnilistId: "104", Status: domain.WatchStatusDropped, WatchedEpisodes: 2, TotalEpisodes: 12},
 			},
 			anilistList: []domain.AnimeListEntry{
-				{AnilistId: "100", Status: domain.WatchStatusInProgress},
-				{AnilistId: "101", Status: domain.WatchStatusInProgress},
+				{AnilistId: "100", Status: domain.WatchStatusInProgress, Progress: 6},
+				{AnilistId: "101", Status: domain.WatchStatusInProgress, Progress: 3},
 			},
 			want: []domain.SyncResult{
-				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress},
-				{AnilistId: "101", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress},
+				{AnilistId: "100", PlexStatus: domain.WatchStatusCompleted, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 6, PlexWatchedEpisodes: 12, TotalEpisodes: 12},
+				{AnilistId: "101", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 3, PlexWatchedEpisodes: 3, TotalEpisodes: 12},
+				{AnilistId: "103", PlexStatus: domain.WatchStatusPaused, AnilistStatus: "", AnilistProgress: 0, PlexWatchedEpisodes: 4, TotalEpisodes: 12},
+				{AnilistId: "104", PlexStatus: domain.WatchStatusDropped, AnilistStatus: "", AnilistProgress: 0, PlexWatchedEpisodes: 2, TotalEpisodes: 12},
+			},
+		},
+		{
+			name: "entry already completed on anilist is skipped",
+			plexStatuses: []domain.AnimeStatus{
+				{AnilistId: "100", Status: domain.WatchStatusCompleted, WatchedEpisodes: 12, TotalEpisodes: 12},
+			},
+			anilistList: []domain.AnimeListEntry{
+				{AnilistId: "100", Status: domain.WatchStatusCompleted, Progress: 12},
+			},
+			want: nil,
+		},
+		{
+			name: "title falls back to plex title when anilist title is empty",
+			plexStatuses: []domain.AnimeStatus{
+				{AnilistId: "100", PlexTitle: "Plex Show Name", Status: domain.WatchStatusInProgress, WatchedEpisodes: 1, TotalEpisodes: 12},
+			},
+			anilistList: []domain.AnimeListEntry{
+				{AnilistId: "100", Title: "", Status: domain.WatchStatusInProgress, Progress: 1},
+			},
+			want: []domain.SyncResult{
+				{AnilistId: "100", Title: "Plex Show Name", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 1, PlexWatchedEpisodes: 1, TotalEpisodes: 12},
+			},
+		},
+		{
+			name: "anilist title takes priority over plex title",
+			plexStatuses: []domain.AnimeStatus{
+				{AnilistId: "100", PlexTitle: "Plex Show Name", Status: domain.WatchStatusInProgress, WatchedEpisodes: 7, TotalEpisodes: 12},
+			},
+			anilistList: []domain.AnimeListEntry{
+				{AnilistId: "100", Title: "AniList Title", Status: domain.WatchStatusInProgress, Progress: 7},
+			},
+			want: []domain.SyncResult{
+				{AnilistId: "100", Title: "AniList Title", PlexStatus: domain.WatchStatusInProgress, AnilistStatus: domain.WatchStatusInProgress, AnilistProgress: 7, PlexWatchedEpisodes: 7, TotalEpisodes: 12},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewSyncService(&mockAnimeListRepo{entries: tt.anilistList}, nil, nil)
+			svc := NewSyncService(&mockAnimeListRepo{entries: tt.anilistList}, nil, nil, DefaultSyncConfig())
 
 			got, err := svc.CompareWithAniList(context.Background(), tt.plexStatuses)
 			if err != nil {
