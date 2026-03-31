@@ -135,8 +135,9 @@ func (s *SyncService) SyncAnime(ctx context.Context) ([]domain.AnimeStatus, erro
 // collapseDuplicatePlexTitles merges rows that share the same Plex show title
 // (trimmed, case-insensitive). Different TheTVDB matches often map to different
 // AniDB rows and thus different AniList ids for the same library title; we keep
-// one row: the mapping that covers the most episodes, then most watched, then
-// smallest AniList id for stability. Empty titles are not merged with each other.
+// one row: prefer the copy with the most episodes watched (complete library over
+// a sparse duplicate), then wider mapping scope, then smallest AniList id.
+// Empty titles are not merged with each other.
 func collapseDuplicatePlexTitles(statuses []domain.AnimeStatus) []domain.AnimeStatus {
 	if len(statuses) <= 1 {
 		return statuses
@@ -180,12 +181,15 @@ func pickBestAnimeStatusForDuplicateTitle(parts []domain.AnimeStatus) domain.Ani
 	return best
 }
 
+// animeStatusCoversMoreThan picks the Plex copy to keep when titles collide.
+// Prefer more episodes actually watched (complete library over a sparse duplicate),
+// then wider mapping scope, then stable AniList id.
 func animeStatusCoversMoreThan(a, b domain.AnimeStatus) bool {
-	if a.TotalEpisodes != b.TotalEpisodes {
-		return a.TotalEpisodes > b.TotalEpisodes
-	}
 	if a.WatchedEpisodes != b.WatchedEpisodes {
 		return a.WatchedEpisodes > b.WatchedEpisodes
+	}
+	if a.TotalEpisodes != b.TotalEpisodes {
+		return a.TotalEpisodes > b.TotalEpisodes
 	}
 	return a.AnilistId < b.AnilistId
 }

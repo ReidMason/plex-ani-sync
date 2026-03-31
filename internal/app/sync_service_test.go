@@ -109,6 +109,20 @@ func TestCollapseDuplicatePlexTitles_prefersLargerScope(t *testing.T) {
 	}
 }
 
+func TestCollapseDuplicatePlexTitles_prefersMoreWatchedOverLargerTotal(t *testing.T) {
+	in := []domain.AnimeStatus{
+		{AnilistId: "1", PlexTitle: "Love, Chunibyo & Other Delusions!", WatchedEpisodes: 2, TotalEpisodes: 16, Status: domain.WatchStatusDropped},
+		{AnilistId: "2", PlexTitle: "Love, Chunibyo & Other Delusions!", WatchedEpisodes: 12, TotalEpisodes: 12, Status: domain.WatchStatusCompleted},
+	}
+	got := collapseDuplicatePlexTitles(in)
+	if len(got) != 1 {
+		t.Fatalf("len %d", len(got))
+	}
+	if got[0].AnilistId != "2" || got[0].WatchedEpisodes != 12 || got[0].TotalEpisodes != 12 {
+		t.Fatalf("want 12/12 complete copy, got %+v", got[0])
+	}
+}
+
 func TestCollapseDuplicatePlexTitles_doesNotMergeEmptyTitlesAcrossIds(t *testing.T) {
 	in := []domain.AnimeStatus{
 		{AnilistId: "1", PlexTitle: "", WatchedEpisodes: 1, TotalEpisodes: 2},
