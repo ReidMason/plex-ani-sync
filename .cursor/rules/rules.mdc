@@ -1,7 +1,0 @@
----
-alwaysApply: true
----
-
-- Do not create markdown documentation files unless explicitly asked to
-- Keep responses concise
-- Keep solutions simple and easy to maintain
