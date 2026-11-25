@@ -8,6 +8,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AppSetting struct {
+	Key   string
+	Value string
+}
+
+type PlexAccount struct {
+	UserID         int64
+	TokenEncrypted []byte
+	Username       string
+	UpdatedAt      pgtype.Timestamptz
+}
+
 type Session struct {
 	IDHash      []byte
 	UserID      int64

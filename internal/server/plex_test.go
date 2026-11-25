@@ -1,0 +1,215 @@
+package server_test
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+
+	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
+	"github.com/ReidMason/plex-ani-sync/internal/plextest"
+)
+
+type pinResponse struct {
+	ID      int64  `json:"id"`
+	Code    string `json:"code"`
+	AuthURL string `json:"authUrl"`
+}
+
+type pollResponse struct {
+	Status   string `json:"status"`
+	Username string `json:"username"`
+}
+
+func (b *browser) post(rawURL string) (*http.Response, []byte) {
+	b.t.Helper()
+	resp := b.do(http.MethodPost, rawURL)
+	defer resp.Body.Close()
+	var buf []byte
+	buf, _ = io.ReadAll(resp.Body)
+	return resp, buf
+}
+
+func (b *browser) createPIN() pinResponse {
+	b.t.Helper()
+	resp, body := b.post(b.app.URL + "/api/plex/pins")
+	if resp.StatusCode != http.StatusOK {
+		b.t.Fatalf("create pin: status %d: %s", resp.StatusCode, body)
+	}
+	var pin pinResponse
+	if err := json.Unmarshal(body, &pin); err != nil {
+		b.t.Fatal(err)
+	}
+	return pin
+}
+
+func (b *browser) pollPIN(pin pinResponse) (int, pollResponse) {
+	b.t.Helper()
+	resp, body := b.post(b.app.URL + "/api/plex/pins/" + strconv.FormatInt(pin.ID, 10) + "/poll?code=" + pin.Code)
+	var out pollResponse
+	_ = json.Unmarshal(body, &out)
+	return resp.StatusCode, out
+}
+
+func (b *browser) plexUsername() string {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/me")
+	defer resp.Body.Close()
+	var body struct {
+		Plex *struct {
+			Username string `json:"username"`
+		} `json:"plex"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body.Plex == nil {
+		return ""
+	}
+	return body.Plex.Username
+}
+
+type plexApp struct {
+	app      *httptest.Server
+	dbURL    string
+	provider *oidctest.Provider
+	tv       *plextest.TV
+}
+
+func startPlexApp(t *testing.T) plexApp {
+	t.Helper()
+	dbURL := newDatabase(t)
+	tv := plextest.New(t)
+	app, provider := startAppWith(t, dbURL, nil, tv)
+	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv}
+}
+
+func (p plexApp) signedIn(t *testing.T, sub, name string) *browser {
+	t.Helper()
+	p.provider.SignInAs(sub, name)
+	b := newBrowser(t, p.app)
+	b.signIn()
+	return b
+}
+
+func TestPlexPINFlowLinksAccountAndShowsUsername(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+
+	pin := b.createPIN()
+	if pin.AuthURL == "" {
+		t.Error("no auth url for the popup")
+	}
+	if status, got := b.pollPIN(pin); status != 200 || got.Status != "pending" {
+		t.Fatalf("before approval: %d %+v", status, got)
+	}
+	if got := b.plexUsername(); got != "" {
+		t.Fatalf("username before linking = %q", got)
+	}
+
+	p.tv.Approve(pin.Code, "plex-token-1", "alice_plex")
+	status, got := b.pollPIN(pin)
+	if status != 200 || got.Status != "linked" || got.Username != "alice_plex" {
+		t.Fatalf("after approval: %d %+v", status, got)
+	}
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("me.plex.username = %q", got)
+	}
+}
+
+func (b *browser) link(p plexApp, token, username string) {
+	b.t.Helper()
+	pin := b.createPIN()
+	p.tv.Approve(pin.Code, token, username)
+	if _, got := b.pollPIN(pin); got.Status != "linked" {
+		b.t.Fatalf("link failed: %+v", got)
+	}
+}
+
+func TestPlexEndpointsRequireSession(t *testing.T) {
+	p := startPlexApp(t)
+	b := newBrowser(t, p.app)
+
+	if resp, _ := b.post(p.app.URL + "/api/plex/pins"); resp.StatusCode != 401 {
+		t.Errorf("create pin status %d", resp.StatusCode)
+	}
+	if resp, _ := b.post(p.app.URL + "/api/plex/pins/1/poll?code=x"); resp.StatusCode != 401 {
+		t.Errorf("poll status %d", resp.StatusCode)
+	}
+}
+
+func TestPlexTokenIsNotStoredInPlaintext(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+
+	b.link(p, "plex-token-secret", "alice_plex")
+
+	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts WHERE position($1::bytea in token_encrypted) > 0", "plex-token-secret"); n != 0 {
+		t.Error("token found in plaintext")
+	}
+	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
+		t.Errorf("plex accounts = %d", n)
+	}
+}
+
+func TestRelinkingReplacesTheUsersSinglePlexAccount(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+
+	b.link(p, "tok-old", "alice_old")
+	b.link(p, "tok-new", "alice_new")
+
+	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
+		t.Errorf("plex accounts = %d, want 1", n)
+	}
+	if got := b.plexUsername(); got != "alice_new" {
+		t.Errorf("username = %q", got)
+	}
+}
+
+func TestPlexAccountsAreSeparatePerUser(t *testing.T) {
+	p := startPlexApp(t)
+	alice := p.signedIn(t, "sub-alice", "Alice")
+	bob := p.signedIn(t, "sub-bob", "Bob")
+
+	alice.link(p, "tok-a", "alice_plex")
+
+	if got := bob.plexUsername(); got != "" {
+		t.Errorf("bob sees %q", got)
+	}
+	bob.link(p, "tok-b", "bob_plex")
+	if got := alice.plexUsername(); got != "alice_plex" {
+		t.Errorf("alice sees %q", got)
+	}
+}
+
+func TestPlexClientIdentifierIsGeneratedOnceAndSurvivesRestart(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.createPIN()
+
+	app2, _ := startAppWith(t, p.dbURL, p.provider, p.tv)
+	b2 := newBrowser(t, app2)
+	b2.cookies = b.cookies
+	b2.createPIN()
+
+	ids := p.tv.ClientIdentifiers()
+	if len(ids) != 1 || len(ids[0]) < 32 {
+		t.Errorf("client identifiers = %v, want one uuid", ids)
+	}
+}
+
+func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	pin := b.createPIN()
+	p.tv.Approve(pin.Code, "tok", "alice_plex")
+	p.tv.SetDown(true)
+
+	if status, _ := b.pollPIN(pin); status != http.StatusBadGateway {
+		t.Errorf("status = %d, want 502", status)
+	}
+	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 0 {
+		t.Errorf("plex accounts = %d, want 0", n)
+	}
+}

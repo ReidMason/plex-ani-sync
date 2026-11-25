@@ -19,12 +19,16 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
+	"github.com/ReidMason/plex-ani-sync/internal/plex"
+	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
 )
 
 type Config struct {
 	Env    config.Config
 	Assets fs.FS
 	Logger *slog.Logger
+	// PlexTVURL overrides https://plex.tv, for tests.
+	PlexTVURL string
 }
 
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
@@ -58,8 +62,24 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		queries:  queries,
 		logger:   logger,
 	}
+	box, err := secretbox.New(cfg.Env.EncryptionKey)
+	if err != nil {
+		pool.Close()
+		return nil, nil, err
+	}
+	clientID, err := loadClientIdentifier(ctx, queries)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("load plex client identifier: %w", err)
+	}
+	plexTV := cfg.PlexTVURL
+	if plexTV == "" {
+		plexTV = plex.DefaultTVURL
+	}
+	p := &plexLink{client: plex.NewHTTPClient(plexTV), clientID: clientID, box: box, queries: queries, logger: logger}
 	mux := http.NewServeMux()
 	a.register(mux)
+	p.register(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

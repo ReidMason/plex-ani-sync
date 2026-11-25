@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ func validEnv() map[string]string {
 		"OIDC_ISSUER_URL":    "https://auth.example.com/application/o/plex-ani-sync/",
 		"OIDC_CLIENT_ID":     "client",
 		"OIDC_CLIENT_SECRET": "secret",
+		"APP_ENCRYPTION_KEY": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32)),
 	}
 }
 
@@ -72,5 +75,27 @@ func TestLoadReportsAllMissingVariables(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "PUBLIC_BASE_URL") {
 		t.Errorf("error %q names a variable that is set", err)
+	}
+}
+
+func TestLoadDecodesEncryptionKey(t *testing.T) {
+	env := validEnv()
+	cfg, err := config.Load(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(cfg.EncryptionKey, bytes.Repeat([]byte{7}, 32)) {
+		t.Errorf("EncryptionKey = %x", cfg.EncryptionKey)
+	}
+}
+
+func TestLoadRejectsMalformedEncryptionKey(t *testing.T) {
+	for _, bad := range []string{"not base64!!", base64.StdEncoding.EncodeToString([]byte("too short"))} {
+		env := validEnv()
+		env["APP_ENCRYPTION_KEY"] = bad
+		_, err := config.Load(func(k string) string { return env[k] })
+		if err == nil || !strings.Contains(err.Error(), "APP_ENCRYPTION_KEY") {
+			t.Errorf("%q: err = %v, want one naming APP_ENCRYPTION_KEY", bad, err)
+		}
 	}
 }

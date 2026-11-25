@@ -5,13 +5,14 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/oauth2"
 
@@ -38,7 +39,7 @@ func (a *auth) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/login", a.login)
 	mux.HandleFunc("GET /auth/callback", a.callback)
 	mux.HandleFunc("POST /auth/logout", a.logout)
-	mux.HandleFunc("GET /api/me", a.me)
+	mux.HandleFunc("GET /api/me", a.authenticated(a.me))
 }
 
 func (a *auth) login(w http.ResponseWriter, r *http.Request) {
@@ -120,20 +121,34 @@ func (a *auth) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (a *auth) me(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie(sessionCookie)
-	if err != nil || c.Value == "" {
-		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+func (a *auth) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
+	body := map[string]any{"displayName": s.DisplayName}
+	account, err := a.queries.GetPlexAccount(r.Context(), s.UserID)
+	switch {
+	case err == nil:
+		body["plex"] = map[string]string{"username": account.Username}
+	case !errors.Is(err, pgx.ErrNoRows):
+		a.internalError(w, err)
 		return
 	}
-	session, err := a.queries.GetSessionUser(r.Context(), hashID(c.Value))
-	if err != nil {
-		http.Error(w, "unauthenticated", http.StatusUnauthorized)
-		return
+	writeJSON(w, body)
+}
+
+// authenticated runs next only for requests carrying a live Session cookie.
+func (a *auth) authenticated(next func(http.ResponseWriter, *http.Request, dbgen.GetSessionUserRow)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := r.Cookie(sessionCookie)
+		if err != nil || c.Value == "" {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		session, err := a.queries.GetSessionUser(r.Context(), hashID(c.Value))
+		if err != nil {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		next(w, r, session)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(map[string]string{"displayName": session.DisplayName})
 }
 
 func (a *auth) internalError(w http.ResponseWriter, err error) {

@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
+	"github.com/ReidMason/plex-ani-sync/internal/plextest"
 	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
 
@@ -68,6 +70,8 @@ func newDatabase(t *testing.T) string {
 	return u.String()
 }
 
+var testEncryptionKey = bytes.Repeat([]byte{9}, 32)
+
 func testConfig(dbURL, issuer string) config.Config {
 	return config.Config{
 		DatabaseURL:      dbURL,
@@ -75,6 +79,7 @@ func testConfig(dbURL, issuer string) config.Config {
 		OIDCIssuerURL:    issuer,
 		OIDCClientID:     "plex-ani-sync",
 		OIDCClientSecret: "super-secret-value",
+		EncryptionKey:    testEncryptionKey,
 	}
 }
 
@@ -87,6 +92,11 @@ func startApp(t *testing.T) (*httptest.Server, string, *oidctest.Provider) {
 
 func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptest.Server, *oidctest.Provider) {
 	t.Helper()
+	return startAppWith(t, dbURL, issuer, plextest.New(t))
+}
+
+func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV) (*httptest.Server, *oidctest.Provider) {
+	t.Helper()
 	if issuer == nil {
 		issuer = oidctest.New(t)
 	}
@@ -94,7 +104,7 @@ func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptes
 		"index.html":          {Data: []byte("<!doctype html><title>plex-ani-sync</title>")},
 		"assets/index-abc.js": {Data: []byte("console.log(1)")},
 	}
-	h, closeFn, err := server.New(context.Background(), server.Config{Env: testConfig(dbURL, issuer.URL), Assets: assets})
+	h, closeFn, err := server.New(context.Background(), server.Config{Env: testConfig(dbURL, issuer.URL), Assets: assets, PlexTVURL: tv.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
