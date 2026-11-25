@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
+	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 	"github.com/ReidMason/plex-ani-sync/internal/plextest"
 )
 
@@ -244,5 +245,57 @@ func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
 	}
 	if got := b.plexUsername(); got != "alice_plex" {
 		t.Errorf("username = %q", got)
+	}
+}
+
+func (b *browser) plexNeedsReSignIn() bool {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/me")
+	defer resp.Body.Close()
+	var body struct {
+		Plex *struct {
+			NeedsReSignIn bool `json:"needsReSignIn"`
+		} `json:"plex"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	return body.Plex != nil && body.Plex.NeedsReSignIn
+}
+
+func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	b.mustAdd(srv.URL)
+	if b.plexNeedsReSignIn() {
+		t.Fatal("needs re-sign-in before revocation")
+	}
+
+	p.tv.RevokeToken("tok-a")
+	if !b.plexNeedsReSignIn() {
+		t.Fatal("revoked token not flagged")
+	}
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("cached username = %q", got)
+	}
+
+	b.link(p, "tok-b", "alice_plex")
+	if b.plexNeedsReSignIn() {
+		t.Error("still needs re-sign-in after re-linking")
+	}
+	if got := b.mediaSources(); len(got) != 1 {
+		t.Errorf("media sources = %+v, want 1 kept", got)
+	}
+}
+
+func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	p.tv.SetDown(true)
+
+	if b.plexNeedsReSignIn() {
+		t.Error("outage flagged as needs re-sign-in")
 	}
 }

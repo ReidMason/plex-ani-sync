@@ -88,7 +88,8 @@ func (p *plexLink) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSession
 	account, err := p.queries.GetPlexAccount(r.Context(), s.UserID)
 	switch {
 	case err == nil:
-		body["plex"] = map[string]string{"username": p.refreshUsername(r.Context(), s.UserID, account)}
+		username, needsReSignIn := p.refreshUsername(r.Context(), s.UserID, account)
+		body["plex"] = map[string]any{"username": username, "needsReSignIn": needsReSignIn}
 	case !errors.Is(err, pgx.ErrNoRows):
 		p.internalError(w, err)
 		return
@@ -96,23 +97,26 @@ func (p *plexLink) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSession
 	writeJSON(w, body)
 }
 
-func (p *plexLink) refreshUsername(ctx context.Context, userID int64, account dbgen.GetPlexAccountRow) string {
+func (p *plexLink) refreshUsername(ctx context.Context, userID int64, account dbgen.GetPlexAccountRow) (string, bool) {
 	token, err := p.box.Open(account.TokenEncrypted)
 	if err != nil {
 		p.logger.Warn("open plex token failed", "error", err)
-		return account.Username
+		return account.Username, false
 	}
 	username, err := p.client.Username(ctx, p.clientID, string(token))
+	if errors.Is(err, plex.ErrUnauthorized) {
+		return account.Username, true
+	}
 	if err != nil {
 		p.logger.Warn("plex username refresh failed", "error", err)
-		return account.Username
+		return account.Username, false
 	}
 	if username != account.Username {
 		if err := p.queries.UpdatePlexUsername(ctx, dbgen.UpdatePlexUsernameParams{UserID: userID, Username: username}); err != nil {
 			p.logger.Warn("cache plex username failed", "error", err)
 		}
 	}
-	return username
+	return username, false
 }
 
 func (p *plexLink) upstreamError(w http.ResponseWriter, err error) {

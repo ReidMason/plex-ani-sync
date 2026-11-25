@@ -9,7 +9,7 @@ class Unauthenticated extends Error {}
 
 interface Me {
   displayName: string;
-  plex?: { username: string };
+  plex?: { username: string; needsReSignIn: boolean };
 }
 
 interface Pin {
@@ -158,6 +158,12 @@ function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[];
   return (
     <>
       <p className="text-muted-foreground">Plex: {me.plex?.username}</p>
+      {me.plex?.needsReSignIn && (
+        <div className="mt-2">
+          <p className="text-destructive">Plex rejected your sign-in. Sign in with Plex again to keep syncing.</p>
+          <PlexSignIn onLinked={onChanged} />
+        </div>
+      )}
       <h2 className="mt-4 font-medium">Media sources</h2>
       <ul>
         {sources.map((s) => (
