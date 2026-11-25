@@ -1,2 +1,9 @@
 .DS_Store
 .env
+.env*.local
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+/plex-ani-sync
+web/tsconfig.tsbuildinfo
+node_modules/
