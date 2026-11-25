@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -69,29 +69,39 @@ async function createPin(): Promise<Pin> {
   return res.json();
 }
 
-async function pollPin(pin: Pin): Promise<"pending" | "linked"> {
-  const res = await fetch(`/api/plex/pins/${pin.id}/poll?code=${encodeURIComponent(pin.code)}`, { method: "POST" });
+async function pollPin(pin: Pin, signal: AbortSignal): Promise<"pending" | "linked"> {
+  const res = await fetch(`/api/plex/pins/${pin.id}/poll?code=${encodeURIComponent(pin.code)}`, {
+    method: "POST",
+    signal,
+  });
   if (!res.ok) throw new Error(`polling plex pin failed: ${res.status}`);
   return (await res.json()).status;
 }
 
 function PlexSignIn({ onLinked }: { onLinked: () => void }) {
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
   const signIn = useMutation({
     mutationFn: async () => {
+      controller.current?.abort();
+      const { signal } = (controller.current = new AbortController());
       const popup = window.open("about:blank", "_blank");
       try {
         const pin = await createPin();
         if (popup) popup.location.href = pin.authUrl;
         else window.open(pin.authUrl, "_blank");
-        for (;;) {
+        while (!signal.aborted) {
           await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-          if ((await pollPin(pin)) === "linked") return;
+          if (signal.aborted) return;
+          if ((await pollPin(pin, signal)) === "linked") return;
         }
       } finally {
         popup?.close();
       }
     },
-    onSuccess: onLinked,
+    onSuccess: () => {
+      if (!controller.current?.signal.aborted) onLinked();
+    },
   });
 
   return (
@@ -137,7 +147,7 @@ function Wizard({ me, onChanged }: { me: Me; onChanged: () => void }) {
   return (
     <>
       <p className="mt-2 font-medium">Set up your media source</p>
-      {me.plex ? (
+      {me.plex && !me.plex.needsReSignIn ? (
         <>
           <p className="text-muted-foreground">Step 2 of 2: add a Plex server</p>
           <AddServer onAdded={onChanged} />
