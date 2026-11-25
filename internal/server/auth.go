@@ -87,7 +87,7 @@ func (a *auth) callback(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := a.queries.UpsertUser(r.Context(), dbgen.UpsertUserParams{OidcIssuer: a.issuer, OidcSubject: idToken.Subject})
 	if err != nil {
-		a.internalError(w, err)
+		internalError(w, a.logger, err)
 		return
 	}
 	sessionID := randomID()
@@ -98,7 +98,7 @@ func (a *auth) callback(w http.ResponseWriter, r *http.Request) {
 		DisplayName: firstNonEmpty(claims.Name, claims.PreferredUsername, idToken.Subject),
 		ExpiresAt:   pgtype.Timestamptz{Time: expires, Valid: true},
 	}); err != nil {
-		a.internalError(w, err)
+		internalError(w, a.logger, err)
 		return
 	}
 	session := secureCookie(sessionCookie, sessionID, "/")
@@ -110,7 +110,7 @@ func (a *auth) callback(w http.ResponseWriter, r *http.Request) {
 func (a *auth) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
 		if err := a.queries.RevokeSession(r.Context(), hashID(c.Value)); err != nil {
-			a.internalError(w, err)
+			internalError(w, a.logger, err)
 			return
 		}
 	}
@@ -118,7 +118,6 @@ func (a *auth) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// authenticated runs next only for requests carrying a live Session cookie.
 func (a *auth) authenticated(next func(http.ResponseWriter, *http.Request, dbgen.GetSessionUserRow)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(sessionCookie)
@@ -133,11 +132,6 @@ func (a *auth) authenticated(next func(http.ResponseWriter, *http.Request, dbgen
 		}
 		next(w, r, session)
 	}
-}
-
-func (a *auth) internalError(w http.ResponseWriter, err error) {
-	a.logger.Error("request failed", "error", err)
-	http.Error(w, "internal error", http.StatusInternalServerError)
 }
 
 func secureCookie(name, value, path string) *http.Cookie {

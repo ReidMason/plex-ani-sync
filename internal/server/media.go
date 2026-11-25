@@ -31,7 +31,7 @@ func (p *plexLink) removeMediaSource(w http.ResponseWriter, r *http.Request, s d
 	}
 	n, err := p.queries.DeleteMediaSource(r.Context(), dbgen.DeleteMediaSourceParams{ID: id, UserID: s.UserID})
 	if err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	if n == 0 {
@@ -44,7 +44,7 @@ func (p *plexLink) removeMediaSource(w http.ResponseWriter, r *http.Request, s d
 func (p *plexLink) listMediaSources(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
 	rows, err := p.queries.ListMediaSources(r.Context(), s.UserID)
 	if err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	out := make([]mediaSourceJSON, 0, len(rows))
@@ -73,7 +73,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		return
 	}
 	if err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	switch err := p.server.CheckAccess(r.Context(), p.clientID, serverURL, token); {
@@ -87,7 +87,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		writeError(w, http.StatusForbidden, "no_access")
 		return
 	case err != nil:
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	row, err := p.queries.InsertMediaSource(r.Context(), dbgen.InsertMediaSourceParams{UserID: s.UserID, Url: serverURL})
@@ -96,7 +96,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		return
 	}
 	if err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -110,10 +110,4 @@ func (p *plexLink) accountToken(r *http.Request, userID int64) (string, error) {
 	}
 	token, err := p.box.Open(account.TokenEncrypted)
 	return string(token), err
-}
-
-func writeError(w http.ResponseWriter, status int, code string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
 }

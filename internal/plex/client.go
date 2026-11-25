@@ -90,12 +90,7 @@ func (c *HTTPClient) do(ctx context.Context, method, path, clientID, token strin
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Client-Identifier", clientID)
-	req.Header.Set("X-Plex-Product", productName)
-	if token != "" {
-		req.Header.Set("X-Plex-Token", token)
-	}
+	setPlexHeaders(req, clientID, token)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -108,4 +103,13 @@ func (c *HTTPClient) do(ctx context.Context, method, path, clientID, token strin
 		return fmt.Errorf("plex.tv %s %s: status %d", method, strings.SplitN(path, "?", 2)[0], resp.StatusCode)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func setPlexHeaders(req *http.Request, clientID, token string) {
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Plex-Client-Identifier", clientID)
+	req.Header.Set("X-Plex-Product", productName)
+	if token != "" {
+		req.Header.Set("X-Plex-Token", token)
+	}
 }

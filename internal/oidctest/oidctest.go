@@ -36,7 +36,6 @@ type Provider struct {
 	tokens   int
 }
 
-// New starts a stub provider with discovery, JWKS, authorize and token endpoints.
 func New(t *testing.T) *Provider {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -69,7 +68,6 @@ func New(t *testing.T) *Provider {
 	return p
 }
 
-// SignInAs sets the identity the provider issues ID tokens for.
 func (p *Provider) SignInAs(sub, name string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -97,7 +95,6 @@ func (p *Provider) authorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirect.String(), http.StatusFound)
 }
 
-// TokenRequests reports how many requests the token endpoint has received.
 func (p *Provider) TokenRequests() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()

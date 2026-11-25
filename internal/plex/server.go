@@ -17,7 +17,6 @@ var (
 	ErrNoAccess      = errors.New("plex account has no access to server")
 )
 
-// ServerClient talks to a User's own Plex server.
 type ServerClient interface {
 	// CheckAccess returns ErrUnreachable, ErrNotPlexServer or ErrNoAccess when the server cannot be used with token.
 	CheckAccess(ctx context.Context, clientID, serverURL, token string) error
@@ -62,10 +61,7 @@ func (c *HTTPServerClient) CheckAccess(ctx context.Context, clientID, serverURL,
 	if err != nil {
 		return ErrInvalidURL
 	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Client-Identifier", clientID)
-	req.Header.Set("X-Plex-Product", productName)
-	req.Header.Set("X-Plex-Token", token)
+	setPlexHeaders(req, clientID, token)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return ErrUnreachable

@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// Server is a fake Plex media server answering GET /library/sections.
 type Server struct {
 	URL string
 
@@ -29,7 +28,6 @@ func New(t *testing.T) *Server {
 	return s
 }
 
-// NewNotPlex starts an HTTP server that is not a Plex server.
 func NewNotPlex(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +38,6 @@ func NewNotPlex(t *testing.T) string {
 	return srv.URL
 }
 
-// NewRedirecting starts a server that redirects every request to target.
 func NewRedirecting(t *testing.T, target string) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +47,6 @@ func NewRedirecting(t *testing.T, target string) string {
 	return srv.URL
 }
 
-// NewUnreachable returns the URL of an address nothing is listening on.
 func NewUnreachable(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.NotFoundHandler())
@@ -65,7 +61,6 @@ func (s *Server) Allow(token string) {
 	s.allowed[token] = true
 }
 
-// Forbid makes the server answer the token with 403.
 func (s *Server) Forbid(token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

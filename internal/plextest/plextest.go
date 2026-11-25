@@ -17,7 +17,6 @@ type pin struct {
 	token string
 }
 
-// TV is a fake plex.tv serving the PIN and user endpoints.
 type TV struct {
 	URL string
 
@@ -84,7 +83,6 @@ func (tv *TV) SetDown(down bool) {
 	tv.down = down
 }
 
-// ClientIdentifiers returns the distinct X-Plex-Client-Identifier values received.
 func (tv *TV) ClientIdentifiers() []string {
 	tv.mu.Lock()
 	defer tv.mu.Unlock()

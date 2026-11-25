@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -73,11 +72,11 @@ func (p *plexLink) pollPIN(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 	}
 	sealed, err := p.box.Seal([]byte(token))
 	if err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	if err := p.queries.UpsertPlexAccount(r.Context(), dbgen.UpsertPlexAccountParams{UserID: s.UserID, TokenEncrypted: sealed, Username: username}); err != nil {
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	writeJSON(w, map[string]string{"status": "linked", "username": username})
@@ -91,7 +90,7 @@ func (p *plexLink) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSession
 		username, needsReSignIn := p.refreshUsername(r.Context(), s.UserID, account)
 		body["plex"] = map[string]any{"username": username, "needsReSignIn": needsReSignIn}
 	case !errors.Is(err, pgx.ErrNoRows):
-		p.internalError(w, err)
+		internalError(w, p.logger, err)
 		return
 	}
 	writeJSON(w, body)
@@ -122,15 +121,4 @@ func (p *plexLink) refreshUsername(ctx context.Context, userID int64, account db
 func (p *plexLink) upstreamError(w http.ResponseWriter, err error) {
 	p.logger.Warn("plex.tv request failed", "error", err)
 	http.Error(w, "plex.tv request failed", http.StatusBadGateway)
-}
-
-func (p *plexLink) internalError(w http.ResponseWriter, err error) {
-	p.logger.Error("request failed", "error", err)
-	http.Error(w, "internal error", http.StatusInternalServerError)
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(v)
 }
