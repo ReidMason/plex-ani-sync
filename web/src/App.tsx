@@ -183,7 +183,17 @@ function Wizard({
   );
 }
 
-function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[]; onChanged: () => void }) {
+function Dashboard({
+  me,
+  sources,
+  onChanged,
+  onRunSetup,
+}: {
+  me: Me;
+  sources: MediaSource[];
+  onChanged: () => void;
+  onRunSetup: () => void;
+}) {
   const remove = useMutation({ mutationFn: removeMediaSource, onSuccess: onChanged });
 
   return (
@@ -208,6 +218,9 @@ function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[];
       </ul>
       {remove.isError && <p className="text-destructive">{remove.error.message}</p>}
       <AddServer onAdded={onChanged} />
+      <Button variant="outline" className="mt-4" onClick={onRunSetup}>
+        Run setup again
+      </Button>
     </>
   );
 }
@@ -246,7 +259,12 @@ export function App() {
               (noSources || wizardActive ? (
                 <Wizard me={me.data} sources={sources.data} onChanged={refresh} onDone={() => setWizardActive(false)} />
               ) : (
-                <Dashboard me={me.data} sources={sources.data} onChanged={refresh} />
+                <Dashboard
+                  me={me.data}
+                  sources={sources.data}
+                  onChanged={refresh}
+                  onRunSetup={() => setWizardActive(true)}
+                />
               ))}
             {sources.isError && <p className="text-destructive">Could not load media sources</p>}
             <Button className="mt-4" onClick={() => logout.mutate()}>
