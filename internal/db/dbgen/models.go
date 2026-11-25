@@ -23,7 +23,6 @@ type MediaSource struct {
 type PlexAccount struct {
 	UserID         int64
 	TokenEncrypted []byte
-	Username       string
 	UpdatedAt      pgtype.Timestamptz
 }
 

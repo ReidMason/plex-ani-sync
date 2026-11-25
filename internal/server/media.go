@@ -104,10 +104,10 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 }
 
 func (p *plexLink) accountToken(r *http.Request, userID int64) (string, error) {
-	account, err := p.queries.GetPlexAccount(r.Context(), userID)
+	sealed, err := p.queries.GetPlexAccount(r.Context(), userID)
 	if err != nil {
 		return "", err
 	}
-	token, err := p.box.Open(account.TokenEncrypted)
+	token, err := p.box.Open(sealed)
 	return string(token), err
 }

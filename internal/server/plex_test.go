@@ -7,12 +7,34 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 	"github.com/ReidMason/plex-ani-sync/internal/plextest"
+	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
+
+const usernameTTL = 5 * time.Minute
+
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
 
 type pinResponse struct {
 	ID      int64  `json:"id"`
@@ -76,14 +98,19 @@ type plexApp struct {
 	dbURL    string
 	provider *oidctest.Provider
 	tv       *plextest.TV
+	clock    *fakeClock
 }
 
 func startPlexApp(t *testing.T) plexApp {
 	t.Helper()
 	dbURL := newDatabase(t)
 	tv := plextest.New(t)
-	app, provider := startAppWith(t, dbURL, nil, tv)
-	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv}
+	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	app, provider := startAppWith(t, dbURL, nil, tv, func(c *server.Config) {
+		c.Clock = clock.Now
+		c.UsernameTTL = usernameTTL
+	})
+	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv, clock: clock}
 }
 
 func (p plexApp) signedIn(t *testing.T, sub, name string) *browser {
@@ -222,6 +249,7 @@ func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
 	b.link(p, "tok-a", "alice_old")
 
 	p.tv.SetUsername("tok-a", "alice_renamed")
+	p.clock.Advance(usernameTTL + time.Second)
 
 	if got := b.plexUsername(); got != "alice_renamed" {
 		t.Errorf("username = %q, want alice_renamed", got)
@@ -236,6 +264,8 @@ func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
 	p := startPlexApp(t)
 	b := p.signedIn(t, "sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
+	b.plexUsername()
+	p.clock.Advance(usernameTTL + time.Second)
 	p.tv.SetDown(true)
 
 	resp := b.do(http.MethodGet, p.app.URL+"/api/me")
@@ -247,6 +277,67 @@ func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
 	if got := b.plexUsername(); got != "alice_plex" {
 		t.Errorf("username = %q", got)
 	}
+}
+
+func TestDashboardOmitsUsernameWhenPlexTVIsDownAndNothingIsCached(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	p.tv.SetDown(true)
+
+	if got := b.plexUsername(); got != "" {
+		t.Errorf("username = %q, want none", got)
+	}
+	if !b.plexLinked() || b.plexNeedsReSignIn() {
+		t.Error("account should show as linked and healthy without a name")
+	}
+}
+
+func TestRepeatedDashboardLoadsHitPlexTVOncePerTTL(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	before := p.tv.UserLookups()
+
+	for range 3 {
+		b.plexUsername()
+	}
+	if got := p.tv.UserLookups() - before; got != 1 {
+		t.Fatalf("plex.tv lookups within ttl = %d, want 1", got)
+	}
+
+	p.clock.Advance(usernameTTL + time.Second)
+	b.plexUsername()
+	b.plexUsername()
+	if got := p.tv.UserLookups() - before; got != 2 {
+		t.Errorf("plex.tv lookups after ttl = %d, want 2", got)
+	}
+}
+
+func TestRelinkingInvalidatesTheCachedUsername(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-old", "alice_old")
+	if got := b.plexUsername(); got != "alice_old" {
+		t.Fatalf("username = %q", got)
+	}
+
+	b.link(p, "tok-new", "alice_new")
+
+	if got := b.plexUsername(); got != "alice_new" {
+		t.Errorf("username = %q, want alice_new", got)
+	}
+}
+
+func (b *browser) plexLinked() bool {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/me")
+	defer resp.Body.Close()
+	var body struct {
+		Plex *struct{} `json:"plex"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	return body.Plex != nil
 }
 
 func (b *browser) plexNeedsReSignIn() bool {
@@ -274,11 +365,12 @@ func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testin
 	}
 
 	p.tv.RevokeToken("tok-a")
+	p.clock.Advance(usernameTTL + time.Second)
 	if !b.plexNeedsReSignIn() {
 		t.Fatal("revoked token not flagged")
 	}
-	if got := b.plexUsername(); got != "alice_plex" {
-		t.Errorf("cached username = %q", got)
+	if got := b.plexUsername(); got != "" {
+		t.Errorf("username after revocation = %q, want none", got)
 	}
 
 	b.link(p, "tok-b", "alice_plex")
@@ -313,7 +405,7 @@ func TestUndecryptableTokenAfterKeyRotationFlagsReSignIn(t *testing.T) {
 	if !b2.plexNeedsReSignIn() {
 		t.Error("undecryptable token not flagged")
 	}
-	if got := b2.plexUsername(); got != "alice_plex" {
-		t.Errorf("cached username = %q", got)
+	if got := b2.plexUsername(); got != "" {
+		t.Errorf("username = %q, want none", got)
 	}
 }

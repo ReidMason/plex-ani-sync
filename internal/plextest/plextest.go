@@ -26,6 +26,7 @@ type TV struct {
 	clientIDs []string
 	nextID    int64
 	down      bool
+	lookups   int
 }
 
 func New(t *testing.T) *TV {
@@ -83,6 +84,13 @@ func (tv *TV) SetDown(down bool) {
 	tv.down = down
 }
 
+// UserLookups counts how many times the signed-in user's profile was requested.
+func (tv *TV) UserLookups() int {
+	tv.mu.Lock()
+	defer tv.mu.Unlock()
+	return tv.lookups
+}
+
 func (tv *TV) ClientIdentifiers() []string {
 	tv.mu.Lock()
 	defer tv.mu.Unlock()
@@ -134,6 +142,7 @@ func (tv *TV) getPIN(w http.ResponseWriter, r *http.Request) {
 
 func (tv *TV) user(w http.ResponseWriter, r *http.Request) {
 	tv.mu.Lock()
+	tv.lookups++
 	username, ok := tv.usernames[r.Header.Get("X-Plex-Token")]
 	tv.mu.Unlock()
 	if !ok {

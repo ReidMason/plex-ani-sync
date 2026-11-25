@@ -29,6 +29,9 @@ type Config struct {
 	Logger *slog.Logger
 	// PlexTVURL overrides https://plex.tv, for tests.
 	PlexTVURL string
+	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
+	Clock       func() time.Time
+	UsernameTTL time.Duration
 }
 
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
@@ -76,7 +79,15 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if plexTV == "" {
 		plexTV = plex.DefaultTVURL
 	}
-	p := &plexLink{client: plex.NewHTTPClient(plexTV), server: plex.NewServerClient(), clientID: clientID, box: box, queries: queries, logger: logger}
+	clock := cfg.Clock
+	if clock == nil {
+		clock = time.Now
+	}
+	ttl := cfg.UsernameTTL
+	if ttl == 0 {
+		ttl = defaultUsernameTTL
+	}
+	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: plex.NewServerClient(), clientID: clientID, box: box, queries: queries, logger: logger}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)

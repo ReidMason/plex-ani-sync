@@ -95,12 +95,12 @@ func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptes
 	return startAppWith(t, dbURL, issuer, plextest.New(t))
 }
 
-func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV) (*httptest.Server, *oidctest.Provider) {
+func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
 	t.Helper()
-	return startAppWithKey(t, dbURL, issuer, tv, testEncryptionKey)
+	return startAppWithKey(t, dbURL, issuer, tv, testEncryptionKey, opts...)
 }
 
-func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, key []byte) (*httptest.Server, *oidctest.Provider) {
+func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, key []byte, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
 	t.Helper()
 	if issuer == nil {
 		issuer = oidctest.New(t)
@@ -111,7 +111,11 @@ func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *
 	}
 	env := testConfig(dbURL, issuer.URL)
 	env.EncryptionKey = key
-	h, closeFn, err := server.New(context.Background(), server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL})
+	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	h, closeFn, err := server.New(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

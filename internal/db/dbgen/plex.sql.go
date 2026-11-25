@@ -27,19 +27,14 @@ func (q *Queries) DeleteMediaSource(ctx context.Context, arg DeleteMediaSourcePa
 }
 
 const getPlexAccount = `-- name: GetPlexAccount :one
-SELECT token_encrypted, username FROM plex_accounts WHERE user_id = $1
+SELECT token_encrypted FROM plex_accounts WHERE user_id = $1
 `
 
-type GetPlexAccountRow struct {
-	TokenEncrypted []byte
-	Username       string
-}
-
-func (q *Queries) GetPlexAccount(ctx context.Context, userID int64) (GetPlexAccountRow, error) {
+func (q *Queries) GetPlexAccount(ctx context.Context, userID int64) ([]byte, error) {
 	row := q.db.QueryRow(ctx, getPlexAccount, userID)
-	var i GetPlexAccountRow
-	err := row.Scan(&i.TokenEncrypted, &i.Username)
-	return i, err
+	var token_encrypted []byte
+	err := row.Scan(&token_encrypted)
+	return token_encrypted, err
 }
 
 const getSetting = `-- name: GetSetting :one
@@ -120,34 +115,19 @@ func (q *Queries) ListMediaSources(ctx context.Context, userID int64) ([]ListMed
 	return items, nil
 }
 
-const updatePlexUsername = `-- name: UpdatePlexUsername :exec
-UPDATE plex_accounts SET username = $2, updated_at = now() WHERE user_id = $1
-`
-
-type UpdatePlexUsernameParams struct {
-	UserID   int64
-	Username string
-}
-
-func (q *Queries) UpdatePlexUsername(ctx context.Context, arg UpdatePlexUsernameParams) error {
-	_, err := q.db.Exec(ctx, updatePlexUsername, arg.UserID, arg.Username)
-	return err
-}
-
 const upsertPlexAccount = `-- name: UpsertPlexAccount :exec
-INSERT INTO plex_accounts (user_id, token_encrypted, username)
-VALUES ($1, $2, $3)
+INSERT INTO plex_accounts (user_id, token_encrypted)
+VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE
-SET token_encrypted = EXCLUDED.token_encrypted, username = EXCLUDED.username, updated_at = now()
+SET token_encrypted = EXCLUDED.token_encrypted, updated_at = now()
 `
 
 type UpsertPlexAccountParams struct {
 	UserID         int64
 	TokenEncrypted []byte
-	Username       string
 }
 
 func (q *Queries) UpsertPlexAccount(ctx context.Context, arg UpsertPlexAccountParams) error {
-	_, err := q.db.Exec(ctx, upsertPlexAccount, arg.UserID, arg.TokenEncrypted, arg.Username)
+	_, err := q.db.Exec(ctx, upsertPlexAccount, arg.UserID, arg.TokenEncrypted)
 	return err
 }
