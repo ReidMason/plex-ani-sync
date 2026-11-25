@@ -144,14 +144,34 @@ function AddServer({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-function Wizard({ me, onChanged }: { me: Me; onChanged: () => void }) {
+function Wizard({
+  me,
+  sources,
+  onChanged,
+  onDone,
+}: {
+  me: Me;
+  sources: MediaSource[];
+  onChanged: () => void;
+  onDone: () => void;
+}) {
   return (
     <>
       <p className="mt-2 font-medium">Set up your media source</p>
       {me.plex && !me.plex.needsReSignIn ? (
         <>
           <p className="text-muted-foreground">Step 2 of 2: add a Plex server</p>
+          <ul className="mt-2">
+            {sources.map((s) => (
+              <li key={s.id} className="text-muted-foreground">
+                {s.url}
+              </li>
+            ))}
+          </ul>
           <AddServer onAdded={onChanged} />
+          <Button className="mt-4" disabled={sources.length === 0} onClick={onDone}>
+            Done
+          </Button>
         </>
       ) : (
         <>
@@ -204,6 +224,11 @@ export function App() {
     void queryClient.invalidateQueries({ queryKey: ["me"] });
     void queryClient.invalidateQueries({ queryKey: ["media-sources"] });
   };
+  const [wizardActive, setWizardActive] = useState(false);
+  const noSources = sources.isSuccess && sources.data.length === 0;
+  useEffect(() => {
+    if (noSources) setWizardActive(true);
+  }, [noSources]);
   const unauthenticated = me.error instanceof Unauthenticated;
 
   useEffect(() => {
@@ -218,8 +243,8 @@ export function App() {
           <>
             <p className="text-muted-foreground">Signed in as {me.data.displayName}</p>
             {sources.isSuccess &&
-              (sources.data.length === 0 ? (
-                <Wizard me={me.data} onChanged={refresh} />
+              (noSources || wizardActive ? (
+                <Wizard me={me.data} sources={sources.data} onChanged={refresh} onDone={() => setWizardActive(false)} />
               ) : (
                 <Dashboard me={me.data} sources={sources.data} onChanged={refresh} />
               ))}
