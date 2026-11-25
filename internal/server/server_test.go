@@ -81,7 +81,15 @@ func testConfig(dbURL, issuer string) config.Config {
 func startApp(t *testing.T) (*httptest.Server, string, *oidctest.Provider) {
 	t.Helper()
 	dbURL := newDatabase(t)
-	issuer := oidctest.New(t)
+	ts, issuer := startAppOn(t, dbURL, nil)
+	return ts, dbURL, issuer
+}
+
+func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptest.Server, *oidctest.Provider) {
+	t.Helper()
+	if issuer == nil {
+		issuer = oidctest.New(t)
+	}
 	assets := fstest.MapFS{
 		"index.html":          {Data: []byte("<!doctype html><title>plex-ani-sync</title>")},
 		"assets/index-abc.js": {Data: []byte("console.log(1)")},
@@ -93,7 +101,7 @@ func startApp(t *testing.T) (*httptest.Server, string, *oidctest.Provider) {
 	t.Cleanup(closeFn)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
-	return ts, dbURL, issuer
+	return ts, issuer
 }
 
 func get(t *testing.T, url string) (*http.Response, string) {

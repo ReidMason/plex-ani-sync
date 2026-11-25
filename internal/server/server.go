@@ -5,12 +5,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
 
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
@@ -33,8 +37,29 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	discoverCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	provider, err := oidc.NewProvider(discoverCtx, cfg.Env.OIDCIssuerURL)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OIDC discovery failed for OIDC_ISSUER_URL %q: %w", cfg.Env.OIDCIssuerURL, err)
+	}
 	queries := dbgen.New(pool)
+	a := &auth{
+		oauth: &oauth2.Config{
+			ClientID:     cfg.Env.OIDCClientID,
+			ClientSecret: cfg.Env.OIDCClientSecret,
+			Endpoint:     provider.Endpoint(),
+			RedirectURL:  cfg.Env.RedirectURI(),
+			Scopes:       []string{oidc.ScopeOpenID, "profile"},
+		},
+		issuer:   cfg.Env.OIDCIssuerURL,
+		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.Env.OIDCClientID}),
+		queries:  queries,
+		logger:   logger,
+	}
 	mux := http.NewServeMux()
+	a.register(mux)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

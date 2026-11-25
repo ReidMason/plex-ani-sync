@@ -1,4 +1,3 @@
 {
-  "ignore": ["src/components/ui/**", "src/lib/utils.ts"],
-  "ignoreDependencies": ["@radix-ui/react-slot", "class-variance-authority"]
+  "ignore": ["src/components/ui/**", "src/lib/utils.ts"]
 }

@@ -3,3 +3,23 @@
 //   sqlc v1.31.1
 
 package dbgen
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type Session struct {
+	IDHash      []byte
+	UserID      int64
+	DisplayName string
+	CreatedAt   pgtype.Timestamptz
+	ExpiresAt   pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+}
+
+type User struct {
+	ID          int64
+	OidcIssuer  string
+	OidcSubject string
+	CreatedAt   pgtype.Timestamptz
+}
