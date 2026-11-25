@@ -9,6 +9,23 @@ import (
 	"context"
 )
 
+const deleteMediaSource = `-- name: DeleteMediaSource :execrows
+DELETE FROM media_sources WHERE id = $1 AND user_id = $2
+`
+
+type DeleteMediaSourceParams struct {
+	ID     int64
+	UserID int64
+}
+
+func (q *Queries) DeleteMediaSource(ctx context.Context, arg DeleteMediaSourceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMediaSource, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getPlexAccount = `-- name: GetPlexAccount :one
 SELECT token_encrypted, username FROM plex_accounts WHERE user_id = $1
 `
@@ -101,6 +118,20 @@ func (q *Queries) ListMediaSources(ctx context.Context, userID int64) ([]ListMed
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePlexUsername = `-- name: UpdatePlexUsername :exec
+UPDATE plex_accounts SET username = $2, updated_at = now() WHERE user_id = $1
+`
+
+type UpdatePlexUsernameParams struct {
+	UserID   int64
+	Username string
+}
+
+func (q *Queries) UpdatePlexUsername(ctx context.Context, arg UpdatePlexUsernameParams) error {
+	_, err := q.db.Exec(ctx, updatePlexUsername, arg.UserID, arg.Username)
+	return err
 }
 
 const upsertPlexAccount = `-- name: UpsertPlexAccount :exec

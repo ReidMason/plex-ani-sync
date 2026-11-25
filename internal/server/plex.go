@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
@@ -26,6 +28,7 @@ type plexLink struct {
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {
+	mux.HandleFunc("GET /api/me", a.authenticated(p.me))
 	mux.HandleFunc("POST /api/plex/pins", a.authenticated(p.createPIN))
 	mux.HandleFunc("POST /api/plex/pins/{id}/poll", a.authenticated(p.pollPIN))
 }
@@ -78,6 +81,38 @@ func (p *plexLink) pollPIN(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 		return
 	}
 	writeJSON(w, map[string]string{"status": "linked", "username": username})
+}
+
+func (p *plexLink) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
+	body := map[string]any{"displayName": s.DisplayName}
+	account, err := p.queries.GetPlexAccount(r.Context(), s.UserID)
+	switch {
+	case err == nil:
+		body["plex"] = map[string]string{"username": p.refreshUsername(r.Context(), s.UserID, account)}
+	case !errors.Is(err, pgx.ErrNoRows):
+		p.internalError(w, err)
+		return
+	}
+	writeJSON(w, body)
+}
+
+func (p *plexLink) refreshUsername(ctx context.Context, userID int64, account dbgen.GetPlexAccountRow) string {
+	token, err := p.box.Open(account.TokenEncrypted)
+	if err != nil {
+		p.logger.Warn("open plex token failed", "error", err)
+		return account.Username
+	}
+	username, err := p.client.Username(ctx, p.clientID, string(token))
+	if err != nil {
+		p.logger.Warn("plex username refresh failed", "error", err)
+		return account.Username
+	}
+	if username != account.Username {
+		if err := p.queries.UpdatePlexUsername(ctx, dbgen.UpdatePlexUsernameParams{UserID: userID, Username: username}); err != nil {
+			p.logger.Warn("cache plex username failed", "error", err)
+		}
+	}
+	return username
 }
 
 func (p *plexLink) upstreamError(w http.ResponseWriter, err error) {

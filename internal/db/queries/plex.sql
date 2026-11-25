@@ -21,3 +21,9 @@ RETURNING id, url;
 
 -- name: ListMediaSources :many
 SELECT id, url FROM media_sources WHERE user_id = $1 ORDER BY id;
+
+-- name: DeleteMediaSource :execrows
+DELETE FROM media_sources WHERE id = $1 AND user_id = $2;
+
+-- name: UpdatePlexUsername :exec
+UPDATE plex_accounts SET username = $2, updated_at = now() WHERE user_id = $1;

@@ -5,14 +5,12 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/oauth2"
 
@@ -39,7 +37,6 @@ func (a *auth) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/login", a.login)
 	mux.HandleFunc("GET /auth/callback", a.callback)
 	mux.HandleFunc("POST /auth/logout", a.logout)
-	mux.HandleFunc("GET /api/me", a.authenticated(a.me))
 }
 
 func (a *auth) login(w http.ResponseWriter, r *http.Request) {
@@ -119,19 +116,6 @@ func (a *auth) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, clearedCookie(sessionCookie, "/"))
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (a *auth) me(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
-	body := map[string]any{"displayName": s.DisplayName}
-	account, err := a.queries.GetPlexAccount(r.Context(), s.UserID)
-	switch {
-	case err == nil:
-		body["plex"] = map[string]string{"username": account.Username}
-	case !errors.Is(err, pgx.ErrNoRows):
-		a.internalError(w, err)
-		return
-	}
-	writeJSON(w, body)
 }
 
 // authenticated runs next only for requests carrying a live Session cookie.

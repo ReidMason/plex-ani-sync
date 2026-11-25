@@ -213,3 +213,36 @@ func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
 		t.Errorf("plex accounts = %d, want 0", n)
 	}
 }
+
+func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_old")
+
+	p.tv.SetUsername("tok-a", "alice_renamed")
+
+	if got := b.plexUsername(); got != "alice_renamed" {
+		t.Errorf("username = %q, want alice_renamed", got)
+	}
+	p.tv.SetDown(true)
+	if got := b.plexUsername(); got != "alice_renamed" {
+		t.Errorf("cached username = %q, want alice_renamed", got)
+	}
+}
+
+func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	p.tv.SetDown(true)
+
+	resp := b.do(http.MethodGet, p.app.URL+"/api/me")
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("username = %q", got)
+	}
+}

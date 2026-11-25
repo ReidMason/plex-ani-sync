@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 
@@ -19,6 +20,25 @@ type mediaSourceJSON struct {
 func (p *plexLink) registerMediaSources(mux *http.ServeMux, a *auth) {
 	mux.HandleFunc("GET /api/media-sources", a.authenticated(p.listMediaSources))
 	mux.HandleFunc("POST /api/media-sources", a.authenticated(p.addMediaSource))
+	mux.HandleFunc("DELETE /api/media-sources/{id}", a.authenticated(p.removeMediaSource))
+}
+
+func (p *plexLink) removeMediaSource(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	n, err := p.queries.DeleteMediaSource(r.Context(), dbgen.DeleteMediaSourceParams{ID: id, UserID: s.UserID})
+	if err != nil {
+		p.internalError(w, err)
+		return
+	}
+	if n == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (p *plexLink) listMediaSources(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {

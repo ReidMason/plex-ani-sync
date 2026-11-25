@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
@@ -219,5 +220,60 @@ func TestMediaSourceEndpointsRequireSession(t *testing.T) {
 	}
 	if resp := b.do(http.MethodGet, p.app.URL+"/api/media-sources"); resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("list status %d", resp.StatusCode)
+	}
+}
+
+func (b *browser) removeMediaSource(id int64) int {
+	b.t.Helper()
+	resp := b.do(http.MethodDelete, b.app.URL+"/api/media-sources/"+strconv.FormatInt(id, 10))
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestRemovingAMediaSourceKeepsThePlexAccountAndOtherSources(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	one, two := plexservertest.New(t), plexservertest.New(t)
+	one.Allow("tok-a")
+	two.Allow("tok-a")
+	removed := b.mustAdd(one.URL)
+	kept := b.mustAdd(two.URL)
+
+	if status := b.removeMediaSource(removed.ID); status != http.StatusNoContent {
+		t.Fatalf("status %d", status)
+	}
+
+	if got := b.mediaSources(); len(got) != 1 || got[0] != kept {
+		t.Errorf("list = %+v", got)
+	}
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("plex account lost: %q", got)
+	}
+}
+
+func TestRemovingAnotherUsersMediaSourceDoesNothing(t *testing.T) {
+	p := startPlexApp(t)
+	alice := p.signedIn(t, "sub-alice", "Alice")
+	bob := p.signedIn(t, "sub-bob", "Bob")
+	alice.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	src := alice.mustAdd(srv.URL)
+
+	if status := bob.removeMediaSource(src.ID); status != http.StatusNotFound {
+		t.Errorf("status %d, want 404", status)
+	}
+	if got := alice.mediaSources(); len(got) != 1 {
+		t.Errorf("alice list = %+v", got)
+	}
+}
+
+func TestRemovingRequiresSession(t *testing.T) {
+	p := startPlexApp(t)
+	b := newBrowser(t, p.app)
+
+	if status := b.removeMediaSource(1); status != http.StatusUnauthorized {
+		t.Errorf("status %d", status)
 	}
 }
