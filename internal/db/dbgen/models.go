@@ -18,6 +18,7 @@ type MediaSource struct {
 	UserID    int64
 	Url       string
 	CreatedAt pgtype.Timestamptz
+	Kind      string
 }
 
 type PlexAccount struct {

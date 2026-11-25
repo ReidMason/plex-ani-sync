@@ -19,12 +19,12 @@ const clientIdentifierSetting = "plex_client_identifier"
 
 type plexLink struct {
 	usernames *usernameCache
-	client   plex.Client
-	server   plex.ServerClient
-	clientID string
-	box      *secretbox.Box
-	queries  *dbgen.Queries
-	logger   *slog.Logger
+	client    plex.Client
+	server    plex.ServerClient
+	clientID  string
+	box       *secretbox.Box
+	queries   *dbgen.Queries
+	logger    *slog.Logger
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {

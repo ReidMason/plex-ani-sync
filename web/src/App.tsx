@@ -28,6 +28,7 @@ async function fetchMe(): Promise<Me> {
 interface MediaSource {
   id: number;
   url: string;
+  kind: "plex";
 }
 
 const addServerErrors: Record<string, string> = {

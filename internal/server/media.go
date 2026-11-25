@@ -12,9 +12,14 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 )
 
+type mediaKind string
+
+const mediaKindPlex mediaKind = "plex"
+
 type mediaSourceJSON struct {
-	ID  int64  `json:"id"`
-	URL string `json:"url"`
+	ID   int64     `json:"id"`
+	URL  string    `json:"url"`
+	Kind mediaKind `json:"kind"`
 }
 
 func (p *plexLink) registerMediaSources(mux *http.ServeMux, a *auth) {
@@ -49,7 +54,7 @@ func (p *plexLink) listMediaSources(w http.ResponseWriter, r *http.Request, s db
 	}
 	out := make([]mediaSourceJSON, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, mediaSourceJSON{ID: row.ID, URL: row.Url})
+		out = append(out, mediaSourceJSON{ID: row.ID, URL: row.Url, Kind: mediaKind(row.Kind)})
 	}
 	writeJSON(w, out)
 }
@@ -90,7 +95,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		internalError(w, p.logger, err)
 		return
 	}
-	row, err := p.queries.InsertMediaSource(r.Context(), dbgen.InsertMediaSourceParams{UserID: s.UserID, Url: serverURL})
+	row, err := p.queries.InsertMediaSource(r.Context(), dbgen.InsertMediaSourceParams{UserID: s.UserID, Url: serverURL, Kind: string(mediaKindPlex)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusConflict, "already_added")
 		return
@@ -100,7 +105,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, mediaSourceJSON{ID: row.ID, URL: row.Url})
+	writeJSON(w, mediaSourceJSON{ID: row.ID, URL: row.Url, Kind: mediaKind(row.Kind)})
 }
 
 func (p *plexLink) accountToken(r *http.Request, userID int64) (string, error) {

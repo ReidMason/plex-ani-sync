@@ -49,25 +49,27 @@ func (q *Queries) GetSetting(ctx context.Context, key string) (string, error) {
 }
 
 const insertMediaSource = `-- name: InsertMediaSource :one
-INSERT INTO media_sources (user_id, url) VALUES ($1, $2)
+INSERT INTO media_sources (user_id, url, kind) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, url) DO NOTHING
-RETURNING id, url
+RETURNING id, url, kind
 `
 
 type InsertMediaSourceParams struct {
 	UserID int64
 	Url    string
+	Kind   string
 }
 
 type InsertMediaSourceRow struct {
-	ID  int64
-	Url string
+	ID   int64
+	Url  string
+	Kind string
 }
 
 func (q *Queries) InsertMediaSource(ctx context.Context, arg InsertMediaSourceParams) (InsertMediaSourceRow, error) {
-	row := q.db.QueryRow(ctx, insertMediaSource, arg.UserID, arg.Url)
+	row := q.db.QueryRow(ctx, insertMediaSource, arg.UserID, arg.Url, arg.Kind)
 	var i InsertMediaSourceRow
-	err := row.Scan(&i.ID, &i.Url)
+	err := row.Scan(&i.ID, &i.Url, &i.Kind)
 	return i, err
 }
 
@@ -87,12 +89,13 @@ func (q *Queries) InsertSettingIfMissing(ctx context.Context, arg InsertSettingI
 }
 
 const listMediaSources = `-- name: ListMediaSources :many
-SELECT id, url FROM media_sources WHERE user_id = $1 ORDER BY id
+SELECT id, url, kind FROM media_sources WHERE user_id = $1 ORDER BY id
 `
 
 type ListMediaSourcesRow struct {
-	ID  int64
-	Url string
+	ID   int64
+	Url  string
+	Kind string
 }
 
 func (q *Queries) ListMediaSources(ctx context.Context, userID int64) ([]ListMediaSourcesRow, error) {
@@ -104,7 +107,7 @@ func (q *Queries) ListMediaSources(ctx context.Context, userID int64) ([]ListMed
 	var items []ListMediaSourcesRow
 	for rows.Next() {
 		var i ListMediaSourcesRow
-		if err := rows.Scan(&i.ID, &i.Url); err != nil {
+		if err := rows.Scan(&i.ID, &i.Url, &i.Kind); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -11,8 +11,9 @@ import (
 )
 
 type mediaSource struct {
-	ID  int64  `json:"id"`
-	URL string `json:"url"`
+	ID   int64  `json:"id"`
+	URL  string `json:"url"`
+	Kind string `json:"kind"`
 }
 
 type mediaError struct {
@@ -68,7 +69,7 @@ func TestAddingAReachablePlexServerSavesAMediaSource(t *testing.T) {
 
 	status, src, _ := b.addMediaSource(srv.URL + "/")
 
-	if status != http.StatusCreated || src.URL != srv.URL || src.ID == 0 {
+	if status != http.StatusCreated || src.URL != srv.URL || src.ID == 0 || src.Kind != "plex" {
 		t.Fatalf("status %d src %+v", status, src)
 	}
 	if got := b.mediaSources(); len(got) != 1 || got[0] != src {

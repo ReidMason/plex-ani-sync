@@ -15,12 +15,12 @@ SET token_encrypted = EXCLUDED.token_encrypted, updated_at = now();
 SELECT token_encrypted FROM plex_accounts WHERE user_id = $1;
 
 -- name: InsertMediaSource :one
-INSERT INTO media_sources (user_id, url) VALUES ($1, $2)
+INSERT INTO media_sources (user_id, url, kind) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, url) DO NOTHING
-RETURNING id, url;
+RETURNING id, url, kind;
 
 -- name: ListMediaSources :many
-SELECT id, url FROM media_sources WHERE user_id = $1 ORDER BY id;
+SELECT id, url, kind FROM media_sources WHERE user_id = $1 ORDER BY id;
 
 -- name: DeleteMediaSource :execrows
 DELETE FROM media_sources WHERE id = $1 AND user_id = $2;
