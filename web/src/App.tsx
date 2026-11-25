@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 class Unauthenticated extends Error {}
 
@@ -22,6 +23,37 @@ async function fetchMe(): Promise<Me> {
   if (res.status === 401) throw new Unauthenticated();
   if (!res.ok) throw new Error(`current user failed: ${res.status}`);
   return res.json();
+}
+
+interface MediaSource {
+  id: number;
+  url: string;
+}
+
+const addServerErrors: Record<string, string> = {
+  invalid_url: "Enter an http or https address, such as 192.168.1.5:32400",
+  unreachable: "Could not reach that server. Check the address and that Plex is running",
+  not_plex_server: "That address answered, but it is not a Plex server",
+  no_access: "That server rejected your Plex account. Make sure you have access to it",
+  already_added: "That server is already added",
+  plex_not_linked: "Sign in with Plex first",
+};
+
+async function fetchMediaSources(): Promise<MediaSource[]> {
+  const res = await fetch("/api/media-sources");
+  if (!res.ok) throw new Error(`listing media sources failed: ${res.status}`);
+  return res.json();
+}
+
+async function addMediaSource(url: string): Promise<void> {
+  const res = await fetch("/api/media-sources", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (res.ok) return;
+  const { error } = await res.json().catch(() => ({ error: "" }));
+  throw new Error(addServerErrors[error] ?? `Adding the server failed (${res.status})`);
 }
 
 const pollIntervalMs = 2000;
@@ -67,6 +99,71 @@ function PlexSignIn({ onLinked }: { onLinked: () => void }) {
   );
 }
 
+function AddServer({ onAdded }: { onAdded: () => void }) {
+  const [url, setUrl] = useState("");
+  const add = useMutation({ mutationFn: () => addMediaSource(url), onSuccess: onAdded });
+
+  return (
+    <form
+      className="mt-4 flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        add.mutate();
+      }}
+    >
+      <label htmlFor="server-url" className="text-sm font-medium">
+        Plex server address
+      </label>
+      <Input
+        id="server-url"
+        placeholder="192.168.1.5:32400 or plex.example.com"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
+      <Button type="submit" disabled={add.isPending || url.trim() === ""}>
+        {add.isPending ? "Checking server" : "Add Plex server"}
+      </Button>
+      {add.isError && <p className="text-destructive">{add.error.message}</p>}
+    </form>
+  );
+}
+
+function Wizard({ me, onChanged }: { me: Me; onChanged: () => void }) {
+  return (
+    <>
+      <p className="mt-2 font-medium">Set up your media source</p>
+      {me.plex ? (
+        <>
+          <p className="text-muted-foreground">Step 2 of 2: add a Plex server</p>
+          <AddServer onAdded={onChanged} />
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground">Step 1 of 2: sign in with Plex</p>
+          <PlexSignIn onLinked={onChanged} />
+        </>
+      )}
+    </>
+  );
+}
+
+function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[]; onChanged: () => void }) {
+  return (
+    <>
+      <p className="text-muted-foreground">Plex: {me.plex?.username}</p>
+      <h2 className="mt-4 font-medium">Media sources</h2>
+      <ul>
+        {sources.map((s) => (
+          <li key={s.id} className="text-muted-foreground">
+            {s.url}
+          </li>
+        ))}
+      </ul>
+      <AddServer onAdded={onChanged} />
+    </>
+  );
+}
+
 export function App() {
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: fetchMe, retry: false });
@@ -74,6 +171,11 @@ export function App() {
     mutationFn: () => fetch("/auth/logout", { method: "POST" }),
     onSuccess: () => window.location.assign("/auth/login"),
   });
+  const sources = useQuery({ queryKey: ["media-sources"], queryFn: fetchMediaSources, enabled: me.isSuccess });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["me"] });
+    void queryClient.invalidateQueries({ queryKey: ["media-sources"] });
+  };
   const unauthenticated = me.error instanceof Unauthenticated;
 
   useEffect(() => {
@@ -87,11 +189,13 @@ export function App() {
         {me.isSuccess ? (
           <>
             <p className="text-muted-foreground">Signed in as {me.data.displayName}</p>
-            {me.data.plex ? (
-              <p className="text-muted-foreground">Plex: {me.data.plex.username}</p>
-            ) : (
-              <PlexSignIn onLinked={() => void queryClient.invalidateQueries({ queryKey: ["me"] })} />
-            )}
+            {sources.isSuccess &&
+              (sources.data.length === 0 ? (
+                <Wizard me={me.data} onChanged={refresh} />
+              ) : (
+                <Dashboard me={me.data} sources={sources.data} onChanged={refresh} />
+              ))}
+            {sources.isError && <p className="text-destructive">Could not load media sources</p>}
             <Button className="mt-4" onClick={() => logout.mutate()}>
               Sign out
             </Button>
