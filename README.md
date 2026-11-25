@@ -4,7 +4,15 @@ Syncs the anime you watch in Plex to the sites where you track it. Go backend se
 
 ## Run
 
-Set up the OIDC provider first (see [Authentik setup](#authentik-setup)). Copy `.env.example` to `.env` (git-ignored) and fill it in. Generate the encryption key with `openssl rand -base64 32`.
+Set up the OIDC provider first (see [Authentik setup](#authentik-setup)). Copy `.env.example` to `.env` (git-ignored) and fill it in. Generate the encryption key once and keep it (losing it means everyone re-signs in to Plex):
+
+```sh
+openssl rand -base64 32
+# without openssl:
+head -c 32 /dev/urandom | base64
+# PowerShell:
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
 
 ```sh
 docker compose up --build
