@@ -100,7 +100,7 @@ func (p *plexLink) refreshUsername(ctx context.Context, userID int64, account db
 	token, err := p.box.Open(account.TokenEncrypted)
 	if err != nil {
 		p.logger.Warn("open plex token failed", "error", err)
-		return account.Username, false
+		return account.Username, true
 	}
 	username, err := p.client.Username(ctx, p.clientID, string(token))
 	if errors.Is(err, plex.ErrUnauthorized) {

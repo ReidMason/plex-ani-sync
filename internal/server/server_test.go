@@ -97,6 +97,11 @@ func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptes
 
 func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV) (*httptest.Server, *oidctest.Provider) {
 	t.Helper()
+	return startAppWithKey(t, dbURL, issuer, tv, testEncryptionKey)
+}
+
+func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, key []byte) (*httptest.Server, *oidctest.Provider) {
+	t.Helper()
 	if issuer == nil {
 		issuer = oidctest.New(t)
 	}
@@ -104,7 +109,9 @@ func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *ple
 		"index.html":          {Data: []byte("<!doctype html><title>plex-ani-sync</title>")},
 		"assets/index-abc.js": {Data: []byte("console.log(1)")},
 	}
-	h, closeFn, err := server.New(context.Background(), server.Config{Env: testConfig(dbURL, issuer.URL), Assets: assets, PlexTVURL: tv.URL})
+	env := testConfig(dbURL, issuer.URL)
+	env.EncryptionKey = key
+	h, closeFn, err := server.New(context.Background(), server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL})
 	if err != nil {
 		t.Fatal(err)
 	}

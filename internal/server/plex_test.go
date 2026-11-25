@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -297,5 +298,22 @@ func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
 
 	if b.plexNeedsReSignIn() {
 		t.Error("outage flagged as needs re-sign-in")
+	}
+}
+
+func TestUndecryptableTokenAfterKeyRotationFlagsReSignIn(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+
+	rotated, _ := startAppWithKey(t, p.dbURL, p.provider, p.tv, bytes.Repeat([]byte{7}, 32))
+	b2 := newBrowser(t, rotated)
+	b2.cookies = b.cookies
+
+	if !b2.plexNeedsReSignIn() {
+		t.Error("undecryptable token not flagged")
+	}
+	if got := b2.plexUsername(); got != "alice_plex" {
+		t.Errorf("cached username = %q", got)
 	}
 }
