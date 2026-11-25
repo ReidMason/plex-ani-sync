@@ -37,7 +37,7 @@ const addServerErrors: Record<string, string> = {
   not_plex_server: "That address answered, but it is not a Plex server",
   no_access: "That server rejected your Plex account. Make sure you have access to it",
   already_added: "That server is already added",
-  plex_not_linked: "Sign in with Plex first",
+  plex_not_linked: "Sign in to Plex first",
 };
 
 async function fetchMediaSources(): Promise<MediaSource[]> {
@@ -108,7 +108,7 @@ function PlexSignIn({ onLinked }: { onLinked: () => void }) {
   return (
     <>
       <Button className="mt-4" disabled={signIn.isPending} onClick={() => signIn.mutate()}>
-        {signIn.isPending ? "Waiting for Plex" : "Sign in with Plex"}
+        {signIn.isPending ? "Waiting for Plex" : "Sign in to Plex"}
       </Button>
       {signIn.isError && <p className="mt-2 text-destructive">Plex sign-in failed, try again</p>}
     </>
@@ -155,7 +155,7 @@ function Wizard({ me, onChanged }: { me: Me; onChanged: () => void }) {
         </>
       ) : (
         <>
-          <p className="text-muted-foreground">Step 1 of 2: sign in with Plex</p>
+          <p className="text-muted-foreground">Step 1 of 2: sign in to Plex</p>
           <PlexSignIn onLinked={onChanged} />
         </>
       )}
@@ -171,7 +171,7 @@ function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[];
       <p className="text-muted-foreground">Plex: {me.plex?.username ?? "linked"}</p>
       {me.plex?.needsReSignIn && (
         <div className="mt-2">
-          <p className="text-destructive">Plex rejected your sign-in. Sign in with Plex again to keep syncing.</p>
+          <p className="text-destructive">Plex rejected your sign-in. Sign in to Plex again to keep syncing.</p>
           <PlexSignIn onLinked={onChanged} />
         </div>
       )}
