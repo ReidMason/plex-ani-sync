@@ -45,6 +45,11 @@ async function fetchMediaSources(): Promise<MediaSource[]> {
   return res.json();
 }
 
+async function removeMediaSource(id: number): Promise<void> {
+  const res = await fetch(`/api/media-sources/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Removing the server failed (${res.status})`);
+}
+
 async function addMediaSource(url: string): Promise<void> {
   const res = await fetch("/api/media-sources", {
     method: "POST",
@@ -148,17 +153,23 @@ function Wizard({ me, onChanged }: { me: Me; onChanged: () => void }) {
 }
 
 function Dashboard({ me, sources, onChanged }: { me: Me; sources: MediaSource[]; onChanged: () => void }) {
+  const remove = useMutation({ mutationFn: removeMediaSource, onSuccess: onChanged });
+
   return (
     <>
       <p className="text-muted-foreground">Plex: {me.plex?.username}</p>
       <h2 className="mt-4 font-medium">Media sources</h2>
       <ul>
         {sources.map((s) => (
-          <li key={s.id} className="text-muted-foreground">
+          <li key={s.id} className="flex items-center justify-between gap-4 text-muted-foreground">
             {s.url}
+            <Button variant="outline" disabled={remove.isPending} onClick={() => remove.mutate(s.id)}>
+              Remove
+            </Button>
           </li>
         ))}
       </ul>
+      {remove.isError && <p className="text-destructive">{remove.error.message}</p>}
       <AddServer onAdded={onChanged} />
     </>
   );
