@@ -1,0 +1,8 @@
+.git
+.scratch
+web/node_modules
+web/dist
+node_modules
+docs
+.claude
+.github
