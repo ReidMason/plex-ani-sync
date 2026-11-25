@@ -76,10 +76,11 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if plexTV == "" {
 		plexTV = plex.DefaultTVURL
 	}
-	p := &plexLink{client: plex.NewHTTPClient(plexTV), clientID: clientID, box: box, queries: queries, logger: logger}
+	p := &plexLink{client: plex.NewHTTPClient(plexTV), server: plex.NewServerClient(), clientID: clientID, box: box, queries: queries, logger: logger}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
+	p.registerMediaSources(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

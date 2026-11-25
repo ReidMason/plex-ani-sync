@@ -18,6 +18,7 @@ const clientIdentifierSetting = "plex_client_identifier"
 
 type plexLink struct {
 	client   plex.Client
+	server   plex.ServerClient
 	clientID string
 	box      *secretbox.Box
 	queries  *dbgen.Queries

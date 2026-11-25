@@ -36,6 +36,29 @@ func (q *Queries) GetSetting(ctx context.Context, key string) (string, error) {
 	return value, err
 }
 
+const insertMediaSource = `-- name: InsertMediaSource :one
+INSERT INTO media_sources (user_id, url) VALUES ($1, $2)
+ON CONFLICT (user_id, url) DO NOTHING
+RETURNING id, url
+`
+
+type InsertMediaSourceParams struct {
+	UserID int64
+	Url    string
+}
+
+type InsertMediaSourceRow struct {
+	ID  int64
+	Url string
+}
+
+func (q *Queries) InsertMediaSource(ctx context.Context, arg InsertMediaSourceParams) (InsertMediaSourceRow, error) {
+	row := q.db.QueryRow(ctx, insertMediaSource, arg.UserID, arg.Url)
+	var i InsertMediaSourceRow
+	err := row.Scan(&i.ID, &i.Url)
+	return i, err
+}
+
 const insertSettingIfMissing = `-- name: InsertSettingIfMissing :exec
 INSERT INTO app_settings (key, value) VALUES ($1, $2)
 ON CONFLICT (key) DO NOTHING
@@ -49,6 +72,35 @@ type InsertSettingIfMissingParams struct {
 func (q *Queries) InsertSettingIfMissing(ctx context.Context, arg InsertSettingIfMissingParams) error {
 	_, err := q.db.Exec(ctx, insertSettingIfMissing, arg.Key, arg.Value)
 	return err
+}
+
+const listMediaSources = `-- name: ListMediaSources :many
+SELECT id, url FROM media_sources WHERE user_id = $1 ORDER BY id
+`
+
+type ListMediaSourcesRow struct {
+	ID  int64
+	Url string
+}
+
+func (q *Queries) ListMediaSources(ctx context.Context, userID int64) ([]ListMediaSourcesRow, error) {
+	rows, err := q.db.Query(ctx, listMediaSources, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMediaSourcesRow
+	for rows.Next() {
+		var i ListMediaSourcesRow
+		if err := rows.Scan(&i.ID, &i.Url); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertPlexAccount = `-- name: UpsertPlexAccount :exec

@@ -13,3 +13,11 @@ SET token_encrypted = EXCLUDED.token_encrypted, username = EXCLUDED.username, up
 
 -- name: GetPlexAccount :one
 SELECT token_encrypted, username FROM plex_accounts WHERE user_id = $1;
+
+-- name: InsertMediaSource :one
+INSERT INTO media_sources (user_id, url) VALUES ($1, $2)
+ON CONFLICT (user_id, url) DO NOTHING
+RETURNING id, url;
+
+-- name: ListMediaSources :many
+SELECT id, url FROM media_sources WHERE user_id = $1 ORDER BY id;

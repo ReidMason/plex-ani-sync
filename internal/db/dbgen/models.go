@@ -13,6 +13,13 @@ type AppSetting struct {
 	Value string
 }
 
+type MediaSource struct {
+	ID        int64
+	UserID    int64
+	Url       string
+	CreatedAt pgtype.Timestamptz
+}
+
 type PlexAccount struct {
 	UserID         int64
 	TokenEncrypted []byte
