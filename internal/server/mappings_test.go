@@ -99,7 +99,7 @@ func TestShowWithTVDBIDIsMappedFromFribb(t *testing.T) {
 
 func TestSplitCourSeasonResolvesToTwoMappingsWithOffsetRanges(t *testing.T) {
 	p := startPlexApp(t, withFribb(
-		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Offset: 12, Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
 		datasettest.FribbEntry{AniDBID: 100, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 	))
 	b, srv := animeSetup(t, p)

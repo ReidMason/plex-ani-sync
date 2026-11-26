@@ -14,7 +14,9 @@ type fribbEntry struct {
 	Season    *struct {
 		TVDB int `json:"tvdb"`
 	} `json:"season"`
-	EpisodeOffset int `json:"tvdb_epoffset"`
+	EpisodeOffset *struct {
+		TVDB int `json:"tvdb"`
+	} `json:"episode_offset"`
 }
 
 // FetchFribb downloads and parses Fribb's anime-list-full.json.
@@ -40,7 +42,11 @@ func FetchFribb(ctx context.Context, client *http.Client, url string) ([]Row, er
 		if e.Season == nil {
 			continue
 		}
-		rows = append(rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: e.EpisodeOffset})
+		offset := 0
+		if e.EpisodeOffset != nil {
+			offset = e.EpisodeOffset.TVDB
+		}
+		rows = append(rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: offset})
 	}
 	return rows, nil
 }
