@@ -16,6 +16,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilist"
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
@@ -37,6 +38,8 @@ type Config struct {
 	CustomMappings []mappings.Mapping
 	// AnimeListsURL overrides the Anime-Lists anime-list.xml location, for tests.
 	AnimeListsURL string
+	// AniListURL overrides the AniList GraphQL endpoint, for tests.
+	AniListURL string
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -106,6 +109,10 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}
+	aniListURL := cfg.AniListURL
+	if aniListURL == "" {
+		aniListURL = anilist.DefaultURL
+	}
 	clock := cfg.Clock
 	if clock == nil {
 		clock = time.Now
@@ -115,7 +122,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		ttl = defaultUsernameTTL
 	}
 	serverClient := plex.NewServerClient()
-	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger}
+	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+		anilist: &aniListCache{client: anilist.Client{URL: aniListURL, HTTP: http.DefaultClient}, queries: queries, clock: clock, ttl: defaultAniListMetadataTTL, logger: logger}}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)

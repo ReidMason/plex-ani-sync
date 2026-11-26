@@ -8,6 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnilistMedium struct {
+	AnilistID    int64
+	Episodes     pgtype.Int4
+	TitleRomaji  string
+	TitleEnglish string
+	FetchedAt    pgtype.Timestamptz
+}
+
 type AnimeLibrary struct {
 	MediaSourceID int64
 	LibraryKey    string
