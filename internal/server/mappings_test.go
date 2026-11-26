@@ -166,7 +166,7 @@ func TestDatasetIsLoadedOnlyWhenMappingsAreEmpty(t *testing.T) {
 	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	changed := datasettest.New(t)
 	changed.SetFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 99, TVDBID: 77, Season: tvdb(1), Type: "TV"})
-	restarted, _ := startAppWith(t, p.dbURL, p.provider, p.tv, func(c *server.Config) { c.FribbURL = changed.FribbURL })
+	restarted, _ := startAppWith(t, p.dbURL, p.provider, p.tv, func(c *server.Config) { c.FribbURL, c.AnimeListsURL = changed.FribbURL, changed.AnimeListsURL })
 	p.app = restarted
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Stable", Season: 1, Number: 1, Title: "x"})
@@ -184,4 +184,51 @@ func TestUnavailableDatasetLeavesShowsUnmappedWithoutBreakingStartup(t *testing.
 	selectAnime(b, srv)
 
 	assertMappings(t, b.mappedShows()["Down"], "unmapped")
+}
+
+func withAnimeLists(xml string) func(*datasettest.Host) {
+	return func(h *datasettest.Host) { h.SetAnimeLists(xml) }
+}
+
+func TestTwoSeasonsFoldingIntoOneEntryResolveToTwoMappings(t *testing.T) {
+	p := startPlexApp(t,
+		withFribb(datasettest.FribbEntry{AniDBID: 10, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"}),
+		withAnimeLists(`<?xml version="1.0" encoding="utf-8"?>
+<anime-list>
+  <anime anidbid="10" tvdbid="77" defaulttvdbseason="1">
+    <name>Merged</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0">;1-1;</mapping>
+      <mapping anidbseason="1" tvdbseason="1" start="1" end="12"/>
+      <mapping anidbseason="1" tvdbseason="2" start="13" end="24" offset="-12"/>
+    </mapping-list>
+  </anime>
+</anime-list>`))
+	b, srv := animeSetup(t, p)
+	for s := 1; s <= 2; s++ {
+		for n := 1; n <= 12; n++ {
+			srv.AddEpisode("2", plexservertest.Episode{Show: "Merged", Season: s, Number: n, Title: "x"})
+		}
+	}
+	srv.SetShowGUIDs("2", "Merged", "tvdb://77")
+	selectAnime(b, srv)
+
+	got := b.mappedShows()["Merged"]
+
+	assertMappings(t, got, "mapped",
+		mappingJSON{Season: 1, FirstEpisode: 1, LastEpisode: ptr(12), AniListID: 1001, EntryFirst: 1, EntryLast: ptr(12)},
+		mappingJSON{Season: 2, FirstEpisode: 1, LastEpisode: ptr(12), AniListID: 1001, EntryFirst: 13, EntryLast: ptr(24)},
+	)
+}
+
+func TestFribbOnlyShowsAreUnaffectedByAnimeLists(t *testing.T) {
+	p := startPlexApp(t,
+		withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 5, Season: tvdb(1), Type: "TV"}),
+		withAnimeLists(`<anime-list><anime anidbid="1" tvdbid="5" defaulttvdbseason="1"><name>Plain</name></anime></anime-list>`))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Plain", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Plain", "tvdb://5")
+	selectAnime(b, srv)
+
+	assertMappings(t, b.mappedShows()["Plain"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
 }

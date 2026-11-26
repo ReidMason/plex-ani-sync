@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	defaultFribbURL    = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
-	originDataset      = "dataset"
-	datasetFetchWindow = 2 * time.Minute
+	defaultFribbURL      = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
+	defaultAnimeListsURL = "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml"
+	originDataset        = "dataset"
+	datasetFetchWindow   = 2 * time.Minute
 )
 
 type mappingRow struct {
@@ -30,8 +31,8 @@ type mappingRow struct {
 	AniDBID           int  `json:"anidb_id"`
 }
 
-// loadDatasetIfEmpty ingests Fribb when no Mappings are stored; a failed download is logged and leaves the table empty.
-func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL string, logger *slog.Logger) error {
+// loadDatasetIfEmpty ingests Fribb and Anime-Lists when no Mappings are stored; a failed download is logged and leaves the table empty.
+func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL, animeListsURL string, logger *slog.Logger) error {
 	n, err := q.CountMappings(ctx)
 	if err != nil || n > 0 {
 		return err
@@ -43,7 +44,12 @@ func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Querie
 		logger.Warn("could not load mapping dataset", "error", err)
 		return nil
 	}
-	return replaceDatasetMappings(ctx, pool, q, mappings.Resolve(rows))
+	lists, err := mappings.FetchAnimeLists(fetchCtx, http.DefaultClient, animeListsURL)
+	if err != nil {
+		logger.Warn("could not load mapping dataset", "error", err)
+		return nil
+	}
+	return replaceDatasetMappings(ctx, pool, q, mappings.Resolve(rows, lists))
 }
 
 func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, resolved []mappings.Mapping) error {

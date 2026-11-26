@@ -38,7 +38,7 @@ func TestResolveEndsEachRangeWhereTheNextEntryOfTheSeasonBegins(t *testing.T) {
 		{AniDBID: 3, AniListID: 303, TVDBID: 1, Season: 1, EpisodeOffset: 24},
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
-	})
+	}, nil)
 
 	want := []mappings.Mapping{
 		{TVDBID: 1, Season: 1, Episodes: mappings.Range{First: 1, Last: ptr(12)}, AniListID: 101, Entry: mappings.Range{First: 1, Last: ptr(12)}, AniDBID: 1},
@@ -54,7 +54,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenTVDBRangesOverlap(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 909, TVDBID: 1, Season: 1},
 		{AniDBID: 4, AniListID: 404, TVDBID: 1, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 1 || got[0].AniListID != 404 {
 		t.Errorf("got %+v", got)
@@ -65,7 +65,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenEntryRangesOverlap(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 5, TVDBID: 2, Season: 1},
 		{AniDBID: 4, AniListID: 5, TVDBID: 1, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 1 || got[0].TVDBID != 1 {
 		t.Errorf("got %+v", got)
@@ -77,7 +77,7 @@ func TestResolveSkipsSpecialsAndRowsMissingIDs(t *testing.T) {
 		{AniDBID: 1, AniListID: 1, TVDBID: 1, Season: 0},
 		{AniDBID: 2, AniListID: 0, TVDBID: 1, Season: 1},
 		{AniDBID: 3, AniListID: 3, TVDBID: 0, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 0 {
 		t.Errorf("got %+v", got)

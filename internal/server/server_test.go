@@ -112,7 +112,8 @@ func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *
 	}
 	env := testConfig(dbURL, issuer.URL)
 	env.EncryptionKey = key
-	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL, FribbURL: datasettest.New(t).FribbURL}
+	ds := datasettest.New(t)
+	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL, FribbURL: ds.FribbURL, AnimeListsURL: ds.AnimeListsURL}
 	for _, opt := range opts {
 		opt(&cfg)
 	}

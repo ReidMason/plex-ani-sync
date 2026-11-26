@@ -23,17 +23,19 @@ type FribbEntry struct {
 }
 
 type Host struct {
-	FribbURL string
+	FribbURL      string
+	AnimeListsURL string
 
 	mu     sync.Mutex
 	fribb  []FribbEntry
+	lists  string
 	failed bool
 }
 
 // New starts a fake dataset host serving an empty Fribb list.
 func New(t *testing.T) *Host {
 	t.Helper()
-	h := &Host{}
+	h := &Host{lists: "<anime-list></anime-list>"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /fribb.json", func(w http.ResponseWriter, r *http.Request) {
 		h.mu.Lock()
@@ -46,9 +48,21 @@ func New(t *testing.T) *Host {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(entries)
 	})
+	mux.HandleFunc("GET /anime-list.xml", func(w http.ResponseWriter, r *http.Request) {
+		h.mu.Lock()
+		lists, failed := h.lists, h.failed
+		h.mu.Unlock()
+		if failed {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(lists))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	h.FribbURL = srv.URL + "/fribb.json"
+	h.AnimeListsURL = srv.URL + "/anime-list.xml"
 	return h
 }
 
@@ -58,7 +72,14 @@ func (h *Host) SetFribb(entries ...FribbEntry) {
 	h.fribb = entries
 }
 
-// Fail makes the Fribb endpoint respond with a server error.
+// SetAnimeLists serves the given Anime-Lists anime-list.xml document.
+func (h *Host) SetAnimeLists(xml string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.lists = xml
+}
+
+// Fail makes the dataset endpoints respond with a server error.
 func (h *Host) Fail() {
 	h.mu.Lock()
 	defer h.mu.Unlock()

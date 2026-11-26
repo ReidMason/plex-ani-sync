@@ -115,6 +115,7 @@ func startPlexApp(t *testing.T, datasets ...func(*datasettest.Host)) plexApp {
 		c.Clock = clock.Now
 		c.UsernameTTL = usernameTTL
 		c.FribbURL = host.FribbURL
+		c.AnimeListsURL = host.AnimeListsURL
 	})
 	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv, clock: clock}
 }

@@ -39,14 +39,15 @@ func FetchFribb(ctx context.Context, client *http.Client, url string) ([]Row, er
 	}
 	rows := make([]Row, 0, len(entries))
 	for _, e := range entries {
-		if e.Season == nil {
-			continue
+		season := 0
+		if e.Season != nil {
+			season = e.Season.TVDB
 		}
 		offset := 0
 		if e.EpisodeOffset != nil {
 			offset = e.EpisodeOffset.TVDB
 		}
-		rows = append(rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: offset})
+		rows = append(rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: season, EpisodeOffset: offset})
 	}
 	return rows, nil
 }
