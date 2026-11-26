@@ -6,12 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync"
+	"time"
 )
 
 const (
 	DefaultURL = "https://graphql.anilist.co"
-	pageSize   = 50
-	query      = `query ($ids: [Int], $perPage: Int) { Page(perPage: $perPage) { media(id_in: $ids, type: ANIME) { id episodes title { romaji english } } } }`
+	MaxBatch   = 50
+
+	defaultRetryAfter = time.Minute
+	initialBackoff    = 30 * time.Second
+	maxBackoff        = 15 * time.Minute
+	query             = `query ($ids: [Int], $perPage: Int) { Page(perPage: $perPage) { media(id_in: $ids, type: ANIME) { id episodes title { romaji english } } } }`
 )
 
 type Media struct {
@@ -22,41 +29,128 @@ type Media struct {
 	TitleEnglish string
 }
 
-type Client struct {
+// ThrottledError means no request was sent because AniList must not be called before Until.
+type ThrottledError struct{ Until time.Time }
+
+func (e *ThrottledError) Error() string {
+	return "anilist: requests paused until " + e.Until.Format(time.RFC3339)
+}
+
+type Options struct {
 	URL  string
 	HTTP *http.Client
+	// Now defaults to time.Now.
+	Now func() time.Time
+	// RequestsPerMinute spaces requests evenly; zero means no spacing.
+	RequestsPerMinute int
+}
+
+// Client shares one pause gate across every request, so a 429 holds back all callers.
+type Client struct {
+	url  string
+	http *http.Client
+	now  func() time.Time
+	// spacing is the minimum gap between requests.
+	spacing time.Duration
+
+	mu         sync.Mutex
+	pausedTill time.Time
+	failures   int
+}
+
+func New(o Options) *Client {
+	c := &Client{url: o.URL, http: o.HTTP, now: o.Now}
+	if c.now == nil {
+		c.now = time.Now
+	}
+	if o.RequestsPerMinute > 0 {
+		c.spacing = time.Minute / time.Duration(o.RequestsPerMinute)
+	}
+	return c
+}
+
+// reserve claims the next request slot, or reports when AniList may be called again.
+func (c *Client) reserve() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now()
+	if now.Before(c.pausedTill) {
+		return &ThrottledError{Until: c.pausedTill}
+	}
+	c.pausedTill = now.Add(c.spacing)
+	return nil
+}
+
+func (c *Client) pauseFor(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if until := c.now().Add(d); until.After(c.pausedTill) {
+		c.pausedTill = until
+	}
+}
+
+func (c *Client) recordFailure() {
+	c.mu.Lock()
+	backoff := min(initialBackoff<<min(c.failures, 10), maxBackoff)
+	c.failures++
+	c.mu.Unlock()
+	c.pauseFor(backoff)
+}
+
+func (c *Client) recordSuccess() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.failures = 0
+}
+
+func parseRetryAfter(h string, now time.Time) time.Duration {
+	if secs, err := strconv.Atoi(h); err == nil && secs >= 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if at, err := http.ParseTime(h); err == nil {
+		return max(at.Sub(now), 0)
+	}
+	return defaultRetryAfter
 }
 
 // Fetch looks up Entries by AniList ID; IDs AniList doesn't know are absent from the result.
-func (c Client) Fetch(ctx context.Context, ids []int) ([]Media, error) {
-	var out []Media
-	for start := 0; start < len(ids); start += pageSize {
-		page, err := c.fetchPage(ctx, ids[start:min(start+pageSize, len(ids))])
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, page...)
+func (c *Client) Fetch(ctx context.Context, ids []int) ([]Media, error) {
+	if len(ids) > MaxBatch {
+		return nil, fmt.Errorf("anilist: %d ids exceeds batch size %d", len(ids), MaxBatch)
 	}
-	return out, nil
+	if err := c.reserve(); err != nil {
+		return nil, err
+	}
+	media, err := c.fetchPage(ctx, ids)
+	if err == nil {
+		c.recordSuccess()
+	}
+	return media, err
 }
 
-func (c Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
-	payload, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"ids": ids, "perPage": pageSize}})
+func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
+	payload, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"ids": ids, "perPage": MaxBatch}})
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
+		c.recordFailure()
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		c.pauseFor(parseRetryAfter(resp.Header.Get("Retry-After"), c.now()))
+		return nil, fmt.Errorf("anilist: unexpected status %d", resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
+		c.recordFailure()
 		return nil, fmt.Errorf("anilist: unexpected status %d", resp.StatusCode)
 	}
 	var body struct {
@@ -77,9 +171,11 @@ func (c Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
 		} `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		c.recordFailure()
 		return nil, fmt.Errorf("anilist: %w", err)
 	}
 	if len(body.Errors) > 0 {
+		c.recordFailure()
 		return nil, fmt.Errorf("anilist: %s", body.Errors[0].Message)
 	}
 	out := make([]Media, 0, len(body.Data.Page.Media))

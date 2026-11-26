@@ -14,6 +14,7 @@ type AnilistMedium struct {
 	TitleRomaji  string
 	TitleEnglish string
 	FetchedAt    pgtype.Timestamptz
+	Missing      bool
 }
 
 type AnimeLibrary struct {

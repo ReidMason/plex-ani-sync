@@ -43,6 +43,8 @@ type Config struct {
 	DatasetRefreshInterval time.Duration
 	// AniListURL overrides the AniList GraphQL endpoint, for tests.
 	AniListURL string
+	// AniListPollInterval is how often the AniList worker rechecks its queue; it defaults to 1 second.
+	AniListPollInterval time.Duration
 	// Cache stores shows pulled from media sources; it defaults to an in-memory cache.
 	Cache cache.Cache
 	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
@@ -139,6 +141,21 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if ttl == 0 {
 		ttl = defaultUsernameTTL
 	}
+	aniListRate := cfg.Env.AniListRequestsPerMinute
+	if aniListRate == 0 {
+		aniListRate = config.DefaultAniListRequestsPerMinute
+	}
+	aniListPoll := cfg.AniListPollInterval
+	if aniListPoll == 0 {
+		aniListPoll = time.Second
+	}
+	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: aniListURL, HTTP: http.DefaultClient, Now: clock, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListCtx, stopAniList := context.WithCancel(ctx)
+	aniListDone := make(chan struct{})
+	go func() {
+		defer close(aniListDone)
+		aniListWorker.run(aniListCtx)
+	}()
 	serverClient := plex.NewServerClient()
 	store := cfg.Cache
 	if store == nil {
@@ -149,7 +166,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		showsTTL = defaultShowsTTL
 	}
 	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
-		anilist: &aniListCache{client: anilist.Client{URL: aniListURL, HTTP: http.DefaultClient}, queries: queries, clock: clock, ttl: defaultAniListMetadataTTL, logger: logger}}
+		anilist: aniListWorker}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
@@ -167,6 +184,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	return mux, func() {
 		stopRefresh()
 		<-refreshDone
+		stopAniList()
+		<-aniListDone
 		pool.Close()
 	}, nil
 }

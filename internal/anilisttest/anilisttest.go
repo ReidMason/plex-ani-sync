@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -25,6 +26,7 @@ type Host struct {
 	mu       sync.Mutex
 	media    map[int]Media
 	status   int
+	retry    string
 	requests int
 }
 
@@ -47,6 +49,15 @@ func (h *Host) FailWith(status int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.status = status
+	h.retry = ""
+}
+
+// FailWithRetryAfter makes every request fail with status and a Retry-After header of seconds.
+func (h *Host) FailWithRetryAfter(status, seconds int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.status = status
+	h.retry = strconv.Itoa(seconds)
 }
 
 func (h *Host) Requests() int {
@@ -64,7 +75,7 @@ func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	h.mu.Lock()
 	h.requests++
-	status := h.status
+	status, retry := h.status, h.retry
 	found := []Media{}
 	for _, id := range body.Variables.IDs {
 		if m, ok := h.media[id]; ok {
@@ -73,6 +84,9 @@ func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Unlock()
 	if status != 0 {
+		if retry != "" {
+			w.Header().Set("Retry-After", retry)
+		}
 		http.Error(w, "failing", status)
 		return
 	}

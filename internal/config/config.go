@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
@@ -16,7 +17,11 @@ type Config struct {
 	OIDCClientID     string
 	OIDCClientSecret string
 	EncryptionKey    []byte
+	// AniListRequestsPerMinute caps requests to AniList; it defaults to 30, well below AniList's documented limit.
+	AniListRequestsPerMinute int
 }
+
+const DefaultAniListRequestsPerMinute = 30
 
 // Load reads configuration through getenv and names every missing variable, or the first invalid one.
 func Load(getenv func(string) string) (Config, error) {
@@ -55,6 +60,14 @@ func Load(getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("APP_ENCRYPTION_KEY must be %d random bytes encoded as base64, e.g. from `openssl rand -base64 32` (see README)", secretbox.KeySize)
 	}
 	cfg.EncryptionKey = key
+	cfg.AniListRequestsPerMinute = DefaultAniListRequestsPerMinute
+	if v := getenv("ANILIST_REQUESTS_PER_MINUTE"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return Config{}, fmt.Errorf("ANILIST_REQUESTS_PER_MINUTE must be a positive whole number (see README)")
+		}
+		cfg.AniListRequestsPerMinute = n
+	}
 	return cfg, nil
 }
 

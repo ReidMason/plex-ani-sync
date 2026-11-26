@@ -12,25 +12,35 @@ import (
 )
 
 const listAniListMedia = `-- name: ListAniListMedia :many
-SELECT anilist_id, episodes, title_romaji, title_english, fetched_at
+SELECT anilist_id, episodes, title_romaji, title_english, missing, fetched_at
 FROM anilist_media
 WHERE anilist_id = ANY($1::bigint[])
 `
 
-func (q *Queries) ListAniListMedia(ctx context.Context, anilistIds []int64) ([]AnilistMedium, error) {
+type ListAniListMediaRow struct {
+	AnilistID    int64
+	Episodes     pgtype.Int4
+	TitleRomaji  string
+	TitleEnglish string
+	Missing      bool
+	FetchedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) ListAniListMedia(ctx context.Context, anilistIds []int64) ([]ListAniListMediaRow, error) {
 	rows, err := q.db.Query(ctx, listAniListMedia, anilistIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AnilistMedium
+	var items []ListAniListMediaRow
 	for rows.Next() {
-		var i AnilistMedium
+		var i ListAniListMediaRow
 		if err := rows.Scan(
 			&i.AnilistID,
 			&i.Episodes,
 			&i.TitleRomaji,
 			&i.TitleEnglish,
+			&i.Missing,
 			&i.FetchedAt,
 		); err != nil {
 			return nil, err
@@ -44,13 +54,14 @@ func (q *Queries) ListAniListMedia(ctx context.Context, anilistIds []int64) ([]A
 }
 
 const upsertAniListMedia = `-- name: UpsertAniListMedia :exec
-INSERT INTO anilist_media (anilist_id, episodes, title_romaji, title_english, fetched_at)
-SELECT r.anilist_id, r.episodes, r.title_romaji, r.title_english, $1::timestamptz
-FROM jsonb_to_recordset($2::jsonb) AS r(anilist_id bigint, episodes int, title_romaji text, title_english text)
+INSERT INTO anilist_media (anilist_id, episodes, title_romaji, title_english, missing, fetched_at)
+SELECT r.anilist_id, r.episodes, r.title_romaji, r.title_english, r.missing, $1::timestamptz
+FROM jsonb_to_recordset($2::jsonb) AS r(anilist_id bigint, episodes int, title_romaji text, title_english text, missing boolean)
 ON CONFLICT (anilist_id) DO UPDATE SET
     episodes = EXCLUDED.episodes,
     title_romaji = EXCLUDED.title_romaji,
     title_english = EXCLUDED.title_english,
+    missing = EXCLUDED.missing,
     fetched_at = EXCLUDED.fetched_at
 `
 
