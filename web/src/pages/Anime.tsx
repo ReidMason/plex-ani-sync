@@ -24,8 +24,8 @@ export function Anime() {
       {anime.isSuccess && anime.data.length > 0 && (
         <Card className="gap-0 py-0">
           <ul className="divide-y divide-border">
-            {anime.data.map((show) => (
-              <li key={`${show.mediaSourceId}-${show.title}`} className="px-4 py-3">
+            {anime.data.map((show, i) => (
+              <li key={`${show.mediaSourceId}-${i}`} className="px-4 py-3">
                 <details>
                   <summary className="cursor-pointer font-medium">{show.title}</summary>
                   <ul className="mt-2 flex flex-col gap-2 pl-4">

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -180,7 +181,7 @@ func (p *plexLink) replaceAnimeLibraries(ctx context.Context, sourceID int64, ke
 	if err := q.ClearAnimeLibraries(ctx, sourceID); err != nil {
 		return err
 	}
-	if err := q.AddAnimeLibraries(ctx, dbgen.AddAnimeLibrariesParams{MediaSourceID: sourceID, Column2: slices.Compact(slices.Sorted(slices.Values(keys)))}); err != nil {
+	if err := q.AddAnimeLibraries(ctx, dbgen.AddAnimeLibrariesParams{MediaSourceID: sourceID, LibraryKeys: slices.Compact(slices.Sorted(slices.Values(keys)))}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -207,17 +208,31 @@ func (p *plexLink) loadLibraries(w http.ResponseWriter, r *http.Request, s dbgen
 		internalError(w, p.logger, err)
 		return src, nil, false
 	}
-	libs, err := p.sources[mediaKind(src.Kind)].Libraries(r.Context(), media.Connection{URL: src.Url, Token: token})
-	switch {
-	case errors.Is(err, media.ErrUnreachable):
-		writeError(w, http.StatusBadGateway, "unreachable")
-		return src, nil, false
-	case errors.Is(err, media.ErrNoAccess):
-		writeError(w, http.StatusForbidden, "no_access")
-		return src, nil, false
-	case err != nil:
-		internalError(w, p.logger, err)
+	libs, err := p.librariesOf(r.Context(), src.Kind, media.Connection{URL: src.Url, Token: token})
+	if err != nil {
+		p.writeMediaError(w, err)
 		return src, nil, false
 	}
 	return src, libs, true
+}
+
+func (p *plexLink) librariesOf(ctx context.Context, kind string, c media.Connection) ([]media.Library, error) {
+	source, ok := p.sources[mediaKind(kind)]
+	if !ok {
+		return nil, fmt.Errorf("no media source for kind %q", kind)
+	}
+	return source.Libraries(ctx, c)
+}
+
+func (p *plexLink) writeMediaError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, media.ErrUnreachable):
+		writeError(w, http.StatusBadGateway, "unreachable")
+	case errors.Is(err, media.ErrNoAccess):
+		writeError(w, http.StatusForbidden, "no_access")
+	case errors.Is(err, plex.ErrNotPlexServer):
+		writeError(w, http.StatusUnprocessableEntity, "not_plex_server")
+	default:
+		internalError(w, p.logger, err)
+	}
 }

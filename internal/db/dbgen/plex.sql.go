@@ -16,11 +16,11 @@ SELECT $1, unnest($2::text[])
 
 type AddAnimeLibrariesParams struct {
 	MediaSourceID int64
-	Column2       []string
+	LibraryKeys   []string
 }
 
 func (q *Queries) AddAnimeLibraries(ctx context.Context, arg AddAnimeLibrariesParams) error {
-	_, err := q.db.Exec(ctx, addAnimeLibraries, arg.MediaSourceID, arg.Column2)
+	_, err := q.db.Exec(ctx, addAnimeLibraries, arg.MediaSourceID, arg.LibraryKeys)
 	return err
 }
 

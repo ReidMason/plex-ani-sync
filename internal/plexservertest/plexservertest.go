@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 type Server struct {
 	URL string
 
+	close     func()
 	mu        sync.Mutex
 	allowed   map[string]bool
 	forbidden map[string]bool
@@ -40,6 +42,16 @@ type Episode struct {
 	LastViewedAt int64
 }
 
+func (s *Server) RemoveLibrary(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.libraries = slices.DeleteFunc(s.libraries, func(l library) bool { return l.Key == key })
+	delete(s.episodes, key)
+}
+
+// Shutdown stops the server so later requests fail to connect.
+func (s *Server) Shutdown() { s.close() }
+
 func (s *Server) AddEpisode(libraryKey string, e Episode) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -52,11 +64,20 @@ func (s *Server) AddEpisode(libraryKey string, e Episode) {
 func (s *Server) allLeaves(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("X-Plex-Token")
 	s.mu.Lock()
-	allowed := s.allowed[token]
-	all := append([]episode{}, s.episodes[r.PathValue("key")]...)
+	allowed, forbidden := s.allowed[token], s.forbidden[token]
+	key := r.PathValue("key")
+	known := slices.ContainsFunc(s.libraries, func(l library) bool { return l.Key == key })
+	all := append([]episode{}, s.episodes[key]...)
 	s.mu.Unlock()
-	if !allowed {
+	switch {
+	case forbidden:
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	case !allowed:
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	case !known:
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	start, _ := strconv.Atoi(r.Header.Get("X-Plex-Container-Start"))
@@ -94,6 +115,7 @@ func New(t *testing.T) *Server {
 	mux.HandleFunc("GET /library/sections/{key}/allLeaves", s.allLeaves)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	s.close = srv.Close
 	s.URL = srv.URL
 	return s
 }

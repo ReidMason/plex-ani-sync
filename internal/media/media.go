@@ -42,6 +42,6 @@ type Show struct {
 type Source interface {
 	// Libraries returns only libraries that hold shows.
 	Libraries(ctx context.Context, c Connection) ([]Library, error)
-	// Shows returns every show in a library with all seasons and episodes, including specials.
+	// Shows includes specials.
 	Shows(ctx context.Context, c Connection, libraryKey string) ([]Show, error)
 }

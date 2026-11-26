@@ -36,7 +36,7 @@ DELETE FROM anime_libraries WHERE media_source_id = $1;
 
 -- name: AddAnimeLibraries :exec
 INSERT INTO anime_libraries (media_source_id, library_key)
-SELECT $1, unnest($2::text[]);
+SELECT sqlc.arg(media_source_id), unnest(sqlc.arg(library_keys)::text[]);
 
 -- name: ListAnimeLibrariesForUser :many
 SELECT ms.id AS media_source_id, ms.url, ms.kind, al.library_key

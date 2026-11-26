@@ -97,26 +97,6 @@ func (c *HTTPServerClient) Source(clientID string) *Source {
 }
 
 func (s *Source) Libraries(ctx context.Context, conn media.Connection) ([]media.Library, error) {
-	serverURL, err := NormalizeServerURL(conn.URL)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/library/sections", nil)
-	if err != nil {
-		return nil, ErrInvalidURL
-	}
-	setPlexHeaders(req, s.clientID, conn.Token)
-	resp, err := s.client.http.Do(req)
-	if err != nil {
-		return nil, media.ErrUnreachable
-	}
-	defer resp.Body.Close()
-	switch {
-	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
-		return nil, media.ErrNoAccess
-	case resp.StatusCode != http.StatusOK:
-		return nil, ErrNotPlexServer
-	}
 	var body struct {
 		MediaContainer struct {
 			Directory []struct {
@@ -126,8 +106,8 @@ func (s *Source) Libraries(ctx context.Context, conn media.Connection) ([]media.
 			} `json:"Directory"`
 		} `json:"MediaContainer"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, ErrNotPlexServer
+	if err := s.getJSON(ctx, conn, "/library/sections", nil, &body); err != nil {
+		return nil, err
 	}
 	var out []media.Library
 	for _, d := range body.MediaContainer.Directory {
@@ -151,53 +131,57 @@ type leaf struct {
 }
 
 func (s *Source) Shows(ctx context.Context, conn media.Connection, libraryKey string) ([]media.Show, error) {
-	serverURL, err := NormalizeServerURL(conn.URL)
-	if err != nil {
-		return nil, err
-	}
 	var leaves []leaf
 	for start := 0; ; start += leavesPageSize {
-		page, total, err := s.leavesPage(ctx, serverURL, conn.Token, libraryKey, start)
-		if err != nil {
+		var body struct {
+			MediaContainer struct {
+				TotalSize int    `json:"totalSize"`
+				Metadata  []leaf `json:"Metadata"`
+			} `json:"MediaContainer"`
+		}
+		page := http.Header{
+			"X-Plex-Container-Start": {strconv.Itoa(start)},
+			"X-Plex-Container-Size":  {strconv.Itoa(leavesPageSize)},
+		}
+		if err := s.getJSON(ctx, conn, "/library/sections/"+url.PathEscape(libraryKey)+"/allLeaves", page, &body); err != nil {
 			return nil, err
 		}
-		leaves = append(leaves, page...)
-		if len(page) == 0 || start+len(page) >= total {
+		leaves = append(leaves, body.MediaContainer.Metadata...)
+		if len(body.MediaContainer.Metadata) == 0 || start+len(body.MediaContainer.Metadata) >= body.MediaContainer.TotalSize {
 			break
 		}
 	}
 	return groupLeaves(leaves), nil
 }
 
-func (s *Source) leavesPage(ctx context.Context, serverURL, token, libraryKey string, start int) ([]leaf, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/library/sections/"+url.PathEscape(libraryKey)+"/allLeaves", nil)
+func (s *Source) getJSON(ctx context.Context, conn media.Connection, path string, header http.Header, into any) error {
+	serverURL, err := NormalizeServerURL(conn.URL)
 	if err != nil {
-		return nil, 0, ErrInvalidURL
+		return err
 	}
-	setPlexHeaders(req, s.clientID, token)
-	req.Header.Set("X-Plex-Container-Start", strconv.Itoa(start))
-	req.Header.Set("X-Plex-Container-Size", strconv.Itoa(leavesPageSize))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+path, nil)
+	if err != nil {
+		return ErrInvalidURL
+	}
+	setPlexHeaders(req, s.clientID, conn.Token)
+	for k, v := range header {
+		req.Header[k] = v
+	}
 	resp, err := s.client.http.Do(req)
 	if err != nil {
-		return nil, 0, media.ErrUnreachable
+		return media.ErrUnreachable
 	}
 	defer resp.Body.Close()
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
-		return nil, 0, media.ErrNoAccess
+		return media.ErrNoAccess
 	case resp.StatusCode != http.StatusOK:
-		return nil, 0, ErrNotPlexServer
+		return ErrNotPlexServer
 	}
-	var body struct {
-		MediaContainer struct {
-			TotalSize int    `json:"totalSize"`
-			Metadata  []leaf `json:"Metadata"`
-		} `json:"MediaContainer"`
+	if err := json.NewDecoder(resp.Body).Decode(into); err != nil {
+		return ErrNotPlexServer
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, 0, ErrNotPlexServer
-	}
-	return body.MediaContainer.Metadata, body.MediaContainer.TotalSize, nil
+	return nil
 }
 
 func groupLeaves(leaves []leaf) []media.Show {
