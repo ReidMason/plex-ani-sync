@@ -9,8 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
+	"github.com/ReidMason/plex-ani-sync/internal/media"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
 )
@@ -21,9 +23,11 @@ type plexLink struct {
 	usernames *usernameCache
 	client    plex.Client
 	server    plex.ServerClient
+	sources   map[mediaKind]media.Source
 	clientID  string
 	box       *secretbox.Box
 	queries   *dbgen.Queries
+	pool      *pgxpool.Pool
 	logger    *slog.Logger
 }
 

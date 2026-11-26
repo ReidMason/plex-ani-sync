@@ -8,6 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnimeLibrary struct {
+	MediaSourceID int64
+	LibraryKey    string
+}
+
 type AppSetting struct {
 	Key   string
 	Value string
