@@ -38,13 +38,10 @@ type Config struct {
 	CustomMappings []mappings.Mapping
 	// AnimeListsURL overrides the Anime-Lists anime-list.xml location, for tests.
 	AnimeListsURL string
-<<<<<<< HEAD
 	// DatasetRefreshInterval is how often the mapping datasets are re-downloaded; it defaults to 24 hours.
 	DatasetRefreshInterval time.Duration
-=======
 	// AniListURL overrides the AniList GraphQL endpoint, for tests.
 	AniListURL string
->>>>>>> origin/feat/plex-anilist-mappings
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -114,7 +111,6 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}
-<<<<<<< HEAD
 	refreshEvery := cfg.DatasetRefreshInterval
 	if refreshEvery == 0 {
 		refreshEvery = defaultDatasetRefreshInterval
@@ -125,12 +121,10 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		defer close(refreshDone)
 		refreshDatasetEvery(refreshCtx, refreshEvery, pool, queries, fribbURL, animeListsURL, custom, logger)
 	}()
-=======
 	aniListURL := cfg.AniListURL
 	if aniListURL == "" {
 		aniListURL = anilist.DefaultURL
 	}
->>>>>>> origin/feat/plex-anilist-mappings
 	clock := cfg.Clock
 	if clock == nil {
 		clock = time.Now
