@@ -34,3 +34,14 @@ func TestFetchAnimeListsKeepsOnlyRangeMappingsIntoTVDBSeasons(t *testing.T) {
 		t.Errorf("got %+v, %v; want %+v", got, err, want)
 	}
 }
+
+func TestFetchAnimeListsParsesDocumentRecordedFromTheRealDataset(t *testing.T) {
+	srv := serveFile(t, "testdata/anime-list-sample.xml")
+
+	got, err := mappings.FetchAnimeLists(context.Background(), srv.Client(), srv.URL)
+
+	want := mappings.AnimeLists{19: {{Season: 1, First: 1, Last: 12}, {Season: 2, First: 13, Last: 24, Offset: -12}}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, %v; want %+v", got, err, want)
+	}
+}

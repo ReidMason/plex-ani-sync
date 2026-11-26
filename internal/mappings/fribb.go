@@ -11,9 +11,11 @@ import (
 type fribbEntry struct {
 	AniDBID   int `json:"anidb_id"`
 	AniListID int `json:"anilist_id"`
-	TVDBID    int `json:"thetvdb_id"`
-	TMDBID    int `json:"themoviedb_id"`
-	Season    *struct {
+	TVDBID    int `json:"tvdb_id"`
+	TMDB      struct {
+		TV int `json:"tv"`
+	} `json:"themoviedb_id"`
+	Season *struct {
 		TVDB int `json:"tvdb"`
 	} `json:"season"`
 	EpisodeOffset *struct {
@@ -55,9 +57,9 @@ func FetchFribb(ctx context.Context, client *http.Client, url string) (Dataset, 
 	var data Dataset
 	linked := map[int]bool{}
 	for _, e := range entries {
-		if e.TMDBID > 0 && e.TVDBID > 0 && !linked[e.TMDBID] {
-			linked[e.TMDBID] = true
-			data.Links = append(data.Links, IDLink{TMDBID: e.TMDBID, TVDBID: e.TVDBID})
+		if e.TMDB.TV > 0 && e.TVDBID > 0 && !linked[e.TMDB.TV] {
+			linked[e.TMDB.TV] = true
+			data.Links = append(data.Links, IDLink{TMDBID: e.TMDB.TV, TVDBID: e.TVDBID})
 		}
 		season := 0
 		if e.Season != nil {

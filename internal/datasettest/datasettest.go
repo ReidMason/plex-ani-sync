@@ -12,15 +12,35 @@ type Season struct {
 	TVDB int `json:"tvdb"`
 }
 
-// FribbEntry is one row of Fribb's anime-list-full.json.
+// FribbEntry is one row of Fribb's anime-list-full.json; TMDBID is served as `{"tv": id}`.
 type FribbEntry struct {
-	AniDBID   int     `json:"anidb_id"`
-	AniListID int     `json:"anilist_id,omitempty"`
-	TVDBID    int     `json:"thetvdb_id,omitempty"`
-	TMDBID    int     `json:"themoviedb_id,omitempty"`
-	Season    *Season `json:"season,omitempty"`
-	Offset    *Season `json:"episode_offset,omitempty"`
-	Type      string  `json:"type"`
+	AniDBID   int
+	AniListID int
+	TVDBID    int
+	TMDBID    int
+	Season    *Season
+	Offset    *Season
+	Type      string
+}
+
+func (e FribbEntry) MarshalJSON() ([]byte, error) {
+	wire := struct {
+		AniDBID   int     `json:"anidb_id"`
+		AniListID int     `json:"anilist_id,omitempty"`
+		TVDBID    int     `json:"tvdb_id,omitempty"`
+		TMDB      *tmdbID `json:"themoviedb_id,omitempty"`
+		Season    *Season `json:"season,omitempty"`
+		Offset    *Season `json:"episode_offset,omitempty"`
+		Type      string  `json:"type"`
+	}{e.AniDBID, e.AniListID, e.TVDBID, nil, e.Season, e.Offset, e.Type}
+	if e.TMDBID > 0 {
+		wire.TMDB = &tmdbID{TV: e.TMDBID}
+	}
+	return json.Marshal(wire)
+}
+
+type tmdbID struct {
+	TV int `json:"tv"`
 }
 
 type Host struct {
