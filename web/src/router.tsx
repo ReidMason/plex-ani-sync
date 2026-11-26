@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { Unauthenticated, plexIsLinked, useMe, useMediaSources } from "@/api";
 import { AppShell } from "@/components/AppShell";
+import { Anime } from "@/pages/Anime";
 import { MediaSources } from "@/pages/MediaSources";
 import { Overview } from "@/pages/Overview";
 import { SetupPlex, SetupServers } from "@/pages/Setup";
@@ -17,12 +18,13 @@ function Splash({ children }: { children: string }) {
 
 const rootRoute = createRootRoute({ component: Gate });
 const overviewRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: () => <Page page="overview" /> });
+const animeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/anime", component: Anime });
 const mediaSourcesRoute = createRoute({ getParentRoute: () => rootRoute, path: "/media-sources", component: () => <Page page="media-sources" /> });
 const setupPlexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/plex", component: () => <Page page="setup-plex" /> });
 const setupServersRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/servers", component: () => <Page page="setup-servers" /> });
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([overviewRoute, mediaSourcesRoute, setupPlexRoute, setupServersRoute]),
+  routeTree: rootRoute.addChildren([overviewRoute, animeRoute, mediaSourcesRoute, setupPlexRoute, setupServersRoute]),
 });
 
 declare module "@tanstack/react-router" {

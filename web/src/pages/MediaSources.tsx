@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { type MediaSource, type Me, removeMediaSource } from "@/api";
 import { AddServer } from "@/components/AddServer";
+import { LibraryPicker } from "@/components/LibraryPicker";
 import { PageHeader } from "@/components/PageHeader";
 import { ReSignInBanner } from "@/components/ReSignInBanner";
 import { ServerRow } from "@/components/ServerRow";
@@ -29,7 +30,9 @@ export function MediaSources({ me, sources }: { me: Me; sources: MediaSource[] }
                   Remove
                 </Button>
               }
-            />
+            >
+              <LibraryPicker mediaSourceId={s.id} />
+            </ServerRow>
           ))}
         </ul>
       </Card>

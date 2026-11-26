@@ -9,6 +9,30 @@ import (
 	"context"
 )
 
+const addAnimeLibraries = `-- name: AddAnimeLibraries :exec
+INSERT INTO anime_libraries (media_source_id, library_key)
+SELECT $1, unnest($2::text[])
+`
+
+type AddAnimeLibrariesParams struct {
+	MediaSourceID int64
+	LibraryKeys   []string
+}
+
+func (q *Queries) AddAnimeLibraries(ctx context.Context, arg AddAnimeLibrariesParams) error {
+	_, err := q.db.Exec(ctx, addAnimeLibraries, arg.MediaSourceID, arg.LibraryKeys)
+	return err
+}
+
+const clearAnimeLibraries = `-- name: ClearAnimeLibraries :exec
+DELETE FROM anime_libraries WHERE media_source_id = $1
+`
+
+func (q *Queries) ClearAnimeLibraries(ctx context.Context, mediaSourceID int64) error {
+	_, err := q.db.Exec(ctx, clearAnimeLibraries, mediaSourceID)
+	return err
+}
+
 const deleteMediaSource = `-- name: DeleteMediaSource :execrows
 DELETE FROM media_sources WHERE id = $1 AND user_id = $2
 `
@@ -24,6 +48,28 @@ func (q *Queries) DeleteMediaSource(ctx context.Context, arg DeleteMediaSourcePa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getMediaSource = `-- name: GetMediaSource :one
+SELECT id, url, kind FROM media_sources WHERE id = $1 AND user_id = $2
+`
+
+type GetMediaSourceParams struct {
+	ID     int64
+	UserID int64
+}
+
+type GetMediaSourceRow struct {
+	ID   int64
+	Url  string
+	Kind string
+}
+
+func (q *Queries) GetMediaSource(ctx context.Context, arg GetMediaSourceParams) (GetMediaSourceRow, error) {
+	row := q.db.QueryRow(ctx, getMediaSource, arg.ID, arg.UserID)
+	var i GetMediaSourceRow
+	err := row.Scan(&i.ID, &i.Url, &i.Kind)
+	return i, err
 }
 
 const getPlexAccount = `-- name: GetPlexAccount :one
@@ -86,6 +132,70 @@ type InsertSettingIfMissingParams struct {
 func (q *Queries) InsertSettingIfMissing(ctx context.Context, arg InsertSettingIfMissingParams) error {
 	_, err := q.db.Exec(ctx, insertSettingIfMissing, arg.Key, arg.Value)
 	return err
+}
+
+const listAnimeLibrariesForUser = `-- name: ListAnimeLibrariesForUser :many
+SELECT ms.id AS media_source_id, ms.url, ms.kind, al.library_key
+FROM anime_libraries al
+JOIN media_sources ms ON ms.id = al.media_source_id
+WHERE ms.user_id = $1
+ORDER BY ms.id, al.library_key
+`
+
+type ListAnimeLibrariesForUserRow struct {
+	MediaSourceID int64
+	Url           string
+	Kind          string
+	LibraryKey    string
+}
+
+func (q *Queries) ListAnimeLibrariesForUser(ctx context.Context, userID int64) ([]ListAnimeLibrariesForUserRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeLibrariesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAnimeLibrariesForUserRow
+	for rows.Next() {
+		var i ListAnimeLibrariesForUserRow
+		if err := rows.Scan(
+			&i.MediaSourceID,
+			&i.Url,
+			&i.Kind,
+			&i.LibraryKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeLibraryKeys = `-- name: ListAnimeLibraryKeys :many
+SELECT library_key FROM anime_libraries WHERE media_source_id = $1
+`
+
+func (q *Queries) ListAnimeLibraryKeys(ctx context.Context, mediaSourceID int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAnimeLibraryKeys, mediaSourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var library_key string
+		if err := rows.Scan(&library_key); err != nil {
+			return nil, err
+		}
+		items = append(items, library_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMediaSources = `-- name: ListMediaSources :many

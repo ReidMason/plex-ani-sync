@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -276,5 +277,291 @@ func TestRemovingRequiresSession(t *testing.T) {
 
 	if status := b.removeMediaSource(1); status != http.StatusUnauthorized {
 		t.Errorf("status %d", status)
+	}
+}
+
+type library struct {
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Selected bool   `json:"selected"`
+}
+
+func (b *browser) libraries(id int64) (int, []library) {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/media-sources/"+strconv.FormatInt(id, 10)+"/libraries")
+	defer resp.Body.Close()
+	var out []library
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+func TestLibrariesListsOnlyShowLibrariesUnselectedByDefault(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("1", "movie", "Movies")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddLibrary("3", "show", "TV Shows")
+	srv.AddLibrary("4", "artist", "Music")
+	src := b.mustAdd(srv.URL)
+
+	status, got := b.libraries(src.ID)
+
+	want := []library{{Key: "2", Title: "Anime"}, {Key: "3", Title: "TV Shows"}}
+	if status != http.StatusOK || !slices.Equal(got, want) {
+		t.Errorf("got %d %+v, want %+v", status, got, want)
+	}
+}
+
+func (b *browser) selectAnimeLibraries(id int64, keys []string) int {
+	b.t.Helper()
+	payload, _ := json.Marshal(map[string][]string{"keys": keys})
+	req, _ := http.NewRequest(http.MethodPut, b.app.URL+"/api/media-sources/"+strconv.FormatInt(id, 10)+"/anime-libraries", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	for _, c := range b.cookies {
+		req.AddCookie(c)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		b.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestSelectedAnimeLibrariesAreRememberedPerMediaSource(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddLibrary("3", "show", "TV Shows")
+	other := plexservertest.New(t)
+	other.Allow("tok-a")
+	other.AddLibrary("2", "show", "Anime")
+	src, otherSrc := b.mustAdd(srv.URL), b.mustAdd(other.URL)
+
+	if status := b.selectAnimeLibraries(src.ID, []string{"2"}); status != http.StatusNoContent {
+		t.Fatalf("select status %d", status)
+	}
+
+	_, got := b.libraries(src.ID)
+	want := []library{{Key: "2", Title: "Anime", Selected: true}, {Key: "3", Title: "TV Shows"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	if _, got := b.libraries(otherSrc.ID); got[0].Selected {
+		t.Errorf("selection leaked to another media source: %+v", got)
+	}
+}
+
+func TestSelectingAnUnknownLibraryIsRejectedAndSavesNothing(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("1", "movie", "Movies")
+	srv.AddLibrary("2", "show", "Anime")
+	src := b.mustAdd(srv.URL)
+
+	for _, keys := range [][]string{{"9"}, {"1"}, {"2", "9"}} {
+		if status := b.selectAnimeLibraries(src.ID, keys); status != http.StatusUnprocessableEntity {
+			t.Errorf("keys %v: status %d, want 422", keys, status)
+		}
+	}
+	if _, got := b.libraries(src.ID); got[0].Selected {
+		t.Errorf("selection saved despite rejection: %+v", got)
+	}
+}
+
+type animeShow struct {
+	Title   string `json:"title"`
+	Seasons []struct {
+		Number   int `json:"number"`
+		Episodes []struct {
+			Number        int     `json:"number"`
+			Title         string  `json:"title"`
+			Watched       bool    `json:"watched"`
+			LastWatchedAt *string `json:"lastWatchedAt"`
+		} `json:"episodes"`
+	} `json:"seasons"`
+}
+
+func (b *browser) anime() (int, []animeShow) {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/anime")
+	defer resp.Body.Close()
+	var out []animeShow
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+func TestAnimePullsShowsSeasonsAndWatchedEpisodesFromSelectedLibrariesOnly(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddLibrary("3", "show", "TV Shows")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 0, Number: 1, Title: "Special", ViewCount: 1})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "The Journey's End", ViewCount: 2, LastViewedAt: 1700000000})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 2, Title: "It Didn't Have to Be Magic"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 2, Number: 1, Title: "Season Two Opener"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Bleach", Season: 1, Number: 1, Title: "Ichigo"})
+	srv.AddEpisode("3", plexservertest.Episode{Show: "The Office", Season: 1, Number: 1, Title: "Pilot", ViewCount: 1})
+	src := b.mustAdd(srv.URL)
+	b.selectAnimeLibraries(src.ID, []string{"2"})
+
+	status, shows := b.anime()
+
+	if status != http.StatusOK || len(shows) != 2 {
+		t.Fatalf("status %d shows %+v", status, shows)
+	}
+	titles := []string{shows[0].Title, shows[1].Title}
+	slices.Sort(titles)
+	if !slices.Equal(titles, []string{"Bleach", "Frieren"}) {
+		t.Fatalf("titles = %v", titles)
+	}
+	frieren := shows[0]
+	if frieren.Title != "Frieren" {
+		frieren = shows[1]
+	}
+	if len(frieren.Seasons) != 2 || frieren.Seasons[0].Number != 1 || frieren.Seasons[1].Number != 2 {
+		t.Fatalf("seasons (specials must be excluded) = %+v", frieren.Seasons)
+	}
+	e1, e2 := frieren.Seasons[0].Episodes[0], frieren.Seasons[0].Episodes[1]
+	if !e1.Watched || e1.Title != "The Journey's End" || e1.LastWatchedAt == nil || *e1.LastWatchedAt != "2023-11-14T22:13:20Z" {
+		t.Errorf("episode 1 = %+v", e1)
+	}
+	if e2.Watched || e2.LastWatchedAt != nil {
+		t.Errorf("episode 2 = %+v", e2)
+	}
+}
+
+func TestAnimeIsEmptyUntilALibraryIsSelected(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "x"})
+	b.mustAdd(srv.URL)
+
+	if status, shows := b.anime(); status != http.StatusOK || shows == nil || len(shows) != 0 {
+		t.Errorf("got %d %#v, want empty array", status, shows)
+	}
+}
+
+func TestAnimeReturnsEveryEpisodeOfALargeLibrary(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	for n := 1; n <= 450; n++ {
+		srv.AddEpisode("2", plexservertest.Episode{Show: "One Piece", Season: 1, Number: n, Title: "ep"})
+	}
+	src := b.mustAdd(srv.URL)
+	b.selectAnimeLibraries(src.ID, []string{"2"})
+
+	_, shows := b.anime()
+
+	if len(shows) != 1 || len(shows[0].Seasons) != 1 || len(shows[0].Seasons[0].Episodes) != 450 {
+		t.Errorf("got %d shows, want 1 show with 450 episodes", len(shows))
+	}
+}
+
+func TestAnimeSkipsSelectedLibrariesRemovedFromPlex(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddLibrary("3", "show", "Old Anime")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "x"})
+	srv.AddEpisode("3", plexservertest.Episode{Show: "Bleach", Season: 1, Number: 1, Title: "x"})
+	src := b.mustAdd(srv.URL)
+	b.selectAnimeLibraries(src.ID, []string{"2", "3"})
+	srv.RemoveLibrary("3")
+
+	status, shows := b.anime()
+
+	if status != http.StatusOK || len(shows) != 1 || shows[0].Title != "Frieren" {
+		t.Errorf("got %d %+v", status, shows)
+	}
+}
+
+func TestAnimeEndpointsRequireSession(t *testing.T) {
+	p := startPlexApp(t)
+	b := newBrowser(t, p.app)
+	for _, c := range []struct{ method, path string }{
+		{http.MethodGet, "/api/anime"},
+		{http.MethodGet, "/api/media-sources/1/libraries"},
+		{http.MethodPut, "/api/media-sources/1/anime-libraries"},
+	} {
+		resp := b.do(c.method, p.app.URL+c.path)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s %s = %d, want 401", c.method, c.path, resp.StatusCode)
+		}
+	}
+}
+
+func TestAnotherUsersMediaSourceIsNotAccessible(t *testing.T) {
+	p := startPlexApp(t)
+	alice := p.signedIn(t, "sub-alice", "Alice")
+	alice.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "x"})
+	src := alice.mustAdd(srv.URL)
+	alice.selectAnimeLibraries(src.ID, []string{"2"})
+	bob := p.signedIn(t, "sub-bob", "Bob")
+	bob.link(p, "tok-b", "bob_plex")
+
+	if status, _ := bob.libraries(src.ID); status != http.StatusNotFound {
+		t.Errorf("libraries status %d, want 404", status)
+	}
+	if status := bob.selectAnimeLibraries(src.ID, []string{"2"}); status != http.StatusNotFound {
+		t.Errorf("select status %d, want 404", status)
+	}
+	if status, shows := bob.anime(); status != http.StatusOK || len(shows) != 0 {
+		t.Errorf("anime = %d %+v, want empty", status, shows)
+	}
+}
+
+func TestPlexFailuresAreReportedOnLibraryAndAnimeEndpoints(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	src := b.mustAdd(srv.URL)
+	b.selectAnimeLibraries(src.ID, []string{"2"})
+
+	srv.Forbid("tok-a")
+	if status, _ := b.libraries(src.ID); status != http.StatusForbidden {
+		t.Errorf("libraries with rejected token = %d, want 403", status)
+	}
+	if status, _ := b.anime(); status != http.StatusForbidden {
+		t.Errorf("anime with rejected token = %d, want 403", status)
+	}
+
+	srv.Shutdown()
+	if status, _ := b.libraries(src.ID); status != http.StatusBadGateway {
+		t.Errorf("libraries when down = %d, want 502", status)
+	}
+	if status, _ := b.anime(); status != http.StatusBadGateway {
+		t.Errorf("anime when down = %d, want 502", status)
 	}
 }

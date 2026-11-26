@@ -23,6 +23,9 @@ export function AppShell({ me }: { me: Me }) {
           <Link to="/" activeOptions={{ exact: true }} className={navClass} activeProps={{ className: navActiveClass }}>
             Overview
           </Link>
+          <Link to="/anime" className={navClass} activeProps={{ className: navActiveClass }}>
+            Anime
+          </Link>
           <Link to="/media-sources" className={navClass} activeProps={{ className: navActiveClass }}>
             Media sources
           </Link>

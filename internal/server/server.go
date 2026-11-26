@@ -19,6 +19,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
+	"github.com/ReidMason/plex-ani-sync/internal/media"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
 )
@@ -87,11 +88,13 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if ttl == 0 {
 		ttl = defaultUsernameTTL
 	}
-	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: plex.NewServerClient(), clientID: clientID, box: box, queries: queries, logger: logger}
+	serverClient := plex.NewServerClient()
+	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
 	p.registerMediaSources(mux, a)
+	p.registerAnime(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

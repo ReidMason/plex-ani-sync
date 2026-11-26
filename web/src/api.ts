@@ -13,6 +13,25 @@ export interface MediaSource {
   kind: "plex";
 }
 
+export interface Library {
+  key: string;
+  title: string;
+  selected: boolean;
+}
+
+interface AnimeEpisode {
+  number: number;
+  title: string;
+  watched: boolean;
+  lastWatchedAt: string | null;
+}
+
+export interface AnimeShow {
+  mediaSourceId: number;
+  title: string;
+  seasons: { number: number; episodes: AnimeEpisode[] }[];
+}
+
 interface Pin {
   id: number;
   code: string;
@@ -82,4 +101,35 @@ export function useMediaSources(enabled: boolean) {
 
 export function plexIsLinked(me: Me): boolean {
   return !!me.plex && !me.plex.needsReSignIn;
+}
+
+export function useLibraries(mediaSourceId: number) {
+  return useQuery({
+    queryKey: ["libraries", mediaSourceId],
+    queryFn: async (): Promise<Library[]> => {
+      const res = await fetch(`/api/media-sources/${mediaSourceId}/libraries`);
+      if (!res.ok) throw new Error(`Could not load libraries (${res.status})`);
+      return res.json();
+    },
+  });
+}
+
+export async function setAnimeLibraries(mediaSourceId: number, keys: string[]): Promise<void> {
+  const res = await fetch(`/api/media-sources/${mediaSourceId}/anime-libraries`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+  });
+  if (!res.ok) throw new Error(`Saving libraries failed (${res.status})`);
+}
+
+export function useAnime() {
+  return useQuery({
+    queryKey: ["anime"],
+    queryFn: async (): Promise<AnimeShow[]> => {
+      const res = await fetch("/api/anime");
+      if (!res.ok) throw new Error(`Could not load anime (${res.status})`);
+      return res.json();
+    },
+  });
 }

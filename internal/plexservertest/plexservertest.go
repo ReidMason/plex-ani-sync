@@ -1,8 +1,11 @@
 package plexservertest
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -10,20 +13,109 @@ import (
 type Server struct {
 	URL string
 
+	close     func()
 	mu        sync.Mutex
 	allowed   map[string]bool
 	forbidden map[string]bool
 	requests  int
+	libraries []library
+	episodes  map[string][]episode
+}
+
+type episode struct {
+	GrandparentRatingKey string `json:"grandparentRatingKey"`
+	GrandparentTitle     string `json:"grandparentTitle"`
+	ParentIndex          int    `json:"parentIndex"`
+	Index                int    `json:"index"`
+	Title                string `json:"title"`
+	ViewCount            int    `json:"viewCount,omitempty"`
+	LastViewedAt         int64  `json:"lastViewedAt,omitempty"`
+}
+
+// Episode describes one episode in a show library. A zero ViewCount means unwatched and omits the field, as Plex does.
+type Episode struct {
+	Show         string
+	Season       int
+	Number       int
+	Title        string
+	ViewCount    int
+	LastViewedAt int64
+}
+
+func (s *Server) RemoveLibrary(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.libraries = slices.DeleteFunc(s.libraries, func(l library) bool { return l.Key == key })
+	delete(s.episodes, key)
+}
+
+// Shutdown stops the server so later requests fail to connect.
+func (s *Server) Shutdown() { s.close() }
+
+func (s *Server) AddEpisode(libraryKey string, e Episode) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.episodes[libraryKey] = append(s.episodes[libraryKey], episode{
+		GrandparentRatingKey: "show-" + e.Show, GrandparentTitle: e.Show, ParentIndex: e.Season,
+		Index: e.Number, Title: e.Title, ViewCount: e.ViewCount, LastViewedAt: e.LastViewedAt,
+	})
+}
+
+func (s *Server) allLeaves(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("X-Plex-Token")
+	s.mu.Lock()
+	allowed, forbidden := s.allowed[token], s.forbidden[token]
+	key := r.PathValue("key")
+	known := slices.ContainsFunc(s.libraries, func(l library) bool { return l.Key == key })
+	all := append([]episode{}, s.episodes[key]...)
+	s.mu.Unlock()
+	switch {
+	case forbidden:
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	case !allowed:
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	case !known:
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	start, _ := strconv.Atoi(r.Header.Get("X-Plex-Container-Start"))
+	size, err := strconv.Atoi(r.Header.Get("X-Plex-Container-Size"))
+	if err != nil || size <= 0 {
+		size = len(all)
+	}
+	start = min(start, len(all))
+	page := all[start:min(start+size, len(all))]
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"MediaContainer": map[string]any{
+		"size": len(page), "totalSize": len(all), "offset": start, "Metadata": page,
+	}})
+}
+
+type library struct {
+	Key   string `json:"key"`
+	Type  string `json:"type"`
+	Title string `json:"title"`
+}
+
+// AddLibrary adds a library section of the given Plex type, such as "show" or "movie".
+func (s *Server) AddLibrary(key, kind, title string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.libraries = append(s.libraries, library{Key: key, Type: kind, Title: title})
 }
 
 // New starts a fake Plex server. Tokens are rejected with 401 until allowed.
 func New(t *testing.T) *Server {
 	t.Helper()
-	s := &Server{allowed: map[string]bool{}, forbidden: map[string]bool{}}
+	s := &Server{allowed: map[string]bool{}, forbidden: map[string]bool{}, episodes: map[string][]episode{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /library/sections", s.sections)
+	mux.HandleFunc("GET /library/sections/{key}/allLeaves", s.allLeaves)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	s.close = srv.Close
 	s.URL = srv.URL
 	return s
 }
@@ -78,6 +170,7 @@ func (s *Server) sections(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.requests++
 	allowed, forbidden := s.allowed[token], s.forbidden[token]
+	libs := append([]library{}, s.libraries...)
 	s.mu.Unlock()
 	switch {
 	case forbidden:
@@ -86,6 +179,6 @@ func (s *Server) sections(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	default:
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"MediaContainer":{"size":0,"Directory":[]}}`))
+		_ = json.NewEncoder(w).Encode(map[string]any{"MediaContainer": map[string]any{"size": len(libs), "Directory": libs}})
 	}
 }
