@@ -3,9 +3,11 @@ package server_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilisttest"
 	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
 	"github.com/ReidMason/plex-ani-sync/internal/mappings"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
@@ -278,6 +280,78 @@ func TestGapBetweenMappedRangesNeedsReviewAndClearsWhenEpisodesChange(t *testing
 
 	if got := b.mappedShows()["Cour"]; got.Status != "needs_review" {
 		t.Errorf("status after new season = %q", got.Status)
+	}
+}
+
+func mismatchSetup(t *testing.T, episodes int) (plexApp, *browser) {
+	t.Helper()
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	for n := 1; n <= episodes; n++ {
+		srv.AddEpisode("2", plexservertest.Episode{Show: "Counted", Season: 1, Number: n, Title: "x"})
+	}
+	srv.SetShowGUIDs("2", "Counted", "tvdb://77")
+	selectAnime(b, srv)
+	return p, b
+}
+
+func TestEpisodeCountDisagreeingWithEntryTotalNeedsReview(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12), Title: anilisttest.Title{Romaji: "Counted"}})
+
+	got := b.mappedShows()["Counted"]
+
+	if got.Status != "needs_review" || !strings.Contains(got.Reason, "13") || !strings.Contains(got.Reason, "12") {
+		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
+	}
+}
+
+func TestEpisodeCountMatchingEntryTotalStaysMapped(t *testing.T) {
+	p, b := mismatchSetup(t, 12)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
+
+	if got := b.mappedShows()["Counted"]; got.Status != "mapped" {
+		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
+	}
+}
+
+func TestEntryWithUnknownTotalIsNotCompared(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.anilist.Set(anilisttest.Media{ID: 10})
+
+	if got := b.mappedShows()["Counted"]; got.Status != "mapped" {
+		t.Errorf("status = %q", got.Status)
+	}
+}
+
+func TestAniListMetadataIsCachedBetweenReads(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
+	b.mappedShows()
+	before := p.anilist.Requests()
+
+	got := b.mappedShows()["Counted"]
+
+	if p.anilist.Requests() != before || got.Status != "needs_review" {
+		t.Errorf("requests %d -> %d, status = %q", before, p.anilist.Requests(), got.Status)
+	}
+}
+
+func TestAniListOutageDegradesToMissingSignal(t *testing.T) {
+	for _, status := range []int{http.StatusInternalServerError, http.StatusTooManyRequests} {
+		p, b := mismatchSetup(t, 13)
+		p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
+		p.anilist.FailWith(status)
+
+		got := b.mappedShows()["Counted"]
+
+		if got.Status != "mapped" {
+			t.Errorf("status %d: got %q", status, got.Status)
+		}
+		p.anilist.FailWith(0)
+		if got := b.mappedShows()["Counted"]; got.Status != "needs_review" {
+			t.Errorf("status %d after recovery: got %q", status, got.Status)
+		}
 	}
 }
 
