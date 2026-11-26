@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,23 +40,37 @@ type linkRow struct {
 	TVDBID int `json:"tvdb_id"`
 }
 
-// loadDatasetIfEmpty ingests the datasets when no dataset Mappings are stored; a failed download is logged and leaves the table empty.
-func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL, animeListsURL string, custom []mappings.Mapping, logger *slog.Logger) error {
-	if err := replaceMappings(ctx, pool, q, originCustom, custom, nil); err != nil {
+// datasetSync keeps the stored Mappings in step with the datasets and Custom Mappings.
+type datasetSync struct {
+	pool          *pgxpool.Pool
+	queries       *dbgen.Queries
+	fribbURL      string
+	animeListsURL string
+	custom        []mappings.Mapping
+	logger        *slog.Logger
+}
+
+// loadAtStartup stores the Custom Mappings and ingests the datasets when none are stored or the Custom Mappings changed, so stale overlapping dataset rows go. A failed download is logged and leaves the stored rows untouched.
+func (d datasetSync) loadAtStartup(ctx context.Context) error {
+	changed, err := d.customChanged(ctx)
+	if err != nil {
 		return err
 	}
-	n, err := q.CountMappings(ctx)
-	if err != nil || n > int64(len(custom)) {
+	if err := d.replaceCustom(ctx); err != nil {
 		return err
 	}
-	if err := refreshDataset(ctx, pool, q, fribbURL, animeListsURL, custom); err != nil {
-		logger.Warn("could not load mapping dataset", "error", err)
+	n, err := d.queries.CountMappings(ctx)
+	if err != nil || (!changed && n > int64(len(d.custom))) {
+		return err
+	}
+	if err := d.refresh(ctx); err != nil {
+		d.logger.Warn("could not load mapping dataset", "error", err)
 	}
 	return nil
 }
 
-// refreshDatasetEvery reloads the datasets on each tick until ctx ends; a failed refresh is logged and leaves the stored rows untouched.
-func refreshDatasetEvery(ctx context.Context, every time.Duration, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL, animeListsURL string, custom []mappings.Mapping, logger *slog.Logger) {
+// refreshEvery reloads the datasets on each tick until ctx ends; a failed refresh is logged and leaves the stored rows untouched.
+func (d datasetSync) refreshEvery(ctx context.Context, every time.Duration) {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {
@@ -63,29 +78,88 @@ func refreshDatasetEvery(ctx context.Context, every time.Duration, pool *pgxpool
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := refreshDataset(ctx, pool, q, fribbURL, animeListsURL, custom); err != nil && ctx.Err() == nil {
-				logger.Warn("could not refresh mapping dataset", "error", err)
+			if err := d.refresh(ctx); err != nil && ctx.Err() == nil {
+				d.logger.Warn("could not refresh mapping dataset", "error", err)
 			}
 		}
 	}
 }
 
-// refreshDataset downloads every dataset first, then swaps all dataset rows in one transaction.
-func refreshDataset(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL, animeListsURL string, custom []mappings.Mapping) error {
-	fetchCtx, cancel := context.WithTimeout(ctx, datasetFetchWindow)
-	defer cancel()
-	data, err := mappings.FetchFribb(fetchCtx, http.DefaultClient, fribbURL)
+func (d datasetSync) customChanged(ctx context.Context) (bool, error) {
+	stored, err := d.queries.ListCustomMappings(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
-	lists, err := mappings.FetchAnimeLists(fetchCtx, http.DefaultClient, animeListsURL)
-	if err != nil {
-		return err
+	storedRows := make([]mappingRow, 0, len(stored))
+	for _, r := range stored {
+		storedRows = append(storedRows, mappingRow{
+			TVDBID: int(r.TvdbID), TVDBSeason: int(r.TvdbSeason), FirstEpisode: int(r.FirstEpisode), LastEpisode: optionalInt(r.LastEpisode),
+			AniListID: int(r.AnilistID), EntryFirstEpisode: int(r.EntryFirstEpisode), EntryLastEpisode: optionalInt(r.EntryLastEpisode),
+		})
 	}
-	return replaceMappings(ctx, pool, q, originDataset, mappings.ResolveAround(data.Rows, lists, custom), &data.Links)
+	return !reflect.DeepEqual(storedRows, toMappingRows(d.custom)), nil
 }
 
-func replaceMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, origin string, resolved []mappings.Mapping, idLinks *[]mappings.IDLink) error {
+// refresh downloads every dataset first, then swaps all dataset rows in one transaction.
+func (d datasetSync) refresh(ctx context.Context) error {
+	fetchCtx, cancel := context.WithTimeout(ctx, datasetFetchWindow)
+	defer cancel()
+	data, err := mappings.FetchFribb(fetchCtx, http.DefaultClient, d.fribbURL)
+	if err != nil {
+		return err
+	}
+	lists, err := mappings.FetchAnimeLists(fetchCtx, http.DefaultClient, d.animeListsURL)
+	if err != nil {
+		return err
+	}
+	return d.replaceDataset(ctx, mappings.Resolve(data.Rows, lists, d.custom), data.Links)
+}
+
+func (d datasetSync) replaceCustom(ctx context.Context) error {
+	return d.inTx(ctx, func(tq *dbgen.Queries) error {
+		if err := tq.DeleteCustomMappings(ctx); err != nil {
+			return err
+		}
+		return insertMappings(ctx, tq, originCustom, d.custom)
+	})
+}
+
+func (d datasetSync) replaceDataset(ctx context.Context, resolved []mappings.Mapping, idLinks []mappings.IDLink) error {
+	links := make([]linkRow, 0, len(idLinks))
+	for _, l := range idLinks {
+		links = append(links, linkRow{TMDBID: l.TMDBID, TVDBID: l.TVDBID})
+	}
+	linkPayload, err := json.Marshal(links)
+	if err != nil {
+		return err
+	}
+	return d.inTx(ctx, func(tq *dbgen.Queries) error {
+		if err := tq.DeleteDatasetMappings(ctx); err != nil {
+			return err
+		}
+		if err := insertMappings(ctx, tq, originDataset, resolved); err != nil {
+			return err
+		}
+		if err := tq.DeleteTMDBLinks(ctx); err != nil {
+			return err
+		}
+		return tq.InsertTMDBLinks(ctx, linkPayload)
+	})
+}
+
+func (d datasetSync) inTx(ctx context.Context, fn func(*dbgen.Queries) error) error {
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(d.queries.WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func toMappingRows(resolved []mappings.Mapping) []mappingRow {
 	rows := make([]mappingRow, 0, len(resolved))
 	for _, m := range resolved {
 		rows = append(rows, mappingRow{
@@ -93,44 +167,13 @@ func replaceMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, 
 			AniListID: m.AniListID, EntryFirstEpisode: m.Entry.First, EntryLastEpisode: m.Entry.Last, AniDBID: m.AniDBID,
 		})
 	}
-	payload, err := json.Marshal(rows)
+	return rows
+}
+
+func insertMappings(ctx context.Context, tq *dbgen.Queries, origin string, resolved []mappings.Mapping) error {
+	payload, err := json.Marshal(toMappingRows(resolved))
 	if err != nil {
 		return err
 	}
-	var linkPayload []byte
-	if idLinks != nil {
-		links := make([]linkRow, 0, len(*idLinks))
-		for _, l := range *idLinks {
-			links = append(links, linkRow{TMDBID: l.TMDBID, TVDBID: l.TVDBID})
-		}
-		if linkPayload, err = json.Marshal(links); err != nil {
-			return err
-		}
-	}
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	tq := q.WithTx(tx)
-	if origin == originCustom {
-		err = tq.DeleteCustomMappings(ctx)
-	} else {
-		err = tq.DeleteDatasetMappings(ctx)
-	}
-	if err != nil {
-		return err
-	}
-	if err := tq.InsertMappings(ctx, dbgen.InsertMappingsParams{Origin: origin, Rows: payload}); err != nil {
-		return err
-	}
-	if idLinks != nil {
-		if err := tq.DeleteTMDBLinks(ctx); err != nil {
-			return err
-		}
-		if err := tq.InsertTMDBLinks(ctx, linkPayload); err != nil {
-			return err
-		}
-	}
-	return tx.Commit(ctx)
+	return tq.InsertMappings(ctx, dbgen.InsertMappingsParams{Origin: origin, Rows: payload})
 }

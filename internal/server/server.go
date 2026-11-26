@@ -107,7 +107,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if animeListsURL == "" {
 		animeListsURL = defaultAnimeListsURL
 	}
-	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, animeListsURL, custom, logger); err != nil {
+	datasets := datasetSync{pool: pool, queries: queries, fribbURL: fribbURL, animeListsURL: animeListsURL, custom: custom, logger: logger}
+	if err := datasets.loadAtStartup(ctx); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}
@@ -119,7 +120,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	refreshDone := make(chan struct{})
 	go func() {
 		defer close(refreshDone)
-		refreshDatasetEvery(refreshCtx, refreshEvery, pool, queries, fribbURL, animeListsURL, custom, logger)
+		datasets.refreshEvery(refreshCtx, refreshEvery)
 	}()
 	aniListURL := cfg.AniListURL
 	if aniListURL == "" {

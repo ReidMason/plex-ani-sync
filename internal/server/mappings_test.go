@@ -574,3 +574,21 @@ func TestFailedRefreshLeavesPreviousRowsInPlace(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomMappingAddedBetweenRunsDisplacesStoredOverlappingDatasetRows(t *testing.T) {
+	row := datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}
+	p := startPlexApp(t, withFribb(row))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Pinned", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Pinned", "tvdb://77")
+	selectAnime(b, srv)
+	host := datasettest.New(t)
+	host.SetFribb(row)
+	custom := []mappings.Mapping{{TVDBID: 77, Season: 1, Episodes: mappings.Range{First: 1}, AniListID: 5005, Entry: mappings.Range{First: 1}}}
+
+	p.app, _ = startAppWith(t, p.dbURL, p.provider, p.tv, func(c *server.Config) {
+		c.FribbURL, c.AnimeListsURL, c.CustomMappings = host.FribbURL, host.AnimeListsURL, custom
+	})
+
+	assertMappings(t, p.signedIn(t, "sub-alice", "Alice").mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
+}

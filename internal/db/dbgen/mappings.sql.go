@@ -59,6 +59,51 @@ func (q *Queries) InsertMappings(ctx context.Context, arg InsertMappingsParams) 
 	return err
 }
 
+const listCustomMappings = `-- name: ListCustomMappings :many
+SELECT tvdb_id, tvdb_season, first_episode, last_episode, anilist_id, entry_first_episode, entry_last_episode
+FROM mappings
+WHERE origin = 'custom'
+ORDER BY id
+`
+
+type ListCustomMappingsRow struct {
+	TvdbID            int64
+	TvdbSeason        int32
+	FirstEpisode      int32
+	LastEpisode       pgtype.Int4
+	AnilistID         int64
+	EntryFirstEpisode int32
+	EntryLastEpisode  pgtype.Int4
+}
+
+func (q *Queries) ListCustomMappings(ctx context.Context) ([]ListCustomMappingsRow, error) {
+	rows, err := q.db.Query(ctx, listCustomMappings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCustomMappingsRow
+	for rows.Next() {
+		var i ListCustomMappingsRow
+		if err := rows.Scan(
+			&i.TvdbID,
+			&i.TvdbSeason,
+			&i.FirstEpisode,
+			&i.LastEpisode,
+			&i.AnilistID,
+			&i.EntryFirstEpisode,
+			&i.EntryLastEpisode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMappingsForShows = `-- name: ListMappingsForShows :many
 SELECT tvdb_id, tvdb_season, first_episode, last_episode, anilist_id, entry_first_episode, entry_last_episode
 FROM mappings

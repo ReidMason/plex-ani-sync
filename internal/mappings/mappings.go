@@ -11,10 +11,10 @@ type Range struct {
 }
 
 func (r Range) Overlaps(o Range) bool {
-	return before(o.First, r.Last) && before(r.First, o.Last)
+	return startsBeforeEnd(o.First, r.Last) && startsBeforeEnd(r.First, o.Last)
 }
 
-func before(first int, last *int) bool {
+func startsBeforeEnd(first int, last *int) bool {
 	return last == nil || first <= *last
 }
 
@@ -37,15 +37,9 @@ type Mapping struct {
 
 type seasonKey struct{ tvdbID, season int }
 
-// Resolve turns dataset rows into Mappings, skipping Specials and incomplete rows. A row with Anime-Lists spans
-// maps those spans exactly; otherwise its range ends where the next row of the same Season begins. On overlap the
-// row with the lowest AniDB ID wins.
-func Resolve(rows []Row, lists AnimeLists) []Mapping {
-	return ResolveAround(rows, lists, nil)
-}
-
-// ResolveAround is Resolve, except any row whose TVDB or Entry range overlaps a Custom Mapping is dropped whole.
-func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
+// Resolve turns dataset rows into Mappings; on overlap the lowest AniDB ID wins and a losing row is dropped whole.
+// Rows overlapping a Custom Mapping are dropped too.
+func Resolve(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 	usable := slices.DeleteFunc(slices.Clone(rows), func(r Row) bool {
 		return r.AniListID <= 0 || r.TVDBID <= 0
 	})
@@ -53,7 +47,7 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 
 	offsets := map[seasonKey][]int{}
 	for _, r := range usable {
-		if len(lists[r.AniDBID]) > 0 || !simple(r) {
+		if len(lists[r.AniDBID]) > 0 || !fitsOneSeason(r) {
 			continue
 		}
 		k := seasonKey{r.TVDBID, r.Season}
@@ -88,8 +82,8 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 			for _, sp := range spans {
 				candidates = append(candidates, Mapping{
 					TVDBID: r.TVDBID, Season: sp.Season,
-					Episodes:  Range{First: sp.First + sp.Offset, Last: ptr(sp.Last + sp.Offset)},
-					AniListID: r.AniListID, Entry: Range{First: sp.First, Last: ptr(sp.Last)}, AniDBID: r.AniDBID,
+					Episodes:  Range{First: sp.First + sp.Offset, Last: intPtr(sp.Last + sp.Offset)},
+					AniListID: r.AniListID, Entry: Range{First: sp.First, Last: intPtr(sp.Last)}, AniDBID: r.AniDBID,
 				})
 			}
 			if slices.ContainsFunc(candidates, func(m Mapping) bool { return overlapsCustom(custom, m) }) {
@@ -98,10 +92,10 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 			add(candidates)
 			continue
 		}
-		if !simple(r) {
+		if !fitsOneSeason(r) {
 			continue
 		}
-		episodes, entry := rangesOf(r, offsets[seasonKey{r.TVDBID, r.Season}])
+		episodes, entry := rangesFromOffsets(r, offsets[seasonKey{r.TVDBID, r.Season}])
 		m := Mapping{TVDBID: r.TVDBID, Season: r.Season, Episodes: episodes, AniListID: r.AniListID, Entry: entry, AniDBID: r.AniDBID}
 		if !overlapsCustom(custom, m) {
 			add([]Mapping{m})
@@ -110,11 +104,11 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 	return out
 }
 
-func simple(r Row) bool { return r.Season > 0 && r.EpisodeOffset >= 0 }
+func fitsOneSeason(r Row) bool { return r.Season > 0 && r.EpisodeOffset >= 0 }
 
-func ptr(n int) *int { return &n }
+func intPtr(n int) *int { return &n }
 
-func rangesOf(r Row, seasonOffsets []int) (episodes, entry Range) {
+func rangesFromOffsets(r Row, seasonOffsets []int) (episodes, entry Range) {
 	episodes = Range{First: r.EpisodeOffset + 1}
 	entry = Range{First: 1}
 	i, _ := slices.BinarySearch(seasonOffsets, r.EpisodeOffset)

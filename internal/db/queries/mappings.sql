@@ -20,3 +20,9 @@ SELECT tvdb_id, tvdb_season, first_episode, last_episode, anilist_id, entry_firs
 FROM mappings
 WHERE tvdb_id = ANY(sqlc.arg(tvdb_ids)::bigint[])
 ORDER BY tvdb_id, tvdb_season, first_episode;
+
+-- name: ListCustomMappings :many
+SELECT tvdb_id, tvdb_season, first_episode, last_episode, anilist_id, entry_first_episode, entry_last_episode
+FROM mappings
+WHERE origin = 'custom'
+ORDER BY id;
