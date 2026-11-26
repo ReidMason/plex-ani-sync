@@ -87,7 +87,7 @@ func (s *Server) shows(w http.ResponseWriter, r *http.Request) {
 		for _, g := range s.guids[key][e.GrandparentRatingKey] {
 			guids = append(guids, map[string]string{"id": g})
 		}
-		out = append(out, map[string]any{"ratingKey": e.GrandparentRatingKey, "title": e.GrandparentTitle, "Guid": guids})
+		out = append(out, map[string]any{"ratingKey": e.GrandparentRatingKey, "title": e.GrandparentTitle, "guid": "plex://show/" + e.GrandparentRatingKey, "Guid": guids})
 	}
 	s.mu.Unlock()
 	if !allowed {

@@ -160,7 +160,9 @@ func (s *Source) Shows(ctx context.Context, conn media.Connection, libraryKey st
 
 type showMeta struct {
 	RatingKey string `json:"ratingKey"`
-	Guid      []struct {
+	// Claims the lowercase "guid" string so encoding/json doesn't match it to Guid case-insensitively.
+	PlexGUID string `json:"guid"`
+	Guid     []struct {
 		ID string `json:"id"`
 	} `json:"Guid"`
 }
