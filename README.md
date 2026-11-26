@@ -57,3 +57,7 @@ cd web && pnpm dev   # Vite on :5173, proxies /api and /auth to :8080
 ```
 
 After editing migrations or queries, run `sqlc generate`.
+
+## Credits
+
+Show-to-AniList mappings come from [Fribb/anime-lists](https://github.com/Fribb/anime-lists). Thanks to its maintainers and contributors.

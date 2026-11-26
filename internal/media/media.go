@@ -33,9 +33,16 @@ type Season struct {
 	Episodes []Episode
 }
 
+type ExternalIDs struct {
+	TVDB string
+	TMDB string
+	IMDB string
+}
+
 type Show struct {
-	Title   string
-	Seasons []Season
+	Title       string
+	ExternalIDs ExternalIDs
+	Seasons     []Season
 }
 
 // Source reads libraries and watch history from one kind of media server.

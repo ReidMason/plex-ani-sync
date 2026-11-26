@@ -30,6 +30,8 @@ type Config struct {
 	Logger *slog.Logger
 	// PlexTVURL overrides https://plex.tv, for tests.
 	PlexTVURL string
+	// FribbURL overrides the Fribb anime-list-full.json location, for tests.
+	FribbURL string
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -79,6 +81,14 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	plexTV := cfg.PlexTVURL
 	if plexTV == "" {
 		plexTV = plex.DefaultTVURL
+	}
+	fribbURL := cfg.FribbURL
+	if fribbURL == "" {
+		fribbURL = defaultFribbURL
+	}
+	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, logger); err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}
 	clock := cfg.Clock
 	if clock == nil {

@@ -18,6 +18,23 @@ type AppSetting struct {
 	Value string
 }
 
+type Mapping struct {
+	ID                int64
+	TvdbID            int64
+	TvdbSeason        int32
+	FirstEpisode      int32
+	LastEpisode       pgtype.Int4
+	AnilistID         int64
+	EntryFirstEpisode int32
+	EntryLastEpisode  pgtype.Int4
+	AnidbID           pgtype.Int8
+	Origin            string
+}
+
+type MappingOrigin struct {
+	Name string
+}
+
 type MediaSource struct {
 	ID        int64
 	UserID    int64

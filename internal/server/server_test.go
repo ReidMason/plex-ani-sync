@@ -18,6 +18,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/ReidMason/plex-ani-sync/internal/config"
+	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
 	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
 	"github.com/ReidMason/plex-ani-sync/internal/plextest"
 	"github.com/ReidMason/plex-ani-sync/internal/server"
@@ -111,7 +112,7 @@ func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *
 	}
 	env := testConfig(dbURL, issuer.URL)
 	env.EncryptionKey = key
-	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL}
+	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL, FribbURL: datasettest.New(t).FribbURL}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
