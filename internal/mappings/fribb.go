@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 )
 
 type fribbEntry struct {
 	AniDBID   int `json:"anidb_id"`
 	AniListID int `json:"anilist_id"`
 	TVDBID    int `json:"thetvdb_id"`
+	TMDBID    int `json:"themoviedb_id"`
 	Season    *struct {
 		TVDB int `json:"tvdb"`
 	} `json:"season"`
@@ -19,26 +21,44 @@ type fribbEntry struct {
 	} `json:"episode_offset"`
 }
 
+// IDLink says a TMDB show ID and a TVDB show ID identify the same Show.
+type IDLink struct {
+	TMDBID int
+	TVDBID int
+}
+
+// Dataset is the parsed content of Fribb's list.
+type Dataset struct {
+	Rows  []Row
+	Links []IDLink
+}
+
 // FetchFribb downloads and parses Fribb's anime-list-full.json.
-func FetchFribb(ctx context.Context, client *http.Client, url string) ([]Row, error) {
+func FetchFribb(ctx context.Context, client *http.Client, url string) (Dataset, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return Dataset{}, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return Dataset{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fribb dataset: unexpected status %d", resp.StatusCode)
+		return Dataset{}, fmt.Errorf("fribb dataset: unexpected status %d", resp.StatusCode)
 	}
 	var entries []fribbEntry
 	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		return nil, fmt.Errorf("fribb dataset: %w", err)
+		return Dataset{}, fmt.Errorf("fribb dataset: %w", err)
 	}
-	rows := make([]Row, 0, len(entries))
+	slices.SortStableFunc(entries, func(a, b fribbEntry) int { return a.AniDBID - b.AniDBID })
+	var data Dataset
+	linked := map[int]bool{}
 	for _, e := range entries {
+		if e.TMDBID > 0 && e.TVDBID > 0 && !linked[e.TMDBID] {
+			linked[e.TMDBID] = true
+			data.Links = append(data.Links, IDLink{TMDBID: e.TMDBID, TVDBID: e.TVDBID})
+		}
 		if e.Season == nil {
 			continue
 		}
@@ -46,7 +66,7 @@ func FetchFribb(ctx context.Context, client *http.Client, url string) ([]Row, er
 		if e.EpisodeOffset != nil {
 			offset = e.EpisodeOffset.TVDB
 		}
-		rows = append(rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: offset})
+		data.Rows = append(data.Rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: offset})
 	}
-	return rows, nil
+	return data, nil
 }

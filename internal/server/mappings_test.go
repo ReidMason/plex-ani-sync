@@ -248,7 +248,7 @@ func TestUnmappedShowsExplainWhy(t *testing.T) {
 
 	for title, want := range map[string]string{
 		"NoGuid":   "Plex has no TVDB ID for this show",
-		"TMDBOnly": "Plex has no TVDB ID for this show",
+		"TMDBOnly": "No TVDB ID found for TMDB ID 5",
 		"Unknown":  "No mappings found for TVDB ID 999",
 		"Fine":     "",
 	} {
@@ -256,4 +256,19 @@ func TestUnmappedShowsExplainWhy(t *testing.T) {
 			t.Errorf("%s reason = %q, want %q", title, shows[title].Reason, want)
 		}
 	}
+}
+
+func TestTMDBOnlyShowResolvesThroughDatasetIDLinks(t *testing.T) {
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, TMDBID: 5, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Linked", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Linked", "tmdb://5")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Absent", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Absent", "tmdb://404")
+	selectAnime(b, srv)
+
+	shows := b.mappedShows()
+
+	assertMappings(t, shows["Linked"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
+	assertMappings(t, shows["Absent"], "unmapped")
 }
