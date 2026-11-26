@@ -201,6 +201,10 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 				s.Status = statusNeedsReview
 				s.Reason = "episodes not covered by any mapping: " + describeUncovered(s.Uncovered)
 			}
+			if titleMismatch(*s, meta) {
+				s.Status = statusNeedsReview
+				s.Reason = strings.TrimPrefix(s.Reason+"; title looks very different from the mapped AniList entry's titles", "; ")
+			}
 			if mismatches := countMismatches(*s, meta); len(mismatches) > 0 {
 				s.Status = statusNeedsReview
 				s.Reason = strings.Join(append(mismatches, s.Reason), "; ")
@@ -290,6 +294,16 @@ func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
 		}
 	}
 	return out
+}
+
+func titleMismatch(s showJSON, meta map[int]anilist.Media) bool {
+	var entries []anilist.Media
+	for _, m := range s.Mappings {
+		if info, ok := meta[int(m.AniListID)]; ok {
+			entries = append(entries, info)
+		}
+	}
+	return titlesDiffer(s.Title, entries)
 }
 
 func reasonFor(s showJSON) string {
