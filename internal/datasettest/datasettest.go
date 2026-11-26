@@ -17,6 +17,7 @@ type FribbEntry struct {
 	AniDBID   int     `json:"anidb_id"`
 	AniListID int     `json:"anilist_id,omitempty"`
 	TVDBID    int     `json:"thetvdb_id,omitempty"`
+	TMDBID    int     `json:"themoviedb_id,omitempty"`
 	Season    *Season `json:"season,omitempty"`
 	Offset    *Season `json:"episode_offset,omitempty"`
 	Type      string  `json:"type"`

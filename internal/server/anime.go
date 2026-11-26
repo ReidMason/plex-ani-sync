@@ -51,6 +51,7 @@ type showJSON struct {
 	Seasons       []seasonJSON      `json:"seasons"`
 
 	tvdbID int64
+	tmdbID int64
 }
 
 func (p *plexLink) registerAnime(mux *http.ServeMux, a *auth) {
@@ -137,6 +138,7 @@ func toShowJSON(sourceID int64, show media.Show) showJSON {
 		}
 	}
 	out.tvdbID, _ = strconv.ParseInt(show.ExternalIDs.TVDB, 10, 64)
+	out.tmdbID, _ = strconv.ParseInt(show.ExternalIDs.TMDB, 10, 64)
 	for _, season := range show.Seasons {
 		if season.Number == specialsSeason {
 			continue
@@ -151,6 +153,9 @@ func toShowJSON(sourceID int64, show media.Show) showJSON {
 }
 
 func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
+	if err := p.resolveTVDBIDs(ctx, shows); err != nil {
+		return err
+	}
 	var ids []int64
 	for _, s := range shows {
 		if s.tvdbID > 0 {
@@ -188,4 +193,31 @@ func optionalInt(v pgtype.Int4) *int {
 	}
 	n := int(v.Int32)
 	return &n
+}
+
+// resolveTVDBIDs fills in the TVDB ID of Shows that Plex only knows by TMDB ID.
+func (p *plexLink) resolveTVDBIDs(ctx context.Context, shows []showJSON) error {
+	var tmdbIDs []int64
+	for _, s := range shows {
+		if s.tvdbID == 0 && s.tmdbID > 0 {
+			tmdbIDs = append(tmdbIDs, s.tmdbID)
+		}
+	}
+	if len(tmdbIDs) == 0 {
+		return nil
+	}
+	links, err := p.queries.ListTVDBIDsForTMDB(ctx, tmdbIDs)
+	if err != nil {
+		return err
+	}
+	tvdbOf := map[int64]int64{}
+	for _, l := range links {
+		tvdbOf[l.TmdbID] = l.TvdbID
+	}
+	for i := range shows {
+		if shows[i].tvdbID == 0 {
+			shows[i].tvdbID = tvdbOf[shows[i].tmdbID]
+		}
+	}
+	return nil
 }

@@ -30,6 +30,11 @@ type mappingRow struct {
 	AniDBID           int  `json:"anidb_id"`
 }
 
+type linkRow struct {
+	TMDBID int `json:"tmdb_id"`
+	TVDBID int `json:"tvdb_id"`
+}
+
 // loadDatasetIfEmpty ingests Fribb when no Mappings are stored; a failed download is logged and leaves the table empty.
 func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL string, logger *slog.Logger) error {
 	n, err := q.CountMappings(ctx)
@@ -38,15 +43,16 @@ func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Querie
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, datasetFetchWindow)
 	defer cancel()
-	rows, err := mappings.FetchFribb(fetchCtx, http.DefaultClient, fribbURL)
+	data, err := mappings.FetchFribb(fetchCtx, http.DefaultClient, fribbURL)
 	if err != nil {
 		logger.Warn("could not load mapping dataset", "error", err)
 		return nil
 	}
-	return replaceDatasetMappings(ctx, pool, q, mappings.Resolve(rows))
+	return replaceDatasetMappings(ctx, pool, q, data)
 }
 
-func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, resolved []mappings.Mapping) error {
+func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, data mappings.Dataset) error {
+	resolved := mappings.Resolve(data.Rows)
 	rows := make([]mappingRow, 0, len(resolved))
 	for _, m := range resolved {
 		rows = append(rows, mappingRow{
@@ -55,6 +61,14 @@ func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Qu
 		})
 	}
 	payload, err := json.Marshal(rows)
+	if err != nil {
+		return err
+	}
+	links := make([]linkRow, 0, len(data.Links))
+	for _, l := range data.Links {
+		links = append(links, linkRow{TMDBID: l.TMDBID, TVDBID: l.TVDBID})
+	}
+	linkPayload, err := json.Marshal(links)
 	if err != nil {
 		return err
 	}
@@ -68,6 +82,12 @@ func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Qu
 		return err
 	}
 	if err := tq.InsertMappings(ctx, dbgen.InsertMappingsParams{Origin: originDataset, Rows: payload}); err != nil {
+		return err
+	}
+	if err := tq.DeleteTMDBLinks(ctx); err != nil {
+		return err
+	}
+	if err := tq.InsertTMDBLinks(ctx, linkPayload); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

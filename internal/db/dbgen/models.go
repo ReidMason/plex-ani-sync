@@ -58,6 +58,11 @@ type Session struct {
 	RevokedAt   pgtype.Timestamptz
 }
 
+type TmdbTvdbLink struct {
+	TmdbID int64
+	TvdbID int64
+}
+
 type User struct {
 	ID          int64
 	OidcIssuer  string

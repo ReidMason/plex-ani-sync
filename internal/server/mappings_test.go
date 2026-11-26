@@ -185,3 +185,18 @@ func TestUnavailableDatasetLeavesShowsUnmappedWithoutBreakingStartup(t *testing.
 
 	assertMappings(t, b.mappedShows()["Down"], "unmapped")
 }
+
+func TestTMDBOnlyShowResolvesThroughDatasetIDLinks(t *testing.T) {
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, TMDBID: 5, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Linked", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Linked", "tmdb://5")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Absent", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Absent", "tmdb://404")
+	selectAnime(b, srv)
+
+	shows := b.mappedShows()
+
+	assertMappings(t, shows["Linked"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
+	assertMappings(t, shows["Absent"], "unmapped")
+}
