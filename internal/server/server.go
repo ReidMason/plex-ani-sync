@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/ReidMason/plex-ani-sync/internal/anilist"
+	"github.com/ReidMason/plex-ani-sync/internal/cache"
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
@@ -42,6 +43,10 @@ type Config struct {
 	DatasetRefreshInterval time.Duration
 	// AniListURL overrides the AniList GraphQL endpoint, for tests.
 	AniListURL string
+	// Cache stores shows pulled from media sources; it defaults to an in-memory cache.
+	Cache cache.Cache
+	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
+	ShowsTTL time.Duration
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -135,7 +140,15 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		ttl = defaultUsernameTTL
 	}
 	serverClient := plex.NewServerClient()
-	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+	store := cfg.Cache
+	if store == nil {
+		store = cache.NewMemory(clock)
+	}
+	showsTTL := cfg.ShowsTTL
+	if showsTTL == 0 {
+		showsTTL = defaultShowsTTL
+	}
+	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: &aniListCache{client: anilist.Client{URL: aniListURL, HTTP: http.DefaultClient}, queries: queries, clock: clock, ttl: defaultAniListMetadataTTL, logger: logger}}
 	mux := http.NewServeMux()
 	a.register(mux)

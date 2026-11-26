@@ -277,6 +277,7 @@ func TestGapBetweenMappedRangesNeedsReviewAndClearsWhenEpisodesChange(t *testing
 	}
 
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Cour", Season: 3, Number: 1, Title: "x"})
+	p.clock.Advance(time.Hour)
 
 	if got := b.mappedShows()["Cour"]; got.Status != "needs_review" {
 		t.Errorf("status after new season = %q", got.Status)

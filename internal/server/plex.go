@@ -30,6 +30,7 @@ type plexLink struct {
 	pool      *pgxpool.Pool
 	logger    *slog.Logger
 	anilist   *aniListCache
+	shows     *showsCache
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {

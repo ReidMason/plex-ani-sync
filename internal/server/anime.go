@@ -146,7 +146,9 @@ func (p *plexLink) listShows(ctx context.Context, sel selection, token string) (
 	g, gctx := errgroup.WithContext(ctx)
 	for i, key := range keys {
 		g.Go(func() (err error) {
-			perLibrary[i], err = p.sources[mediaKind(sel.kind)].Shows(gctx, conn, key)
+			perLibrary[i], err = p.shows.get(gctx, sel.sourceID, key, func() ([]media.Show, error) {
+				return p.sources[mediaKind(sel.kind)].Shows(gctx, conn, key)
+			})
 			return err
 		})
 	}
