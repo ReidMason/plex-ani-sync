@@ -592,3 +592,19 @@ func TestCustomMappingAddedBetweenRunsDisplacesStoredOverlappingDatasetRows(t *t
 
 	assertMappings(t, p.signedIn(t, "sub-alice", "Alice").mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
 }
+
+func TestSpecialsEpisodesDoNotCountAsUncoveredByMappings(t *testing.T) {
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "WithSpecials", Season: 0, Number: 1, Title: "x"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "WithSpecials", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "WithSpecials", "tvdb://77")
+	selectAnime(b, srv)
+
+	got := b.mappedShows()["WithSpecials"]
+
+	assertMappings(t, got, "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
+	if len(got.Uncovered) != 0 {
+		t.Errorf("uncovered = %+v", got.Uncovered)
+	}
+}
