@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
 	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 	"github.com/ReidMason/plex-ani-sync/internal/plextest"
@@ -101,14 +102,19 @@ type plexApp struct {
 	clock    *fakeClock
 }
 
-func startPlexApp(t *testing.T) plexApp {
+func startPlexApp(t *testing.T, datasets ...func(*datasettest.Host)) plexApp {
 	t.Helper()
 	dbURL := newDatabase(t)
 	tv := plextest.New(t)
+	host := datasettest.New(t)
+	for _, d := range datasets {
+		d(host)
+	}
 	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	app, provider := startAppWith(t, dbURL, nil, tv, func(c *server.Config) {
 		c.Clock = clock.Now
 		c.UsernameTTL = usernameTTL
+		c.FribbURL = host.FribbURL
 	})
 	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv, clock: clock}
 }

@@ -131,27 +131,74 @@ type leaf struct {
 }
 
 func (s *Source) Shows(ctx context.Context, conn media.Connection, libraryKey string) ([]media.Show, error) {
-	var leaves []leaf
+	path := "/library/sections/" + url.PathEscape(libraryKey)
+	leaves, err := pageThrough[leaf](ctx, s, conn, path+"/allLeaves")
+	if err != nil {
+		return nil, err
+	}
+	metas, err := pageThrough[showMeta](ctx, s, conn, path+"/all?type=2&includeGuids=1")
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]media.ExternalIDs{}
+	for _, m := range metas {
+		ids[m.RatingKey] = externalIDsOf(m.Guid)
+	}
+	return groupLeaves(leaves, ids), nil
+}
+
+type showMeta struct {
+	RatingKey string `json:"ratingKey"`
+	Guid      []struct {
+		ID string `json:"id"`
+	} `json:"Guid"`
+}
+
+type container[T any] struct {
+	MediaContainer struct {
+		TotalSize int `json:"totalSize"`
+		Metadata  []T `json:"Metadata"`
+	} `json:"MediaContainer"`
+}
+
+func pageThrough[T any](ctx context.Context, s *Source, conn media.Connection, path string) ([]T, error) {
+	var all []T
 	for start := 0; ; start += leavesPageSize {
-		var body struct {
-			MediaContainer struct {
-				TotalSize int    `json:"totalSize"`
-				Metadata  []leaf `json:"Metadata"`
-			} `json:"MediaContainer"`
-		}
+		var body container[T]
 		page := http.Header{
 			"X-Plex-Container-Start": {strconv.Itoa(start)},
 			"X-Plex-Container-Size":  {strconv.Itoa(leavesPageSize)},
 		}
-		if err := s.getJSON(ctx, conn, "/library/sections/"+url.PathEscape(libraryKey)+"/allLeaves", page, &body); err != nil {
+		if err := s.getJSON(ctx, conn, path, page, &body); err != nil {
 			return nil, err
 		}
-		leaves = append(leaves, body.MediaContainer.Metadata...)
-		if len(body.MediaContainer.Metadata) == 0 || start+len(body.MediaContainer.Metadata) >= body.MediaContainer.TotalSize {
-			break
+		items := body.MediaContainer.Metadata
+		all = append(all, items...)
+		if len(items) == 0 || start+len(items) >= body.MediaContainer.TotalSize {
+			return all, nil
 		}
 	}
-	return groupLeaves(leaves), nil
+}
+
+func externalIDsOf(guids []struct {
+	ID string `json:"id"`
+}) media.ExternalIDs {
+	var out media.ExternalIDs
+	for _, g := range guids {
+		scheme, id, ok := strings.Cut(g.ID, "://")
+		if !ok {
+			continue
+		}
+		switch scheme {
+		case "tvdb":
+			out.TVDB = id
+		case "tmdb":
+			out.TMDB = id
+		case "imdb":
+			out.IMDB = id
+		}
+	}
+	return out
 }
 
 func (s *Source) getJSON(ctx context.Context, conn media.Connection, path string, header http.Header, into any) error {
@@ -184,7 +231,7 @@ func (s *Source) getJSON(ctx context.Context, conn media.Connection, path string
 	return nil
 }
 
-func groupLeaves(leaves []leaf) []media.Show {
+func groupLeaves(leaves []leaf, ids map[string]media.ExternalIDs) []media.Show {
 	var shows []media.Show
 	showAt := map[string]int{}
 	for _, l := range leaves {
@@ -192,7 +239,7 @@ func groupLeaves(leaves []leaf) []media.Show {
 		if !ok {
 			i = len(shows)
 			showAt[l.GrandparentRatingKey] = i
-			shows = append(shows, media.Show{Title: l.GrandparentTitle})
+			shows = append(shows, media.Show{Title: l.GrandparentTitle, ExternalIDs: ids[l.GrandparentRatingKey]})
 		}
 		ep := media.Episode{Number: l.Index, Title: l.Title, Watched: l.ViewCount > 0}
 		if ep.Watched && l.LastViewedAt > 0 {

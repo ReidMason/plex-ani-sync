@@ -4,8 +4,11 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 	"github.com/ReidMason/plex-ani-sync/internal/media"
@@ -25,10 +28,29 @@ type seasonJSON struct {
 	Episodes []episodeJSON `json:"episodes"`
 }
 
+type mappingJSON struct {
+	Season            int   `json:"season"`
+	FirstEpisode      int   `json:"firstEpisode"`
+	LastEpisode       *int  `json:"lastEpisode"`
+	AniListID         int64 `json:"anilistId"`
+	EntryFirstEpisode int   `json:"entryFirstEpisode"`
+	EntryLastEpisode  *int  `json:"entryLastEpisode"`
+}
+
+const (
+	statusMapped   = "mapped"
+	statusUnmapped = "unmapped"
+)
+
 type showJSON struct {
-	MediaSourceID int64        `json:"mediaSourceId"`
-	Title         string       `json:"title"`
-	Seasons       []seasonJSON `json:"seasons"`
+	MediaSourceID int64             `json:"mediaSourceId"`
+	Title         string            `json:"title"`
+	Status        string            `json:"status"`
+	ExternalIDs   map[string]string `json:"externalIds"`
+	Mappings      []mappingJSON     `json:"mappings"`
+	Seasons       []seasonJSON      `json:"seasons"`
+
+	tvdbID int64
 }
 
 func (p *plexLink) registerAnime(mux *http.ServeMux, a *auth) {
@@ -58,6 +80,10 @@ func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSess
 				out = append(out, toShowJSON(sel.sourceID, show))
 			}
 		}
+	}
+	if err := p.attachMappings(r.Context(), out); err != nil {
+		internalError(w, p.logger, err)
+		return
 	}
 	slices.SortStableFunc(out, func(a, b showJSON) int { return strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title)) })
 	writeJSON(w, out)
@@ -104,7 +130,13 @@ func (p *plexLink) showsOf(ctx context.Context, sel selection, token string) ([]
 }
 
 func toShowJSON(sourceID int64, show media.Show) showJSON {
-	out := showJSON{MediaSourceID: sourceID, Title: show.Title, Seasons: []seasonJSON{}}
+	out := showJSON{MediaSourceID: sourceID, Title: show.Title, Seasons: []seasonJSON{}, Mappings: []mappingJSON{}, Status: statusUnmapped, ExternalIDs: map[string]string{}}
+	for key, id := range map[string]string{"tvdb": show.ExternalIDs.TVDB, "tmdb": show.ExternalIDs.TMDB, "imdb": show.ExternalIDs.IMDB} {
+		if id != "" {
+			out.ExternalIDs[key] = id
+		}
+	}
+	out.tvdbID, _ = strconv.ParseInt(show.ExternalIDs.TVDB, 10, 64)
 	for _, season := range show.Seasons {
 		if season.Number == specialsSeason {
 			continue
@@ -116,4 +148,44 @@ func toShowJSON(sourceID int64, show media.Show) showJSON {
 		out.Seasons = append(out.Seasons, sj)
 	}
 	return out
+}
+
+func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
+	var ids []int64
+	for _, s := range shows {
+		if s.tvdbID > 0 {
+			ids = append(ids, s.tvdbID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := p.queries.ListMappingsForShows(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for i := range shows {
+		s := &shows[i]
+		for _, row := range rows {
+			if row.TvdbID != s.tvdbID || !slices.ContainsFunc(s.Seasons, func(se seasonJSON) bool { return se.Number == int(row.TvdbSeason) }) {
+				continue
+			}
+			s.Mappings = append(s.Mappings, mappingJSON{
+				Season: int(row.TvdbSeason), FirstEpisode: int(row.FirstEpisode), LastEpisode: optionalInt(row.LastEpisode),
+				AniListID: row.AnilistID, EntryFirstEpisode: int(row.EntryFirstEpisode), EntryLastEpisode: optionalInt(row.EntryLastEpisode),
+			})
+		}
+		if len(s.Mappings) > 0 {
+			s.Status = statusMapped
+		}
+	}
+	return nil
+}
+
+func optionalInt(v pgtype.Int4) *int {
+	if !v.Valid {
+		return nil
+	}
+	n := int(v.Int32)
+	return &n
 }
