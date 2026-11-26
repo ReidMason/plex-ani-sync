@@ -45,3 +45,22 @@ _Avoid_: Seen, viewed, completed
 **Tracker**:
 A site a User's watch progress is written to, such as AniList. Added after Media Sources.
 _Avoid_: Destination, target, sink
+
+**Entry**:
+A single item on a Tracker with its own episode numbering, such as one AniList anime. One Show can span several Entries, and one Entry can span several Seasons.
+_Avoid_: Title, listing
+
+**Mapping**:
+A link between a run of Episodes in a Show's Season and a run of Episodes in an Entry. A Show is fully mapped when every Episode it has is covered by a Mapping.
+_Avoid_: Match, link
+
+**Custom Mapping**:
+A Mapping this project maintains by hand for episodes the shared dataset gets wrong or lacks. It wins over any dataset Mapping it overlaps and survives dataset refreshes.
+_Avoid_: Correction, override, patch
+
+**Unmapped**:
+A Show with no Mapping at all.
+
+**Needs Review**:
+A Show whose Mappings exist but disagree with the Episodes it has, such as differing episode counts. It is not synced until the dataset or a Custom Mapping fixes it.
+_Avoid_: Broken, invalid

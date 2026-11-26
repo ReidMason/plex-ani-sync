@@ -92,6 +92,7 @@ func (p *plexLink) addMediaSource(w http.ResponseWriter, r *http.Request, s dbge
 		writeError(w, http.StatusBadGateway, "unreachable")
 		return
 	case errors.Is(err, plex.ErrNotPlexServer):
+		p.logger.Warn("plex returned an unexpected response", "error", err)
 		writeError(w, http.StatusUnprocessableEntity, "not_plex_server")
 		return
 	case errors.Is(err, plex.ErrNoAccess):
@@ -231,6 +232,7 @@ func (p *plexLink) writeMediaError(w http.ResponseWriter, err error) {
 	case errors.Is(err, media.ErrNoAccess):
 		writeError(w, http.StatusForbidden, "no_access")
 	case errors.Is(err, plex.ErrNotPlexServer):
+		p.logger.Warn("plex returned an unexpected response", "error", err)
 		writeError(w, http.StatusUnprocessableEntity, "not_plex_server")
 	default:
 		internalError(w, p.logger, err)

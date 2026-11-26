@@ -20,6 +20,7 @@ type Server struct {
 	requests  int
 	libraries []library
 	episodes  map[string][]episode
+	guids     map[string]map[string][]string
 }
 
 type episode struct {
@@ -59,6 +60,42 @@ func (s *Server) AddEpisode(libraryKey string, e Episode) {
 		GrandparentRatingKey: "show-" + e.Show, GrandparentTitle: e.Show, ParentIndex: e.Season,
 		Index: e.Number, Title: e.Title, ViewCount: e.ViewCount, LastViewedAt: e.LastViewedAt,
 	})
+}
+
+func (s *Server) SetShowGUIDs(libraryKey, show string, guids ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.guids[libraryKey] == nil {
+		s.guids[libraryKey] = map[string][]string{}
+	}
+	s.guids[libraryKey]["show-"+show] = guids
+}
+
+func (s *Server) shows(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("X-Plex-Token")
+	s.mu.Lock()
+	allowed := s.allowed[token]
+	key := r.PathValue("key")
+	var out []map[string]any
+	seen := map[string]bool{}
+	for _, e := range s.episodes[key] {
+		if seen[e.GrandparentRatingKey] {
+			continue
+		}
+		seen[e.GrandparentRatingKey] = true
+		var guids []map[string]string
+		for _, g := range s.guids[key][e.GrandparentRatingKey] {
+			guids = append(guids, map[string]string{"id": g})
+		}
+		out = append(out, map[string]any{"ratingKey": e.GrandparentRatingKey, "title": e.GrandparentTitle, "guid": "plex://show/" + e.GrandparentRatingKey, "Guid": guids})
+	}
+	s.mu.Unlock()
+	if !allowed {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"MediaContainer": map[string]any{"size": len(out), "totalSize": len(out), "Metadata": out}})
 }
 
 func (s *Server) allLeaves(w http.ResponseWriter, r *http.Request) {
@@ -109,10 +146,11 @@ func (s *Server) AddLibrary(key, kind, title string) {
 // New starts a fake Plex server. Tokens are rejected with 401 until allowed.
 func New(t *testing.T) *Server {
 	t.Helper()
-	s := &Server{allowed: map[string]bool{}, forbidden: map[string]bool{}, episodes: map[string][]episode{}}
+	s := &Server{allowed: map[string]bool{}, forbidden: map[string]bool{}, episodes: map[string][]episode{}, guids: map[string]map[string][]string{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /library/sections", s.sections)
 	mux.HandleFunc("GET /library/sections/{key}/allLeaves", s.allLeaves)
+	mux.HandleFunc("GET /library/sections/{key}/all", s.shows)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	s.close = srv.Close

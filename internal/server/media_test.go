@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 )
@@ -563,5 +564,31 @@ func TestPlexFailuresAreReportedOnLibraryAndAnimeEndpoints(t *testing.T) {
 	}
 	if status, _ := b.anime(); status != http.StatusBadGateway {
 		t.Errorf("anime when down = %d, want 502", status)
+	}
+}
+
+func TestAnimeReusesCachedShowsUntilTheyExpire(t *testing.T) {
+	p := startPlexApp(t)
+	b := p.signedIn(t, "sub-alice", "Alice")
+	b.link(p, "tok-a", "alice_plex")
+	srv := plexservertest.New(t)
+	srv.Allow("tok-a")
+	srv.AddLibrary("2", "show", "Anime")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "One"})
+	src := b.mustAdd(srv.URL)
+	b.selectAnimeLibraries(src.ID, []string{"2"})
+	b.anime()
+	afterFirst := srv.Requests()
+
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 2, Title: "Two"})
+	_, cached := b.anime()
+	if srv.Requests() != afterFirst+1 || len(cached[0].Seasons[0].Episodes) != 1 {
+		t.Errorf("expected cached shows, got %d episodes and %d extra requests", len(cached[0].Seasons[0].Episodes), srv.Requests()-afterFirst)
+	}
+
+	p.clock.Advance(time.Hour)
+	_, fresh := b.anime()
+	if len(fresh[0].Seasons[0].Episodes) != 2 {
+		t.Errorf("expected expired cache to reload, got %d episodes", len(fresh[0].Seasons[0].Episodes))
 	}
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<anime-list>
+  <anime anidbid="1" tvdbid="72025" defaulttvdbseason="1" tmdbtv="26209" tmdbseason="1">
+    <name>Seikai no Monshou</name>
+    <supplemental-info>
+      <studio>Sunrise</studio>
+    </supplemental-info>
+  </anime>
+  <anime anidbid="5" tvdbid="72025" defaulttvdbseason="3" tmdbtv="26209" tmdbseason="3">
+    <name>Seikai no Senki II</name>
+    <mapping-list>
+      <mapping anidbseason="0" tvdbseason="0">;1-4;</mapping>
+    </mapping-list>
+    <supplemental-info>
+      <studio>Sunrise</studio>
+    </supplemental-info>
+  </anime>
+  <anime anidbid="7" tvdbid="movie" tmdbid="128" imdbid="tt0119698">
+    <name>Mononoke-hime</name>
+  </anime>
+  <anime anidbid="19" tvdbid="83692" defaulttvdbseason="a" tmdbtv="34684" tmdbseason="a">
+    <name>Rizelmine</name>
+    <mapping-list>
+      <mapping anidbseason="1" tvdbseason="1" start="1" end="12"/>
+      <mapping anidbseason="1" tvdbseason="2" start="13" end="24" offset="-12"/>
+    </mapping-list>
+  </anime>
+</anime-list>

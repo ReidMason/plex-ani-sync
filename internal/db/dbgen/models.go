@@ -8,6 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnilistMedium struct {
+	AnilistID    int64
+	Episodes     pgtype.Int4
+	TitleRomaji  string
+	TitleEnglish string
+	FetchedAt    pgtype.Timestamptz
+}
+
 type AnimeLibrary struct {
 	MediaSourceID int64
 	LibraryKey    string
@@ -16,6 +24,23 @@ type AnimeLibrary struct {
 type AppSetting struct {
 	Key   string
 	Value string
+}
+
+type Mapping struct {
+	ID                int64
+	TvdbID            int64
+	TvdbSeason        int32
+	FirstEpisode      int32
+	LastEpisode       pgtype.Int4
+	AnilistID         int64
+	EntryFirstEpisode int32
+	EntryLastEpisode  pgtype.Int4
+	AnidbID           pgtype.Int8
+	Origin            string
+}
+
+type MappingOrigin struct {
+	Name string
 }
 
 type MediaSource struct {
@@ -39,6 +64,11 @@ type Session struct {
 	CreatedAt   pgtype.Timestamptz
 	ExpiresAt   pgtype.Timestamptz
 	RevokedAt   pgtype.Timestamptz
+}
+
+type TmdbTvdbLink struct {
+	TmdbID int64
+	TvdbID int64
 }
 
 type User struct {

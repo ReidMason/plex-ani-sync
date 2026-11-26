@@ -16,9 +16,12 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilist"
+	"github.com/ReidMason/plex-ani-sync/internal/cache"
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
+	"github.com/ReidMason/plex-ani-sync/internal/mappings"
 	"github.com/ReidMason/plex-ani-sync/internal/media"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
@@ -30,6 +33,20 @@ type Config struct {
 	Logger *slog.Logger
 	// PlexTVURL overrides https://plex.tv, for tests.
 	PlexTVURL string
+	// FribbURL overrides the Fribb anime-list-full.json location, for tests.
+	FribbURL string
+	// CustomMappings replaces the embedded Custom Mappings, for tests.
+	CustomMappings []mappings.Mapping
+	// AnimeListsURL overrides the Anime-Lists anime-list.xml location, for tests.
+	AnimeListsURL string
+	// DatasetRefreshInterval is how often the mapping datasets are re-downloaded; it defaults to 24 hours.
+	DatasetRefreshInterval time.Duration
+	// AniListURL overrides the AniList GraphQL endpoint, for tests.
+	AniListURL string
+	// Cache stores shows pulled from media sources; it defaults to an in-memory cache.
+	Cache cache.Cache
+	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
+	ShowsTTL time.Duration
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -80,6 +97,40 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if plexTV == "" {
 		plexTV = plex.DefaultTVURL
 	}
+	fribbURL := cfg.FribbURL
+	if fribbURL == "" {
+		fribbURL = defaultFribbURL
+	}
+	custom := cfg.CustomMappings
+	if custom == nil {
+		if custom, err = mappings.Custom(); err != nil {
+			pool.Close()
+			return nil, nil, err
+		}
+	}
+	animeListsURL := cfg.AnimeListsURL
+	if animeListsURL == "" {
+		animeListsURL = defaultAnimeListsURL
+	}
+	datasets := datasetSync{pool: pool, queries: queries, fribbURL: fribbURL, animeListsURL: animeListsURL, custom: custom, logger: logger}
+	if err := datasets.loadAtStartup(ctx); err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
+	}
+	refreshEvery := cfg.DatasetRefreshInterval
+	if refreshEvery == 0 {
+		refreshEvery = defaultDatasetRefreshInterval
+	}
+	refreshCtx, stopRefresh := context.WithCancel(ctx)
+	refreshDone := make(chan struct{})
+	go func() {
+		defer close(refreshDone)
+		datasets.refreshEvery(refreshCtx, refreshEvery)
+	}()
+	aniListURL := cfg.AniListURL
+	if aniListURL == "" {
+		aniListURL = anilist.DefaultURL
+	}
 	clock := cfg.Clock
 	if clock == nil {
 		clock = time.Now
@@ -89,7 +140,16 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		ttl = defaultUsernameTTL
 	}
 	serverClient := plex.NewServerClient()
-	p := &plexLink{usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger}
+	store := cfg.Cache
+	if store == nil {
+		store = cache.NewMemory(clock)
+	}
+	showsTTL := cfg.ShowsTTL
+	if showsTTL == 0 {
+		showsTTL = defaultShowsTTL
+	}
+	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+		anilist: &aniListCache{client: anilist.Client{URL: aniListURL, HTTP: http.DefaultClient}, queries: queries, clock: clock, ttl: defaultAniListMetadataTTL, logger: logger}}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
@@ -104,7 +164,11 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.Handle("/", staticHandler(cfg.Assets))
-	return mux, pool.Close, nil
+	return mux, func() {
+		stopRefresh()
+		<-refreshDone
+		pool.Close()
+	}, nil
 }
 
 func staticHandler(assets fs.FS) http.Handler {

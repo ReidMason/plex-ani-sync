@@ -1,0 +1,146 @@
+[
+  {
+    "type": "TV",
+    "anidb_id": 1,
+    "anilist_id": 290,
+    "animecountdown_id": 36462,
+    "animenewsnetwork_id": 14,
+    "anime-planet_id": "crest-of-the-stars",
+    "anisearch_id": 3039,
+    "imdb_id": [
+      "tt0286390"
+    ],
+    "kitsu_id": 265,
+    "livechart_id": 4157,
+    "mal_id": 290,
+    "simkl_id": 36462,
+    "themoviedb_id": {
+      "tv": 26209
+    },
+    "tvdb_id": 72025,
+    "season": {
+      "tvdb": 1,
+      "tmdb": 1
+    }
+  },
+  {
+    "type": "MOVIE",
+    "anidb_id": 7,
+    "anilist_id": 164,
+    "animecountdown_id": 36228,
+    "animenewsnetwork_id": 197,
+    "anime-planet_id": "princess-mononoke",
+    "anisearch_id": 3320,
+    "imdb_id": [
+      "tt0119698"
+    ],
+    "kitsu_id": 142,
+    "livechart_id": 3081,
+    "mal_id": 164,
+    "simkl_id": 36228,
+    "themoviedb_id": {
+      "movie": [
+        128
+      ]
+    }
+  },
+  {
+    "type": "OVA",
+    "anidb_id": 11,
+    "anilist_id": 821,
+    "animecountdown_id": 36955,
+    "animenewsnetwork_id": 1155,
+    "anime-planet_id": "initial-d-battle-stage",
+    "anisearch_id": 806,
+    "imdb_id": [
+      "tt7941838"
+    ],
+    "kitsu_id": 728,
+    "livechart_id": 8274,
+    "mal_id": 821,
+    "simkl_id": 36955,
+    "themoviedb_id": {
+      "movie": [
+        1390599
+      ]
+    },
+    "tvdb_id": 70900,
+    "season": {
+      "tvdb": 0
+    },
+    "episode_offset": {
+      "tvdb": 2
+    }
+  },
+  {
+    "type": "TV",
+    "anidb_id": 19,
+    "anilist_id": 197,
+    "animecountdown_id": 41130,
+    "animenewsnetwork_id": 841,
+    "anime-planet_id": "rizelmine",
+    "anisearch_id": 3189,
+    "imdb_id": [
+      "tt0328338"
+    ],
+    "kitsu_id": 174,
+    "livechart_id": 5341,
+    "mal_id": 197,
+    "simkl_id": 41130,
+    "themoviedb_id": {
+      "tv": 34684
+    },
+    "tvdb_id": 83692
+  },
+  {
+    "type": "TV",
+    "anidb_id": 102,
+    "anilist_id": 232,
+    "animecountdown_id": 40753,
+    "animenewsnetwork_id": 126,
+    "anime-planet_id": "cardcaptor-sakura",
+    "anisearch_id": 1913,
+    "imdb_id": [
+      "tt0221735"
+    ],
+    "kitsu_id": 207,
+    "livechart_id": 3665,
+    "mal_id": 232,
+    "simkl_id": 40753,
+    "themoviedb_id": {
+      "tv": 35790
+    },
+    "tvdb_id": 70668,
+    "season": {
+      "tmdb": 1
+    }
+  },
+  {
+    "type": "TV",
+    "anidb_id": 391,
+    "anilist_id": 690,
+    "animecountdown_id": 39579,
+    "animenewsnetwork_id": 336,
+    "anime-planet_id": "vampire-princess-miyu-tv",
+    "anisearch_id": 2157,
+    "imdb_id": [
+      "tt0158415"
+    ],
+    "kitsu_id": 7754,
+    "livechart_id": 5136,
+    "mal_id": 690,
+    "simkl_id": 39579,
+    "themoviedb_id": {
+      "tv": 42460
+    },
+    "tvdb_id": 70862,
+    "season": {
+      "tvdb": 1,
+      "tmdb": 1
+    },
+    "episode_offset": {
+      "tvdb": 1,
+      "tmdb": 1
+    }
+  }
+]

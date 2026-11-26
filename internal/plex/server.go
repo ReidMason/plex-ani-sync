@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/media"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -118,7 +120,10 @@ func (s *Source) Libraries(ctx context.Context, conn media.Connection) ([]media.
 	return out, nil
 }
 
-const leavesPageSize = 200
+const (
+	leavesPageSize     = 200
+	maxConcurrentPages = 8
+)
 
 type leaf struct {
 	GrandparentRatingKey string `json:"grandparentRatingKey"`
@@ -131,27 +136,102 @@ type leaf struct {
 }
 
 func (s *Source) Shows(ctx context.Context, conn media.Connection, libraryKey string) ([]media.Show, error) {
+	path := "/library/sections/" + url.PathEscape(libraryKey)
 	var leaves []leaf
-	for start := 0; ; start += leavesPageSize {
-		var body struct {
-			MediaContainer struct {
-				TotalSize int    `json:"totalSize"`
-				Metadata  []leaf `json:"Metadata"`
-			} `json:"MediaContainer"`
+	var metas []showMeta
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		leaves, err = pageThrough[leaf](gctx, s, conn, path+"/allLeaves")
+		return err
+	})
+	g.Go(func() (err error) {
+		metas, err = pageThrough[showMeta](gctx, s, conn, path+"/all?type=2&includeGuids=1")
+		return err
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	ids := map[string]media.ExternalIDs{}
+	for _, m := range metas {
+		ids[m.RatingKey] = externalIDsOf(m.Guid)
+	}
+	return groupLeaves(leaves, ids), nil
+}
+
+type showMeta struct {
+	RatingKey string `json:"ratingKey"`
+	// Claims the lowercase "guid" string so encoding/json doesn't match it to Guid case-insensitively.
+	PlexGUID string `json:"guid"`
+	Guid     []struct {
+		ID string `json:"id"`
+	} `json:"Guid"`
+}
+
+type container[T any] struct {
+	MediaContainer struct {
+		TotalSize int `json:"totalSize"`
+		Metadata  []T `json:"Metadata"`
+	} `json:"MediaContainer"`
+}
+
+func pageThrough[T any](ctx context.Context, s *Source, conn media.Connection, path string) ([]T, error) {
+	first, total, err := fetchPage[T](ctx, s, conn, path, 0)
+	if err != nil {
+		return nil, err
+	}
+	if len(first) == 0 || len(first) >= total {
+		return first, nil
+	}
+	starts := make([]int, 0, total/leavesPageSize)
+	for start := len(first); start < total; start += leavesPageSize {
+		starts = append(starts, start)
+	}
+	pages := make([][]T, len(starts))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentPages)
+	for i, start := range starts {
+		g.Go(func() (err error) {
+			pages[i], _, err = fetchPage[T](gctx, s, conn, path, start)
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return slices.Concat(append([][]T{first}, pages...)...), nil
+}
+
+func fetchPage[T any](ctx context.Context, s *Source, conn media.Connection, path string, start int) ([]T, int, error) {
+	var body container[T]
+	page := http.Header{
+		"X-Plex-Container-Start": {strconv.Itoa(start)},
+		"X-Plex-Container-Size":  {strconv.Itoa(leavesPageSize)},
+	}
+	if err := s.getJSON(ctx, conn, path, page, &body); err != nil {
+		return nil, 0, err
+	}
+	return body.MediaContainer.Metadata, body.MediaContainer.TotalSize, nil
+}
+
+func externalIDsOf(guids []struct {
+	ID string `json:"id"`
+}) media.ExternalIDs {
+	var out media.ExternalIDs
+	for _, g := range guids {
+		scheme, id, ok := strings.Cut(g.ID, "://")
+		if !ok {
+			continue
 		}
-		page := http.Header{
-			"X-Plex-Container-Start": {strconv.Itoa(start)},
-			"X-Plex-Container-Size":  {strconv.Itoa(leavesPageSize)},
-		}
-		if err := s.getJSON(ctx, conn, "/library/sections/"+url.PathEscape(libraryKey)+"/allLeaves", page, &body); err != nil {
-			return nil, err
-		}
-		leaves = append(leaves, body.MediaContainer.Metadata...)
-		if len(body.MediaContainer.Metadata) == 0 || start+len(body.MediaContainer.Metadata) >= body.MediaContainer.TotalSize {
-			break
+		switch scheme {
+		case "tvdb":
+			out.TVDB = id
+		case "tmdb":
+			out.TMDB = id
+		case "imdb":
+			out.IMDB = id
 		}
 	}
-	return groupLeaves(leaves), nil
+	return out
 }
 
 func (s *Source) getJSON(ctx context.Context, conn media.Connection, path string, header http.Header, into any) error {
@@ -176,15 +256,15 @@ func (s *Source) getJSON(ctx context.Context, conn media.Connection, path string
 	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
 		return media.ErrNoAccess
 	case resp.StatusCode != http.StatusOK:
-		return ErrNotPlexServer
+		return fmt.Errorf("%w: GET %s returned %d", ErrNotPlexServer, path, resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(into); err != nil {
-		return ErrNotPlexServer
+		return fmt.Errorf("%w: GET %s: %w", ErrNotPlexServer, path, err)
 	}
 	return nil
 }
 
-func groupLeaves(leaves []leaf) []media.Show {
+func groupLeaves(leaves []leaf, ids map[string]media.ExternalIDs) []media.Show {
 	var shows []media.Show
 	showAt := map[string]int{}
 	for _, l := range leaves {
@@ -192,7 +272,7 @@ func groupLeaves(leaves []leaf) []media.Show {
 		if !ok {
 			i = len(shows)
 			showAt[l.GrandparentRatingKey] = i
-			shows = append(shows, media.Show{Title: l.GrandparentTitle})
+			shows = append(shows, media.Show{Title: l.GrandparentTitle, ExternalIDs: ids[l.GrandparentRatingKey]})
 		}
 		ep := media.Episode{Number: l.Index, Title: l.Title, Watched: l.ViewCount > 0}
 		if ep.Watched && l.LastViewedAt > 0 {

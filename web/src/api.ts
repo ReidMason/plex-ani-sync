@@ -26,9 +26,22 @@ interface AnimeEpisode {
   lastWatchedAt: string | null;
 }
 
+interface AnimeMapping {
+  season: number;
+  firstEpisode: number;
+  lastEpisode: number | null;
+  anilistId: number;
+  entryFirstEpisode: number;
+  entryLastEpisode: number | null;
+}
+
 export interface AnimeShow {
   mediaSourceId: number;
   title: string;
+  status: "mapped" | "needs_review" | "unmapped";
+  reason: string;
+  externalIds: Record<string, string>;
+  mappings: AnimeMapping[];
   seasons: { number: number; episodes: AnimeEpisode[] }[];
 }
 
