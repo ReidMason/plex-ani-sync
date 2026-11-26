@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	originCustom       = "custom"
 	defaultFribbURL    = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
 	originDataset      = "dataset"
 	datasetFetchWindow = 2 * time.Minute
@@ -31,9 +32,12 @@ type mappingRow struct {
 }
 
 // loadDatasetIfEmpty ingests Fribb when no Mappings are stored; a failed download is logged and leaves the table empty.
-func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL string, logger *slog.Logger) error {
+func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL string, custom []mappings.Mapping, logger *slog.Logger) error {
+	if err := replaceMappings(ctx, pool, q, originCustom, custom); err != nil {
+		return err
+	}
 	n, err := q.CountMappings(ctx)
-	if err != nil || n > 0 {
+	if err != nil || n > int64(len(custom)) {
 		return err
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, datasetFetchWindow)
@@ -43,10 +47,10 @@ func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Querie
 		logger.Warn("could not load mapping dataset", "error", err)
 		return nil
 	}
-	return replaceDatasetMappings(ctx, pool, q, mappings.Resolve(rows))
+	return replaceMappings(ctx, pool, q, originDataset, mappings.ResolveAround(rows, custom))
 }
 
-func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, resolved []mappings.Mapping) error {
+func replaceMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, origin string, resolved []mappings.Mapping) error {
 	rows := make([]mappingRow, 0, len(resolved))
 	for _, m := range resolved {
 		rows = append(rows, mappingRow{
@@ -64,10 +68,15 @@ func replaceDatasetMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Qu
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	tq := q.WithTx(tx)
-	if err := tq.DeleteDatasetMappings(ctx); err != nil {
+	if origin == originCustom {
+		err = tq.DeleteCustomMappings(ctx)
+	} else {
+		err = tq.DeleteDatasetMappings(ctx)
+	}
+	if err != nil {
 		return err
 	}
-	if err := tq.InsertMappings(ctx, dbgen.InsertMappingsParams{Origin: originDataset, Rows: payload}); err != nil {
+	if err := tq.InsertMappings(ctx, dbgen.InsertMappingsParams{Origin: origin, Rows: payload}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
