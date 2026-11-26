@@ -354,6 +354,54 @@ func TestAniListOutageDegradesToMissingSignal(t *testing.T) {
 	}
 }
 
+func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) *browser {
+	t.Helper()
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: plexTitle, Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", plexTitle, "tvdb://77")
+	selectAnime(b, srv)
+	p.anilist.Set(anilisttest.Media{ID: 10, Title: anilistTitle})
+	return b
+}
+
+func TestWildlyDifferentTitleNeedsReviewWithoutChangingMappings(t *testing.T) {
+	b := titleSetup(t, "Cooking Show", anilisttest.Title{Romaji: "Sousou no Frieren", English: "Frieren: Beyond Journey's End"})
+
+	got := b.mappedShows()["Cooking Show"]
+
+	if got.Status != "needs_review" || !strings.Contains(got.Reason, "title") || len(got.Mappings) != 1 {
+		t.Errorf("status = %q reason = %q mappings = %+v", got.Status, got.Reason, got.Mappings)
+	}
+}
+
+func TestSimilarTitlesAreNotFlagged(t *testing.T) {
+	cases := []struct {
+		plex  string
+		title anilisttest.Title
+	}{
+		{"Frieren", anilisttest.Title{Romaji: "Sousou no Frieren", English: "Frieren: Beyond Journey's End"}},
+		{"Sousou no Frieren", anilisttest.Title{Romaji: "Sousou no Frieren"}},
+		{"Attack on Titan", anilisttest.Title{Romaji: "Shingeki no Kyojin", English: "attack on titan"}},
+		{"Re:Zero", anilisttest.Title{Romaji: "Re:Zero kara Hajimeru Isekai Seikatsu"}},
+	}
+	for _, c := range cases {
+		b := titleSetup(t, c.plex, c.title)
+
+		if got := b.mappedShows()[c.plex]; got.Status != "mapped" {
+			t.Errorf("%q vs %+v: status = %q reason = %q", c.plex, c.title, got.Status, got.Reason)
+		}
+	}
+}
+
+func TestMissingAniListTitleNeverFlagsAShow(t *testing.T) {
+	b := titleSetup(t, "Cooking Show", anilisttest.Title{})
+
+	if got := b.mappedShows()["Cooking Show"]; got.Status != "mapped" {
+		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
+	}
+}
+
 func TestUnmappedShowsExplainWhy(t *testing.T) {
 	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
