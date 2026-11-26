@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilist"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 	"github.com/ReidMason/plex-ani-sync/internal/media"
 )
@@ -172,6 +174,7 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 	if err != nil {
 		return err
 	}
+	meta := p.anilist.lookup(ctx, entryIDs(rows))
 	for i := range shows {
 		s := &shows[i]
 		for _, row := range rows {
@@ -189,6 +192,11 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 			if len(s.Uncovered) > 0 {
 				s.Status = statusNeedsReview
 				s.Reason = "episodes not covered by any mapping: " + describeUncovered(s.Uncovered)
+			}
+			if mismatches := countMismatches(*s, meta); len(mismatches) > 0 {
+				s.Status = statusNeedsReview
+				s.Reason = strings.Join(append(mismatches, s.Reason), "; ")
+				s.Reason = strings.TrimSuffix(s.Reason, "; ")
 			}
 		}
 	}
@@ -232,4 +240,43 @@ func describeUncovered(u []uncoveredJSON) string {
 		parts = append(parts, "season "+strconv.Itoa(s.Season)+" episodes "+strings.Join(nums, ", "))
 	}
 	return strings.Join(parts, "; ")
+}
+
+func entryIDs(rows []dbgen.ListMappingsForShowsRow) []int {
+	var ids []int
+	for _, r := range rows {
+		ids = append(ids, int(r.AnilistID))
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+// countMismatches compares, per Entry, the Show's episodes its Mappings cover with the Entry's AniList total.
+func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
+	var out []string
+	var seen []int64
+	for _, m := range s.Mappings {
+		if slices.Contains(seen, m.AniListID) {
+			continue
+		}
+		seen = append(seen, m.AniListID)
+		info, ok := meta[int(m.AniListID)]
+		if !ok || info.Episodes == nil {
+			continue
+		}
+		covered := 0
+		for _, season := range s.Seasons {
+			for _, e := range season.Episodes {
+				if slices.ContainsFunc(s.Mappings, func(o mappingJSON) bool {
+					return o.AniListID == m.AniListID && o.Season == season.Number && e.Number >= o.FirstEpisode && (o.LastEpisode == nil || e.Number <= *o.LastEpisode)
+				}) {
+					covered++
+				}
+			}
+		}
+		if covered != *info.Episodes {
+			out = append(out, fmt.Sprintf("episode count mismatch: AniList entry %d has %d episodes but %d mapped episodes exist", m.AniListID, *info.Episodes, covered))
+		}
+	}
+	return out
 }
