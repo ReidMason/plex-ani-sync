@@ -204,14 +204,14 @@ func TestTwoSeasonsFoldingIntoOneEntryResolveToTwoMappings(t *testing.T) {
 		withFribb(datasettest.FribbEntry{AniDBID: 10, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"}),
 		withAnimeLists(`<?xml version="1.0" encoding="utf-8"?>
 <anime-list>
-  <anime anidbid="10" tvdbid="77" defaulttvdbseason="1">
-    <name>Merged</name>
-    <mapping-list>
-      <mapping anidbseason="0" tvdbseason="0">;1-1;</mapping>
-      <mapping anidbseason="1" tvdbseason="1" start="1" end="12"/>
-      <mapping anidbseason="1" tvdbseason="2" start="13" end="24" offset="-12"/>
-    </mapping-list>
-  </anime>
+	<anime anidbid="10" tvdbid="77" defaulttvdbseason="1">
+		<name>Merged</name>
+		<mapping-list>
+			<mapping anidbseason="0" tvdbseason="0">;1-1;</mapping>
+			<mapping anidbseason="1" tvdbseason="1" start="1" end="12"/>
+			<mapping anidbseason="1" tvdbseason="2" start="13" end="24" offset="-12"/>
+		</mapping-list>
+	</anime>
 </anime-list>`))
 	b, srv := animeSetup(t, p)
 	for s := 1; s <= 2; s++ {
