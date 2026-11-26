@@ -38,9 +38,15 @@ type mappingJSON struct {
 }
 
 const (
-	statusMapped   = "mapped"
-	statusUnmapped = "unmapped"
+	statusMapped      = "mapped"
+	statusNeedsReview = "needs_review"
+	statusUnmapped    = "unmapped"
 )
+
+type uncoveredJSON struct {
+	Season   int   `json:"season"`
+	Episodes []int `json:"episodes"`
+}
 
 type showJSON struct {
 	MediaSourceID int64             `json:"mediaSourceId"`
@@ -49,6 +55,8 @@ type showJSON struct {
 	ExternalIDs   map[string]string `json:"externalIds"`
 	Mappings      []mappingJSON     `json:"mappings"`
 	Seasons       []seasonJSON      `json:"seasons"`
+	Reason        string            `json:"reason,omitempty"`
+	Uncovered     []uncoveredJSON   `json:"uncoveredEpisodes"`
 
 	tvdbID int64
 }
@@ -130,7 +138,7 @@ func (p *plexLink) showsOf(ctx context.Context, sel selection, token string) ([]
 }
 
 func toShowJSON(sourceID int64, show media.Show) showJSON {
-	out := showJSON{MediaSourceID: sourceID, Title: show.Title, Seasons: []seasonJSON{}, Mappings: []mappingJSON{}, Status: statusUnmapped, ExternalIDs: map[string]string{}}
+	out := showJSON{MediaSourceID: sourceID, Title: show.Title, Seasons: []seasonJSON{}, Mappings: []mappingJSON{}, Uncovered: []uncoveredJSON{}, Status: statusUnmapped, ExternalIDs: map[string]string{}}
 	for key, id := range map[string]string{"tvdb": show.ExternalIDs.TVDB, "tmdb": show.ExternalIDs.TMDB, "imdb": show.ExternalIDs.IMDB} {
 		if id != "" {
 			out.ExternalIDs[key] = id
@@ -177,6 +185,11 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 		}
 		if len(s.Mappings) > 0 {
 			s.Status = statusMapped
+			s.Uncovered = uncoveredEpisodes(*s)
+			if len(s.Uncovered) > 0 {
+				s.Status = statusNeedsReview
+				s.Reason = "episodes not covered by any mapping: " + describeUncovered(s.Uncovered)
+			}
 		}
 	}
 	return nil
@@ -188,4 +201,35 @@ func optionalInt(v pgtype.Int4) *int {
 	}
 	n := int(v.Int32)
 	return &n
+}
+
+func uncoveredEpisodes(s showJSON) []uncoveredJSON {
+	out := []uncoveredJSON{}
+	for _, season := range s.Seasons {
+		var missing []int
+		for _, e := range season.Episodes {
+			covered := slices.ContainsFunc(s.Mappings, func(m mappingJSON) bool {
+				return m.Season == season.Number && e.Number >= m.FirstEpisode && (m.LastEpisode == nil || e.Number <= *m.LastEpisode)
+			})
+			if !covered {
+				missing = append(missing, e.Number)
+			}
+		}
+		if len(missing) > 0 {
+			out = append(out, uncoveredJSON{Season: season.Number, Episodes: missing})
+		}
+	}
+	return out
+}
+
+func describeUncovered(u []uncoveredJSON) string {
+	parts := make([]string, 0, len(u))
+	for _, s := range u {
+		nums := make([]string, len(s.Episodes))
+		for i, n := range s.Episodes {
+			nums[i] = strconv.Itoa(n)
+		}
+		parts = append(parts, "season "+strconv.Itoa(s.Season)+" episodes "+strings.Join(nums, ", "))
+	}
+	return strings.Join(parts, "; ")
 }
