@@ -24,9 +24,9 @@ type mappingJSON struct {
 type mappedShow struct {
 	Title       string            `json:"title"`
 	Status      string            `json:"status"`
+	Reason      string            `json:"reason"`
 	ExternalIDs map[string]string `json:"externalIds"`
 	Mappings    []mappingJSON     `json:"mappings"`
-	Reason      string            `json:"reason"`
 	Uncovered   []struct {
 		Season   int   `json:"season"`
 		Episodes []int `json:"episodes"`
@@ -302,6 +302,32 @@ func TestAniListOutageDegradesToMissingSignal(t *testing.T) {
 		p.anilist.FailWith(0)
 		if got := b.mappedShows()["Counted"]; got.Status != "needs_review" {
 			t.Errorf("status %d after recovery: got %q", status, got.Status)
+		}
+	}
+}
+
+func TestUnmappedShowsExplainWhy(t *testing.T) {
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "NoGuid", Season: 1, Number: 1, Title: "x"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "TMDBOnly", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "TMDBOnly", "tmdb://5")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Unknown", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Unknown", "tvdb://999")
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Fine", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Fine", "tvdb://77")
+	selectAnime(b, srv)
+
+	shows := b.mappedShows()
+
+	for title, want := range map[string]string{
+		"NoGuid":   "Plex has no TVDB ID for this show",
+		"TMDBOnly": "Plex has no TVDB ID for this show",
+		"Unknown":  "No mappings found for TVDB ID 999",
+		"Fine":     "",
+	} {
+		if shows[title].Reason != want {
+			t.Errorf("%s reason = %q, want %q", title, shows[title].Reason, want)
 		}
 	}
 }

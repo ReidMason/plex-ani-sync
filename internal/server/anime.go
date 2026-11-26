@@ -54,10 +54,10 @@ type showJSON struct {
 	MediaSourceID int64             `json:"mediaSourceId"`
 	Title         string            `json:"title"`
 	Status        string            `json:"status"`
+	Reason        string            `json:"reason"`
 	ExternalIDs   map[string]string `json:"externalIds"`
 	Mappings      []mappingJSON     `json:"mappings"`
 	Seasons       []seasonJSON      `json:"seasons"`
-	Reason        string            `json:"reason,omitempty"`
 	Uncovered     []uncoveredJSON   `json:"uncoveredEpisodes"`
 
 	tvdbID int64
@@ -168,6 +168,9 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 		}
 	}
 	if len(ids) == 0 {
+		for i := range shows {
+			shows[i].Reason = reasonFor(shows[i])
+		}
 		return nil
 	}
 	rows, err := p.queries.ListMappingsForShows(ctx, ids)
@@ -198,6 +201,9 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 				s.Reason = strings.Join(append(mismatches, s.Reason), "; ")
 				s.Reason = strings.TrimSuffix(s.Reason, "; ")
 			}
+		}
+		if s.Status == statusUnmapped {
+			s.Reason = reasonFor(*s)
 		}
 	}
 	return nil
@@ -279,4 +285,14 @@ func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
 		}
 	}
 	return out
+}
+
+func reasonFor(s showJSON) string {
+	if s.Status != statusUnmapped {
+		return ""
+	}
+	if s.tvdbID <= 0 {
+		return "Plex has no TVDB ID for this show"
+	}
+	return "No mappings found for TVDB ID " + strconv.FormatInt(s.tvdbID, 10)
 }
