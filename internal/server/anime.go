@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ReidMason/plex-ani-sync/internal/anilist"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
@@ -85,13 +86,21 @@ func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSess
 			internalError(w, p.logger, err)
 			return
 		}
-		for _, sel := range groupSelections(rows) {
-			shows, err := p.listShows(r.Context(), sel, token)
-			if err != nil {
-				p.writeMediaError(w, err)
-				return
-			}
-			for _, show := range shows {
+		selections := groupSelections(rows)
+		perSource := make([][]media.Show, len(selections))
+		g, gctx := errgroup.WithContext(r.Context())
+		for i, sel := range selections {
+			g.Go(func() (err error) {
+				perSource[i], err = p.listShows(gctx, sel, token)
+				return err
+			})
+		}
+		if err := g.Wait(); err != nil {
+			p.writeMediaError(w, err)
+			return
+		}
+		for i, sel := range selections {
+			for _, show := range perSource[i] {
 				out = append(out, toShowJSON(sel.sourceID, show))
 			}
 		}
@@ -130,18 +139,21 @@ func (p *plexLink) listShows(ctx context.Context, sel selection, token string) (
 	if err != nil {
 		return nil, err
 	}
-	var out []media.Show
-	for _, key := range sel.keys {
-		if !slices.ContainsFunc(existing, func(l media.Library) bool { return l.Key == key }) {
-			continue
-		}
-		shows, err := p.sources[mediaKind(sel.kind)].Shows(ctx, conn, key)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, shows...)
+	keys := slices.DeleteFunc(slices.Clone(sel.keys), func(key string) bool {
+		return !slices.ContainsFunc(existing, func(l media.Library) bool { return l.Key == key })
+	})
+	perLibrary := make([][]media.Show, len(keys))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, key := range keys {
+		g.Go(func() (err error) {
+			perLibrary[i], err = p.sources[mediaKind(sel.kind)].Shows(gctx, conn, key)
+			return err
+		})
 	}
-	return out, nil
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return slices.Concat(perLibrary...), nil
 }
 
 func toShowJSON(sourceID int64, show media.Show) showJSON {

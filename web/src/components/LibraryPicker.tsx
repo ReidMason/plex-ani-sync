@@ -9,7 +9,7 @@ export function LibraryPicker({ mediaSourceId }: { mediaSourceId: number }) {
     mutationFn: (keys: string[]) => setAnimeLibraries(mediaSourceId, keys),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["libraries", mediaSourceId] });
-      void queryClient.invalidateQueries({ queryKey: ["anime"] });
+      queryClient.removeQueries({ queryKey: ["anime"] });
     },
   });
 
