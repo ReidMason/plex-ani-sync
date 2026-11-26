@@ -67,14 +67,20 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 	var out []Mapping
 	bySeason := map[seasonKey][]Range{}
 	byEntry := map[int][]Range{}
-	add := func(m Mapping) {
-		k := seasonKey{m.TVDBID, m.Season}
-		if slices.ContainsFunc(bySeason[k], m.Episodes.Overlaps) || slices.ContainsFunc(byEntry[m.AniListID], m.Entry.Overlaps) {
+	add := func(candidates []Mapping) {
+		taken := slices.ContainsFunc(candidates, func(m Mapping) bool {
+			return slices.ContainsFunc(bySeason[seasonKey{m.TVDBID, m.Season}], m.Episodes.Overlaps) ||
+				slices.ContainsFunc(byEntry[m.AniListID], m.Entry.Overlaps)
+		})
+		if taken {
 			return
 		}
-		bySeason[k] = append(bySeason[k], m.Episodes)
-		byEntry[m.AniListID] = append(byEntry[m.AniListID], m.Entry)
-		out = append(out, m)
+		for _, m := range candidates {
+			k := seasonKey{m.TVDBID, m.Season}
+			bySeason[k] = append(bySeason[k], m.Episodes)
+			byEntry[m.AniListID] = append(byEntry[m.AniListID], m.Entry)
+			out = append(out, m)
+		}
 	}
 	for _, r := range usable {
 		if spans := lists[r.AniDBID]; len(spans) > 0 {
@@ -89,9 +95,7 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 			if slices.ContainsFunc(candidates, func(m Mapping) bool { return overlapsCustom(custom, m) }) {
 				continue
 			}
-			for _, m := range candidates {
-				add(m)
-			}
+			add(candidates)
 			continue
 		}
 		if !simple(r) {
@@ -100,7 +104,7 @@ func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 		episodes, entry := rangesOf(r, offsets[seasonKey{r.TVDBID, r.Season}])
 		m := Mapping{TVDBID: r.TVDBID, Season: r.Season, Episodes: episodes, AniListID: r.AniListID, Entry: entry, AniDBID: r.AniDBID}
 		if !overlapsCustom(custom, m) {
-			add(m)
+			add([]Mapping{m})
 		}
 	}
 	return out

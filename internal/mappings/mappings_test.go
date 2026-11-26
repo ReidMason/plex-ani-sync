@@ -72,6 +72,23 @@ func TestResolveKeepsTheLowestAniDBIDWhenEntryRangesOverlap(t *testing.T) {
 	}
 }
 
+func TestResolveDropsALosingAniDBRowWholeWhenOneOfItsSpansOverlaps(t *testing.T) {
+	got := mappings.Resolve([]mappings.Row{
+		{AniDBID: 1, AniListID: 10, TVDBID: 1},
+		{AniDBID: 2, AniListID: 20, TVDBID: 1},
+	}, mappings.AnimeLists{
+		1: {{Season: 2, First: 1, Last: 12}},
+		2: {{Season: 1, First: 13, Last: 24}, {Season: 2, First: 5, Last: 8}},
+	})
+
+	want := []mappings.Mapping{
+		{TVDBID: 1, Season: 2, Episodes: mappings.Range{First: 1, Last: ptr(12)}, AniListID: 10, Entry: mappings.Range{First: 1, Last: ptr(12)}, AniDBID: 1},
+	}
+	if !slices.EqualFunc(got, want, equal) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
 func TestResolveSkipsSpecialsAndRowsMissingIDs(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 1, TVDBID: 1, Season: 0},
