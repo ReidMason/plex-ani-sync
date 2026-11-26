@@ -90,3 +90,70 @@ func equal(a, b mappings.Mapping) bool {
 		a.Episodes.First == b.Episodes.First && same(a.Episodes.Last, b.Episodes.Last) &&
 		a.Entry.First == b.Entry.First && same(a.Entry.Last, b.Entry.Last)
 }
+
+func custom(tvdbID, season int, episodes mappings.Range, anilistID int, entry mappings.Range) mappings.Mapping {
+	return mappings.Mapping{TVDBID: tvdbID, Season: season, Episodes: episodes, AniListID: anilistID, Entry: entry}
+}
+
+func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheTVDBSide(t *testing.T) {
+	got := mappings.ResolveAround([]mappings.Row{
+		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
+	}, []mappings.Mapping{custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
+
+	if len(got) != 0 {
+		t.Errorf("got %+v", got)
+	}
+}
+
+func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheEntrySide(t *testing.T) {
+	got := mappings.ResolveAround([]mappings.Row{
+		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
+	}, []mappings.Mapping{custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)})})
+
+	if len(got) != 0 {
+		t.Errorf("got %+v", got)
+	}
+}
+
+func TestResolveAroundDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testing.T) {
+	got := mappings.ResolveAround([]mappings.Row{
+		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
+		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
+	}, []mappings.Mapping{custom(1, 1, mappings.Range{First: 10, Last: ptr(11)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
+
+	want := []mappings.Mapping{
+		{TVDBID: 1, Season: 1, Episodes: mappings.Range{First: 13}, AniListID: 202, Entry: mappings.Range{First: 1}, AniDBID: 2},
+	}
+	if !slices.EqualFunc(got, want, equal) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestResolveAroundKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t *testing.T) {
+	got := mappings.ResolveAround([]mappings.Row{
+		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
+		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
+	}, []mappings.Mapping{
+		custom(1, 2, mappings.Range{First: 1}, 999, mappings.Range{First: 1}),
+		custom(1, 1, mappings.Range{First: 50}, 101, mappings.Range{First: 50}),
+		// second row (episodes 13+) overlaps this on the TVDB side and is dropped
+
+	})
+
+	if len(got) != 1 || got[0].AniListID != 101 {
+		t.Errorf("got %+v", got)
+	}
+}
+
+func TestParseCustomReadsRangesAndRejectsInvertedOnes(t *testing.T) {
+	got, err := mappings.ParseCustom([]byte(`[{"tvdbId":1,"season":2,"firstEpisode":13,"lastEpisode":24,"anilistId":9,"entryFirstEpisode":1}]`))
+	want := mappings.Mapping{TVDBID: 1, Season: 2, Episodes: mappings.Range{First: 13, Last: ptr(24)}, AniListID: 9, Entry: mappings.Range{First: 1}}
+	if err != nil || len(got) != 1 || !equal(got[0], want) {
+		t.Errorf("got %+v, %v", got, err)
+	}
+
+	_, err = mappings.ParseCustom([]byte(`[{"tvdbId":1,"season":2,"firstEpisode":13,"lastEpisode":5,"anilistId":9,"entryFirstEpisode":1}]`))
+	if err == nil {
+		t.Error("expected an error for an inverted range")
+	}
+}

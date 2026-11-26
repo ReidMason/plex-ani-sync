@@ -22,6 +22,15 @@ func (q *Queries) CountMappings(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const deleteCustomMappings = `-- name: DeleteCustomMappings :exec
+DELETE FROM mappings WHERE origin = 'custom'
+`
+
+func (q *Queries) DeleteCustomMappings(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteCustomMappings)
+	return err
+}
+
 const deleteDatasetMappings = `-- name: DeleteDatasetMappings :exec
 DELETE FROM mappings WHERE origin = 'dataset'
 `

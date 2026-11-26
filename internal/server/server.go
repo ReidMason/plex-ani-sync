@@ -19,6 +19,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/config"
 	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
+	"github.com/ReidMason/plex-ani-sync/internal/mappings"
 	"github.com/ReidMason/plex-ani-sync/internal/media"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
@@ -32,6 +33,8 @@ type Config struct {
 	PlexTVURL string
 	// FribbURL overrides the Fribb anime-list-full.json location, for tests.
 	FribbURL string
+	// CustomMappings replaces the embedded Custom Mappings, for tests.
+	CustomMappings []mappings.Mapping
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -86,7 +89,14 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if fribbURL == "" {
 		fribbURL = defaultFribbURL
 	}
-	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, logger); err != nil {
+	custom := cfg.CustomMappings
+	if custom == nil {
+		if custom, err = mappings.Custom(); err != nil {
+			pool.Close()
+			return nil, nil, err
+		}
+	}
+	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, custom, logger); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}

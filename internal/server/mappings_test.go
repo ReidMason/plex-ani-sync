@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
+	"github.com/ReidMason/plex-ani-sync/internal/mappings"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
@@ -271,4 +272,38 @@ func TestTMDBOnlyShowResolvesThroughDatasetIDLinks(t *testing.T) {
 
 	assertMappings(t, shows["Linked"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
 	assertMappings(t, shows["Absent"], "unmapped")
+}
+
+func startPlexAppWithCustom(t *testing.T, custom []mappings.Mapping, entries ...datasettest.FribbEntry) plexApp {
+	t.Helper()
+	p := startPlexApp(t)
+	host := datasettest.New(t)
+	host.SetFribb(entries...)
+	app, _ := startAppWith(t, newDatabase(t), p.provider, p.tv, func(c *server.Config) {
+		c.FribbURL = host.FribbURL
+		c.CustomMappings = custom
+	})
+	p.app = app
+	return p
+}
+
+func TestCustomMappingAppearsAlongsideDatasetRowsAndDisplacesOverlappingOnes(t *testing.T) {
+	custom := []mappings.Mapping{{TVDBID: 77, Season: 1, Episodes: mappings.Range{First: 13, Last: ptr(24)}, AniListID: 3003, Entry: mappings.Range{First: 1, Last: ptr(12)}}}
+	p := startPlexAppWithCustom(t, custom,
+		datasettest.FribbEntry{AniDBID: 100, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
+	)
+	b, srv := animeSetup(t, p)
+	for n := 1; n <= 24; n++ {
+		srv.AddEpisode("2", plexservertest.Episode{Show: "Split", Season: 1, Number: n, Title: "x"})
+	}
+	srv.SetShowGUIDs("2", "Split", "tvdb://77")
+	selectAnime(b, srv)
+
+	got := b.mappedShows()["Split"]
+
+	assertMappings(t, got, "mapped",
+		mappingJSON{Season: 1, FirstEpisode: 1, LastEpisode: ptr(12), AniListID: 1001, EntryFirst: 1, EntryLast: ptr(12)},
+		mappingJSON{Season: 1, FirstEpisode: 13, LastEpisode: ptr(24), AniListID: 3003, EntryFirst: 1, EntryLast: ptr(12)},
+	)
 }

@@ -40,6 +40,11 @@ type seasonKey struct{ tvdbID, season int }
 // Resolve turns dataset rows into Mappings, skipping Specials and incomplete rows. A row's range ends where the
 // next row of the same Season begins; on overlap the row with the lowest AniDB ID wins.
 func Resolve(rows []Row) []Mapping {
+	return ResolveAround(rows, nil)
+}
+
+// ResolveAround is Resolve, except any row whose TVDB or Entry range overlaps a Custom Mapping is dropped whole.
+func ResolveAround(rows []Row, custom []Mapping) []Mapping {
 	usable := slices.DeleteFunc(slices.Clone(rows), func(r Row) bool {
 		return r.AniListID <= 0 || r.TVDBID <= 0 || r.Season <= 0 || r.EpisodeOffset < 0
 	})
@@ -61,6 +66,9 @@ func Resolve(rows []Row) []Mapping {
 	for _, r := range usable {
 		k := seasonKey{r.TVDBID, r.Season}
 		episodes, entry := rangesOf(r, offsets[k])
+		if overlapsCustom(custom, r, episodes, entry) {
+			continue
+		}
 		if slices.ContainsFunc(bySeason[k], episodes.Overlaps) || slices.ContainsFunc(byEntry[r.AniListID], entry.Overlaps) {
 			continue
 		}
@@ -82,4 +90,11 @@ func rangesOf(r Row, seasonOffsets []int) (episodes, entry Range) {
 		entry.Last = &length
 	}
 	return episodes, entry
+}
+
+func overlapsCustom(custom []Mapping, r Row, episodes, entry Range) bool {
+	return slices.ContainsFunc(custom, func(c Mapping) bool {
+		return (c.TVDBID == r.TVDBID && c.Season == r.Season && c.Episodes.Overlaps(episodes)) ||
+			(c.AniListID == r.AniListID && c.Entry.Overlaps(entry))
+	})
 }

@@ -4,6 +4,9 @@ SELECT count(*) FROM mappings;
 -- name: DeleteDatasetMappings :exec
 DELETE FROM mappings WHERE origin = 'dataset';
 
+-- name: DeleteCustomMappings :exec
+DELETE FROM mappings WHERE origin = 'custom';
+
 -- name: InsertMappings :exec
 INSERT INTO mappings (tvdb_id, tvdb_season, first_episode, last_episode, anilist_id, entry_first_episode, entry_last_episode, anidb_id, origin)
 SELECT r.tvdb_id, r.tvdb_season, r.first_episode, r.last_episode, r.anilist_id, r.entry_first_episode, r.entry_last_episode, r.anidb_id, sqlc.arg(origin)::text
