@@ -24,6 +24,11 @@ type mappedShow struct {
 	Status      string            `json:"status"`
 	ExternalIDs map[string]string `json:"externalIds"`
 	Mappings    []mappingJSON     `json:"mappings"`
+	Reason      string            `json:"reason"`
+	Uncovered   []struct {
+		Season   int   `json:"season"`
+		Episodes []int `json:"episodes"`
+	} `json:"uncoveredEpisodes"`
 }
 
 func (b *browser) mappedShows() map[string]mappedShow {
@@ -231,4 +236,45 @@ func TestFribbOnlyShowsAreUnaffectedByAnimeLists(t *testing.T) {
 	selectAnime(b, srv)
 
 	assertMappings(t, b.mappedShows()["Plain"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
+}
+
+func TestShowWithEpisodesOutsideEveryMappingNeedsReview(t *testing.T) {
+	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Gappy", Season: 1, Number: 1, Title: "x"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Gappy", Season: 2, Number: 1, Title: "x"})
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Gappy", Season: 2, Number: 2, Title: "x"})
+	srv.SetShowGUIDs("2", "Gappy", "tvdb://77")
+	selectAnime(b, srv)
+
+	got := b.mappedShows()["Gappy"]
+
+	if got.Status != "needs_review" || got.Reason == "" {
+		t.Fatalf("status = %q reason = %q", got.Status, got.Reason)
+	}
+	if len(got.Uncovered) != 1 || got.Uncovered[0].Season != 2 || len(got.Uncovered[0].Episodes) != 2 {
+		t.Errorf("uncovered = %+v", got.Uncovered)
+	}
+}
+
+func TestGapBetweenMappedRangesNeedsReviewAndClearsWhenEpisodesChange(t *testing.T) {
+	p := startPlexApp(t, withFribb(
+		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
+	))
+	b, srv := animeSetup(t, p)
+	for _, n := range []int{1, 2, 12, 13} {
+		srv.AddEpisode("2", plexservertest.Episode{Show: "Cour", Season: 1, Number: n, Title: "x"})
+	}
+	srv.SetShowGUIDs("2", "Cour", "tvdb://77")
+	selectAnime(b, srv)
+	if got := b.mappedShows()["Cour"]; got.Status != "mapped" {
+		t.Fatalf("status = %q", got.Status)
+	}
+
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Cour", Season: 3, Number: 1, Title: "x"})
+
+	if got := b.mappedShows()["Cour"]; got.Status != "needs_review" {
+		t.Errorf("status after new season = %q", got.Status)
+	}
 }
