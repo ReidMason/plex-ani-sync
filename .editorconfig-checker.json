@@ -1,0 +1,3 @@
+{
+	"Exclude": ["^internal/db/dbgen/"]
+}

@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - ".scratch/**"
+      - ".claude/**"
+      - "**.md"
+  workflow_call:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build web
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - run: pnpm lint
+        working-directory: web
+      - uses: editorconfig-checker/action-editorconfig-checker@v2
+      - run: editorconfig-checker
+      - uses: golangci/golangci-lint-action@v9
+      - run: go vet ./...
+      - run: go test ./...
