@@ -13,14 +13,12 @@ type Title struct {
 	English string `json:"english,omitempty"`
 }
 
-// Media is one AniList anime as served by the fake.
 type Media struct {
 	ID       int   `json:"id"`
 	Episodes *int  `json:"episodes"`
 	Title    Title `json:"title"`
 }
 
-// Host is a fake AniList GraphQL API.
 type Host struct {
 	URL string
 
@@ -45,7 +43,6 @@ func (h *Host) Set(m Media) {
 	h.media[m.ID] = m
 }
 
-// FailWith makes every request respond with status; 0 restores normal service.
 func (h *Host) FailWith(status int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

@@ -39,6 +39,10 @@ type mappingJSON struct {
 	EntryLastEpisode  *int  `json:"entryLastEpisode"`
 }
 
+func (m mappingJSON) covers(season, episode int) bool {
+	return m.Season == season && episode >= m.FirstEpisode && (m.LastEpisode == nil || episode <= *m.LastEpisode)
+}
+
 const (
 	statusMapped      = "mapped"
 	statusNeedsReview = "needs_review"
@@ -82,7 +86,7 @@ func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSess
 			return
 		}
 		for _, sel := range groupSelections(rows) {
-			shows, err := p.showsOf(r.Context(), sel, token)
+			shows, err := p.listShows(r.Context(), sel, token)
 			if err != nil {
 				p.writeMediaError(w, err)
 				return
@@ -119,8 +123,8 @@ func groupSelections(rows []dbgen.ListAnimeLibrariesForUserRow) []selection {
 	return out
 }
 
-// showsOf skips selected libraries that no longer exist on the server.
-func (p *plexLink) showsOf(ctx context.Context, sel selection, token string) ([]media.Show, error) {
+// Selected libraries that no longer exist on the server are skipped.
+func (p *plexLink) listShows(ctx context.Context, sel selection, token string) ([]media.Show, error) {
 	conn := media.Connection{URL: sel.url, Token: token}
 	existing, err := p.librariesOf(ctx, sel.kind, conn)
 	if err != nil {
@@ -182,7 +186,7 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 	if err != nil {
 		return err
 	}
-	meta := p.anilist.lookup(ctx, entryIDs(rows))
+	entries := p.anilist.mediaFor(ctx, entryIDs(rows))
 	for i := range shows {
 		s := &shows[i]
 		for _, row := range rows {
@@ -197,18 +201,16 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 		if len(s.Mappings) > 0 {
 			s.Status = statusMapped
 			s.Uncovered = uncoveredEpisodes(*s)
+			reasons := countMismatches(*s, entries)
 			if len(s.Uncovered) > 0 {
-				s.Status = statusNeedsReview
-				s.Reason = "episodes not covered by any mapping: " + describeUncovered(s.Uncovered)
+				reasons = append(reasons, "episodes not covered by any mapping: "+describeUncovered(s.Uncovered))
 			}
-			if titleMismatch(*s, meta) {
-				s.Status = statusNeedsReview
-				s.Reason = strings.TrimPrefix(s.Reason+"; title looks very different from the mapped AniList entry's titles", "; ")
+			if titleMismatch(*s, entries) {
+				reasons = append(reasons, "title looks very different from the mapped AniList entry's titles")
 			}
-			if mismatches := countMismatches(*s, meta); len(mismatches) > 0 {
+			if len(reasons) > 0 {
 				s.Status = statusNeedsReview
-				s.Reason = strings.Join(append(mismatches, s.Reason), "; ")
-				s.Reason = strings.TrimSuffix(s.Reason, "; ")
+				s.Reason = strings.Join(reasons, "; ")
 			}
 		}
 		if s.Status == statusUnmapped {
@@ -232,7 +234,7 @@ func uncoveredEpisodes(s showJSON) []uncoveredJSON {
 		var missing []int
 		for _, e := range season.Episodes {
 			covered := slices.ContainsFunc(s.Mappings, func(m mappingJSON) bool {
-				return m.Season == season.Number && e.Number >= m.FirstEpisode && (m.LastEpisode == nil || e.Number <= *m.LastEpisode)
+				return m.covers(season.Number, e.Number)
 			})
 			if !covered {
 				missing = append(missing, e.Number)
@@ -266,8 +268,7 @@ func entryIDs(rows []dbgen.ListMappingsForShowsRow) []int {
 	return slices.Compact(ids)
 }
 
-// countMismatches compares, per Entry, the Show's episodes its Mappings cover with the Entry's AniList total.
-func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
+func countMismatches(s showJSON, entries map[int]anilist.Media) []string {
 	var out []string
 	var seen []int64
 	for _, m := range s.Mappings {
@@ -275,7 +276,7 @@ func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
 			continue
 		}
 		seen = append(seen, m.AniListID)
-		info, ok := meta[int(m.AniListID)]
+		info, ok := entries[int(m.AniListID)]
 		if !ok || info.Episodes == nil {
 			continue
 		}
@@ -283,7 +284,7 @@ func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
 		for _, season := range s.Seasons {
 			for _, e := range season.Episodes {
 				if slices.ContainsFunc(s.Mappings, func(o mappingJSON) bool {
-					return o.AniListID == m.AniListID && o.Season == season.Number && e.Number >= o.FirstEpisode && (o.LastEpisode == nil || e.Number <= *o.LastEpisode)
+					return o.AniListID == m.AniListID && o.covers(season.Number, e.Number)
 				}) {
 					covered++
 				}
@@ -296,14 +297,14 @@ func countMismatches(s showJSON, meta map[int]anilist.Media) []string {
 	return out
 }
 
-func titleMismatch(s showJSON, meta map[int]anilist.Media) bool {
-	var entries []anilist.Media
+func titleMismatch(s showJSON, entries map[int]anilist.Media) bool {
+	var mapped []anilist.Media
 	for _, m := range s.Mappings {
-		if info, ok := meta[int(m.AniListID)]; ok {
-			entries = append(entries, info)
+		if info, ok := entries[int(m.AniListID)]; ok {
+			mapped = append(mapped, info)
 		}
 	}
-	return titlesDiffer(s.Title, entries)
+	return titlesDiffer(s.Title, mapped)
 }
 
 func reasonFor(s showJSON) string {
@@ -319,7 +320,6 @@ func reasonFor(s showJSON) string {
 	return "No mappings found for TVDB ID " + strconv.FormatInt(s.tvdbID, 10)
 }
 
-// resolveTVDBIDs fills in the TVDB ID of Shows that Plex only knows by TMDB ID.
 func (p *plexLink) resolveTVDBIDs(ctx context.Context, shows []showJSON) error {
 	var tmdbIDs []int64
 	for _, s := range shows {

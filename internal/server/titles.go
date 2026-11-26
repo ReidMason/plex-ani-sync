@@ -9,7 +9,6 @@ import (
 
 const titleSimilarityFloor = 0.35
 
-// titlesDiffer reports whether the Show's title looks nothing like any title of the Entries it maps to.
 // Entries without titles give no signal.
 func titlesDiffer(showTitle string, entries []anilist.Media) bool {
 	show := normalizeTitle(showTitle)

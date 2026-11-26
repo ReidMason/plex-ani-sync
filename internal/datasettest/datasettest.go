@@ -55,7 +55,6 @@ type Host struct {
 	hits        int
 }
 
-// New starts a fake dataset host serving an empty Fribb list.
 func New(t *testing.T) *Host {
 	t.Helper()
 	h := &Host{lists: "<anime-list></anime-list>"}
@@ -97,28 +96,24 @@ func (h *Host) SetFribb(entries ...FribbEntry) {
 	h.fribb = entries
 }
 
-// SetAnimeLists serves the given Anime-Lists anime-list.xml document.
 func (h *Host) SetAnimeLists(xml string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.lists = xml
 }
 
-// Requests counts dataset downloads served so far.
 func (h *Host) Requests() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.hits
 }
 
-// FailAnimeLists makes only the Anime-Lists endpoint respond with a server error.
 func (h *Host) FailAnimeLists() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.listsFailed = true
 }
 
-// Fail makes the dataset endpoints respond with a server error.
 func (h *Host) Fail() {
 	h.mu.Lock()
 	defer h.mu.Unlock()

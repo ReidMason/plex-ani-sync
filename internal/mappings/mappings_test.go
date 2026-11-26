@@ -112,27 +112,23 @@ func custom(tvdbID, season int, episodes mappings.Range, anilistID int, entry ma
 	return mappings.Mapping{TVDBID: tvdbID, Season: season, Episodes: episodes, AniListID: anilistID, Entry: entry}
 }
 
-func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheTVDBSide(t *testing.T) {
-	got := mappings.Resolve([]mappings.Row{
-		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
-	}, nil, []mappings.Mapping{custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
+func TestResolveDropsDatasetRowOverlappingACustomMapping(t *testing.T) {
+	cases := map[string]mappings.Mapping{
+		"TVDB side":  custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)}),
+		"entry side": custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)}),
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := mappings.Resolve([]mappings.Row{{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1}}, nil, []mappings.Mapping{c})
 
-	if len(got) != 0 {
-		t.Errorf("got %+v", got)
+			if len(got) != 0 {
+				t.Errorf("got %+v", got)
+			}
+		})
 	}
 }
 
-func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheEntrySide(t *testing.T) {
-	got := mappings.Resolve([]mappings.Row{
-		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
-	}, nil, []mappings.Mapping{custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)})})
-
-	if len(got) != 0 {
-		t.Errorf("got %+v", got)
-	}
-}
-
-func TestResolveAroundDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testing.T) {
+func TestResolveDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
@@ -146,7 +142,7 @@ func TestResolveAroundDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testin
 	}
 }
 
-func TestResolveAroundKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t *testing.T) {
+func TestResolveKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},

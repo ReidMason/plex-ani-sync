@@ -62,7 +62,6 @@ func (s *Server) AddEpisode(libraryKey string, e Episode) {
 	})
 }
 
-// SetShowGUIDs sets the external GUIDs, such as "tvdb://81797", Plex reports for a show.
 func (s *Server) SetShowGUIDs(libraryKey, show string, guids ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

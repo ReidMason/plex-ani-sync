@@ -32,8 +32,7 @@ type xmlList struct {
 	} `xml:"anime"`
 }
 
-// FetchAnimeLists downloads and parses Anime-Lists' anime-list.xml. Only range mappings from AniDB season 1 into a
-// TVDB season are kept; Specials, TMDB-season and explicit episode-list mappings are ignored.
+// FetchAnimeLists downloads anime-list.xml, keeping only range mappings from AniDB season 1 into a TVDB season.
 func FetchAnimeLists(ctx context.Context, client *http.Client, url string) (AnimeLists, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

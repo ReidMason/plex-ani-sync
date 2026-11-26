@@ -37,8 +37,8 @@ type Mapping struct {
 
 type seasonKey struct{ tvdbID, season int }
 
-// Resolve turns dataset rows into Mappings; on overlap the lowest AniDB ID wins and a losing row is dropped whole.
-// Rows overlapping a Custom Mapping are dropped too.
+// Resolve turns dataset rows into Mappings; the lowest AniDB ID wins an overlap and a losing row is dropped whole,
+// as is any row overlapping a Custom Mapping.
 func Resolve(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 	usable := slices.DeleteFunc(slices.Clone(rows), func(r Row) bool {
 		return r.AniListID <= 0 || r.TVDBID <= 0

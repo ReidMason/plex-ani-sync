@@ -40,7 +40,6 @@ type linkRow struct {
 	TVDBID int `json:"tvdb_id"`
 }
 
-// datasetSync keeps the stored Mappings in step with the datasets and Custom Mappings.
 type datasetSync struct {
 	pool          *pgxpool.Pool
 	queries       *dbgen.Queries
@@ -50,7 +49,6 @@ type datasetSync struct {
 	logger        *slog.Logger
 }
 
-// loadAtStartup stores the Custom Mappings and ingests the datasets when none are stored or the Custom Mappings changed, so stale overlapping dataset rows go. A failed download is logged and leaves the stored rows untouched.
 func (d datasetSync) loadAtStartup(ctx context.Context) error {
 	changed, err := d.customChanged(ctx)
 	if err != nil {
@@ -69,7 +67,6 @@ func (d datasetSync) loadAtStartup(ctx context.Context) error {
 	return nil
 }
 
-// refreshEvery reloads the datasets on each tick until ctx ends; a failed refresh is logged and leaves the stored rows untouched.
 func (d datasetSync) refreshEvery(ctx context.Context, every time.Duration) {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
@@ -100,7 +97,6 @@ func (d datasetSync) customChanged(ctx context.Context) (bool, error) {
 	return !reflect.DeepEqual(storedRows, toMappingRows(d.custom)), nil
 }
 
-// refresh downloads every dataset first, then swaps all dataset rows in one transaction.
 func (d datasetSync) refresh(ctx context.Context) error {
 	fetchCtx, cancel := context.WithTimeout(ctx, datasetFetchWindow)
 	defer cancel()

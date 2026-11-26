@@ -33,9 +33,8 @@ type cachedMedia struct {
 	TitleEnglish string `json:"title_english"`
 }
 
-// lookup returns cached metadata for the Entries, refetching missing or stale ones. When AniList can't be reached
-// it falls back to whatever is cached, so a failure only removes the signal.
-func (c *aniListCache) lookup(ctx context.Context, ids []int) map[int]anilist.Media {
+// mediaFor falls back to cached rows when AniList is unreachable, so a failure only removes the signal.
+func (c *aniListCache) mediaFor(ctx context.Context, ids []int) map[int]anilist.Media {
 	out := map[int]anilist.Media{}
 	if len(ids) == 0 {
 		return out
