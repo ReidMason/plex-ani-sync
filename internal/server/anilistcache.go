@@ -136,13 +136,14 @@ func (c *aniListCache) drain(ctx context.Context) {
 			c.logger.Warn("could not fetch anilist metadata", "error", err)
 			return
 		}
-		c.store(ctx, batch, fetched, c.clock())
-		c.settle(batch)
+		if c.store(ctx, batch, fetched, c.clock()) {
+			c.settle(batch)
+		}
 	}
 }
 
-// store caches what AniList returned and remembers requested IDs it didn't know as missing.
-func (c *aniListCache) store(ctx context.Context, requested []int, media []anilist.Media, now time.Time) {
+// store caches what AniList returned and remembers requested IDs it didn't know as missing; it reports whether the write succeeded.
+func (c *aniListCache) store(ctx context.Context, requested []int, media []anilist.Media, now time.Time) bool {
 	rows := make([]cachedMedia, 0, len(requested))
 	returned := map[int]bool{}
 	for _, m := range media {
@@ -155,7 +156,7 @@ func (c *aniListCache) store(ctx context.Context, requested []int, media []anili
 		}
 	}
 	if len(rows) == 0 {
-		return
+		return true
 	}
 	payload, err := json.Marshal(rows)
 	if err == nil {
@@ -163,5 +164,7 @@ func (c *aniListCache) store(ctx context.Context, requested []int, media []anili
 	}
 	if err != nil {
 		c.logger.Warn("could not cache anilist metadata", "error", err)
+		return false
 	}
+	return true
 }

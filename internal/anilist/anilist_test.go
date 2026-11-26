@@ -149,3 +149,16 @@ func TestRetryAfterHeaderIsHonoured(t *testing.T) {
 		t.Errorf("still throttled after Retry-After: %v", err)
 	}
 }
+
+func TestCancelledRequestDoesNotBackOff(t *testing.T) {
+	c, _ := newPaced(t, 0, okResponse)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _ = c.Fetch(ctx, []int{1})
+
+	_, err := c.Fetch(context.Background(), []int{1})
+
+	if err != nil {
+		t.Errorf("fetch after a cancelled one: %v", err)
+	}
+}

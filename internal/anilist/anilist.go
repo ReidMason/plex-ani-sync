@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -47,15 +48,14 @@ type Options struct {
 
 // Client shares one pause gate across every request, so a 429 holds back all callers.
 type Client struct {
-	url  string
-	http *http.Client
-	now  func() time.Time
-	// spacing is the minimum gap between requests.
+	url     string
+	http    *http.Client
+	now     func() time.Time
 	spacing time.Duration
 
-	mu         sync.Mutex
-	pausedTill time.Time
-	failures   int
+	mu            sync.Mutex
+	nextAllowedAt time.Time
+	failures      int
 }
 
 func New(o Options) *Client {
@@ -74,18 +74,18 @@ func (c *Client) reserve() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := c.now()
-	if now.Before(c.pausedTill) {
-		return &ThrottledError{Until: c.pausedTill}
+	if now.Before(c.nextAllowedAt) {
+		return &ThrottledError{Until: c.nextAllowedAt}
 	}
-	c.pausedTill = now.Add(c.spacing)
+	c.nextAllowedAt = now.Add(c.spacing)
 	return nil
 }
 
 func (c *Client) pauseFor(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if until := c.now().Add(d); until.After(c.pausedTill) {
-		c.pausedTill = until
+	if until := c.now().Add(d); until.After(c.nextAllowedAt) {
+		c.nextAllowedAt = until
 	}
 }
 
@@ -122,11 +122,21 @@ func (c *Client) Fetch(ctx context.Context, ids []int) ([]Media, error) {
 		return nil, err
 	}
 	media, err := c.fetchPage(ctx, ids)
-	if err == nil {
+	var limited *rateLimitedError
+	switch {
+	case err == nil:
 		c.recordSuccess()
+	case errors.As(err, &limited):
+		c.pauseFor(limited.retryAfter)
+	case ctx.Err() == nil:
+		c.recordFailure()
 	}
 	return media, err
 }
+
+type rateLimitedError struct{ retryAfter time.Duration }
+
+func (e *rateLimitedError) Error() string { return "anilist: unexpected status 429" }
 
 func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
 	payload, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"ids": ids, "perPage": MaxBatch}})
@@ -141,16 +151,13 @@ func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		c.recordFailure()
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTooManyRequests {
-		c.pauseFor(parseRetryAfter(resp.Header.Get("Retry-After"), c.now()))
-		return nil, fmt.Errorf("anilist: unexpected status %d", resp.StatusCode)
+		return nil, &rateLimitedError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), c.now())}
 	}
 	if resp.StatusCode != http.StatusOK {
-		c.recordFailure()
 		return nil, fmt.Errorf("anilist: unexpected status %d", resp.StatusCode)
 	}
 	var body struct {
@@ -171,11 +178,9 @@ func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
 		} `json:"errors"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		c.recordFailure()
 		return nil, fmt.Errorf("anilist: %w", err)
 	}
 	if len(body.Errors) > 0 {
-		c.recordFailure()
 		return nil, fmt.Errorf("anilist: %s", body.Errors[0].Message)
 	}
 	out := make([]Media, 0, len(body.Data.Page.Media))
