@@ -46,6 +46,7 @@ type showJSON struct {
 	MediaSourceID int64             `json:"mediaSourceId"`
 	Title         string            `json:"title"`
 	Status        string            `json:"status"`
+	Reason        string            `json:"reason"`
 	ExternalIDs   map[string]string `json:"externalIds"`
 	Mappings      []mappingJSON     `json:"mappings"`
 	Seasons       []seasonJSON      `json:"seasons"`
@@ -158,6 +159,9 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 		}
 	}
 	if len(ids) == 0 {
+		for i := range shows {
+			shows[i].Reason = reasonFor(shows[i])
+		}
 		return nil
 	}
 	rows, err := p.queries.ListMappingsForShows(ctx, ids)
@@ -178,6 +182,7 @@ func (p *plexLink) attachMappings(ctx context.Context, shows []showJSON) error {
 		if len(s.Mappings) > 0 {
 			s.Status = statusMapped
 		}
+		s.Reason = reasonFor(*s)
 	}
 	return nil
 }
@@ -188,4 +193,14 @@ func optionalInt(v pgtype.Int4) *int {
 	}
 	n := int(v.Int32)
 	return &n
+}
+
+func reasonFor(s showJSON) string {
+	if s.Status != statusUnmapped {
+		return ""
+	}
+	if s.tvdbID <= 0 {
+		return "Plex has no TVDB ID for this show"
+	}
+	return "No mappings found for TVDB ID " + strconv.FormatInt(s.tvdbID, 10)
 }
