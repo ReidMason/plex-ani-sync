@@ -38,7 +38,7 @@ func TestResolveEndsEachRangeWhereTheNextEntryOfTheSeasonBegins(t *testing.T) {
 		{AniDBID: 3, AniListID: 303, TVDBID: 1, Season: 1, EpisodeOffset: 24},
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
-	})
+	}, nil)
 
 	want := []mappings.Mapping{
 		{TVDBID: 1, Season: 1, Episodes: mappings.Range{First: 1, Last: ptr(12)}, AniListID: 101, Entry: mappings.Range{First: 1, Last: ptr(12)}, AniDBID: 1},
@@ -54,7 +54,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenTVDBRangesOverlap(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 909, TVDBID: 1, Season: 1},
 		{AniDBID: 4, AniListID: 404, TVDBID: 1, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 1 || got[0].AniListID != 404 {
 		t.Errorf("got %+v", got)
@@ -65,7 +65,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenEntryRangesOverlap(t *testing.T) {
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 5, TVDBID: 2, Season: 1},
 		{AniDBID: 4, AniListID: 5, TVDBID: 1, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 1 || got[0].TVDBID != 1 {
 		t.Errorf("got %+v", got)
@@ -77,7 +77,7 @@ func TestResolveSkipsSpecialsAndRowsMissingIDs(t *testing.T) {
 		{AniDBID: 1, AniListID: 1, TVDBID: 1, Season: 0},
 		{AniDBID: 2, AniListID: 0, TVDBID: 1, Season: 1},
 		{AniDBID: 3, AniListID: 3, TVDBID: 0, Season: 1},
-	})
+	}, nil)
 
 	if len(got) != 0 {
 		t.Errorf("got %+v", got)
@@ -98,7 +98,7 @@ func custom(tvdbID, season int, episodes mappings.Range, anilistID int, entry ma
 func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheTVDBSide(t *testing.T) {
 	got := mappings.ResolveAround([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
-	}, []mappings.Mapping{custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
+	}, nil, []mappings.Mapping{custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
 
 	if len(got) != 0 {
 		t.Errorf("got %+v", got)
@@ -108,7 +108,7 @@ func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheTVDBSide(t *t
 func TestResolveAroundDropsDatasetRowOverlappingACustomMappingOnTheEntrySide(t *testing.T) {
 	got := mappings.ResolveAround([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
-	}, []mappings.Mapping{custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)})})
+	}, nil, []mappings.Mapping{custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)})})
 
 	if len(got) != 0 {
 		t.Errorf("got %+v", got)
@@ -119,7 +119,7 @@ func TestResolveAroundDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testin
 	got := mappings.ResolveAround([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
-	}, []mappings.Mapping{custom(1, 1, mappings.Range{First: 10, Last: ptr(11)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
+	}, nil, []mappings.Mapping{custom(1, 1, mappings.Range{First: 10, Last: ptr(11)}, 999, mappings.Range{First: 1, Last: ptr(2)})})
 
 	want := []mappings.Mapping{
 		{TVDBID: 1, Season: 1, Episodes: mappings.Range{First: 13}, AniListID: 202, Entry: mappings.Range{First: 1}, AniDBID: 2},
@@ -133,7 +133,7 @@ func TestResolveAroundKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t 
 	got := mappings.ResolveAround([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
-	}, []mappings.Mapping{
+	}, nil, []mappings.Mapping{
 		custom(1, 2, mappings.Range{First: 1}, 999, mappings.Range{First: 1}),
 		custom(1, 1, mappings.Range{First: 50}, 101, mappings.Range{First: 50}),
 		// second row (episodes 13+) overlaps this on the TVDB side and is dropped

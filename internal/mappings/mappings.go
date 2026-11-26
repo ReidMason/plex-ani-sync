@@ -37,21 +37,25 @@ type Mapping struct {
 
 type seasonKey struct{ tvdbID, season int }
 
-// Resolve turns dataset rows into Mappings, skipping Specials and incomplete rows. A row's range ends where the
-// next row of the same Season begins; on overlap the row with the lowest AniDB ID wins.
-func Resolve(rows []Row) []Mapping {
-	return ResolveAround(rows, nil)
+// Resolve turns dataset rows into Mappings, skipping Specials and incomplete rows. A row with Anime-Lists spans
+// maps those spans exactly; otherwise its range ends where the next row of the same Season begins. On overlap the
+// row with the lowest AniDB ID wins.
+func Resolve(rows []Row, lists AnimeLists) []Mapping {
+	return ResolveAround(rows, lists, nil)
 }
 
 // ResolveAround is Resolve, except any row whose TVDB or Entry range overlaps a Custom Mapping is dropped whole.
-func ResolveAround(rows []Row, custom []Mapping) []Mapping {
+func ResolveAround(rows []Row, lists AnimeLists, custom []Mapping) []Mapping {
 	usable := slices.DeleteFunc(slices.Clone(rows), func(r Row) bool {
-		return r.AniListID <= 0 || r.TVDBID <= 0 || r.Season <= 0 || r.EpisodeOffset < 0
+		return r.AniListID <= 0 || r.TVDBID <= 0
 	})
 	slices.SortStableFunc(usable, func(a, b Row) int { return a.AniDBID - b.AniDBID })
 
 	offsets := map[seasonKey][]int{}
 	for _, r := range usable {
+		if len(lists[r.AniDBID]) > 0 || !simple(r) {
+			continue
+		}
 		k := seasonKey{r.TVDBID, r.Season}
 		offsets[k] = append(offsets[k], r.EpisodeOffset)
 	}
@@ -63,21 +67,48 @@ func ResolveAround(rows []Row, custom []Mapping) []Mapping {
 	var out []Mapping
 	bySeason := map[seasonKey][]Range{}
 	byEntry := map[int][]Range{}
+	add := func(m Mapping) {
+		k := seasonKey{m.TVDBID, m.Season}
+		if slices.ContainsFunc(bySeason[k], m.Episodes.Overlaps) || slices.ContainsFunc(byEntry[m.AniListID], m.Entry.Overlaps) {
+			return
+		}
+		bySeason[k] = append(bySeason[k], m.Episodes)
+		byEntry[m.AniListID] = append(byEntry[m.AniListID], m.Entry)
+		out = append(out, m)
+	}
 	for _, r := range usable {
-		k := seasonKey{r.TVDBID, r.Season}
-		episodes, entry := rangesOf(r, offsets[k])
-		if overlapsCustom(custom, r, episodes, entry) {
+		if spans := lists[r.AniDBID]; len(spans) > 0 {
+			var candidates []Mapping
+			for _, sp := range spans {
+				candidates = append(candidates, Mapping{
+					TVDBID: r.TVDBID, Season: sp.Season,
+					Episodes:  Range{First: sp.First + sp.Offset, Last: ptr(sp.Last + sp.Offset)},
+					AniListID: r.AniListID, Entry: Range{First: sp.First, Last: ptr(sp.Last)}, AniDBID: r.AniDBID,
+				})
+			}
+			if slices.ContainsFunc(candidates, func(m Mapping) bool { return overlapsCustom(custom, m) }) {
+				continue
+			}
+			for _, m := range candidates {
+				add(m)
+			}
 			continue
 		}
-		if slices.ContainsFunc(bySeason[k], episodes.Overlaps) || slices.ContainsFunc(byEntry[r.AniListID], entry.Overlaps) {
+		if !simple(r) {
 			continue
 		}
-		bySeason[k] = append(bySeason[k], episodes)
-		byEntry[r.AniListID] = append(byEntry[r.AniListID], entry)
-		out = append(out, Mapping{TVDBID: r.TVDBID, Season: r.Season, Episodes: episodes, AniListID: r.AniListID, Entry: entry, AniDBID: r.AniDBID})
+		episodes, entry := rangesOf(r, offsets[seasonKey{r.TVDBID, r.Season}])
+		m := Mapping{TVDBID: r.TVDBID, Season: r.Season, Episodes: episodes, AniListID: r.AniListID, Entry: entry, AniDBID: r.AniDBID}
+		if !overlapsCustom(custom, m) {
+			add(m)
+		}
 	}
 	return out
 }
+
+func simple(r Row) bool { return r.Season > 0 && r.EpisodeOffset >= 0 }
+
+func ptr(n int) *int { return &n }
 
 func rangesOf(r Row, seasonOffsets []int) (episodes, entry Range) {
 	episodes = Range{First: r.EpisodeOffset + 1}
@@ -92,9 +123,9 @@ func rangesOf(r Row, seasonOffsets []int) (episodes, entry Range) {
 	return episodes, entry
 }
 
-func overlapsCustom(custom []Mapping, r Row, episodes, entry Range) bool {
+func overlapsCustom(custom []Mapping, m Mapping) bool {
 	return slices.ContainsFunc(custom, func(c Mapping) bool {
-		return (c.TVDBID == r.TVDBID && c.Season == r.Season && c.Episodes.Overlaps(episodes)) ||
-			(c.AniListID == r.AniListID && c.Entry.Overlaps(entry))
+		return (c.TVDBID == m.TVDBID && c.Season == m.Season && c.Episodes.Overlaps(m.Episodes)) ||
+			(c.AniListID == m.AniListID && c.Entry.Overlaps(m.Entry))
 	})
 }

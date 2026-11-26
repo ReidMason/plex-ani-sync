@@ -35,6 +35,8 @@ type Config struct {
 	FribbURL string
 	// CustomMappings replaces the embedded Custom Mappings, for tests.
 	CustomMappings []mappings.Mapping
+	// AnimeListsURL overrides the Anime-Lists anime-list.xml location, for tests.
+	AnimeListsURL string
 	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
 	Clock       func() time.Time
 	UsernameTTL time.Duration
@@ -96,7 +98,11 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 			return nil, nil, err
 		}
 	}
-	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, custom, logger); err != nil {
+	animeListsURL := cfg.AnimeListsURL
+	if animeListsURL == "" {
+		animeListsURL = defaultAnimeListsURL
+	}
+	if err := loadDatasetIfEmpty(ctx, pool, queries, fribbURL, animeListsURL, custom, logger); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}

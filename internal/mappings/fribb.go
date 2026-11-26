@@ -59,14 +59,15 @@ func FetchFribb(ctx context.Context, client *http.Client, url string) (Dataset, 
 			linked[e.TMDBID] = true
 			data.Links = append(data.Links, IDLink{TMDBID: e.TMDBID, TVDBID: e.TVDBID})
 		}
-		if e.Season == nil {
-			continue
+		season := 0
+		if e.Season != nil {
+			season = e.Season.TVDB
 		}
 		offset := 0
 		if e.EpisodeOffset != nil {
 			offset = e.EpisodeOffset.TVDB
 		}
-		data.Rows = append(data.Rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: e.Season.TVDB, EpisodeOffset: offset})
+		data.Rows = append(data.Rows, Row{AniDBID: e.AniDBID, AniListID: e.AniListID, TVDBID: e.TVDBID, Season: season, EpisodeOffset: offset})
 	}
 	return data, nil
 }

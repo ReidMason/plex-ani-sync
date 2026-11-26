@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	originCustom       = "custom"
-	defaultFribbURL    = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
-	originDataset      = "dataset"
-	datasetFetchWindow = 2 * time.Minute
+	originCustom         = "custom"
+	defaultFribbURL      = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
+	defaultAnimeListsURL = "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml"
+	originDataset        = "dataset"
+	datasetFetchWindow   = 2 * time.Minute
 )
 
 type mappingRow struct {
@@ -36,8 +37,8 @@ type linkRow struct {
 	TVDBID int `json:"tvdb_id"`
 }
 
-// loadDatasetIfEmpty ingests Fribb when no Mappings are stored; a failed download is logged and leaves the table empty.
-func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL string, custom []mappings.Mapping, logger *slog.Logger) error {
+// loadDatasetIfEmpty ingests Fribb and Anime-Lists when no dataset Mappings are stored; a failed download is logged and leaves the table empty.
+func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, fribbURL, animeListsURL string, custom []mappings.Mapping, logger *slog.Logger) error {
 	if err := replaceMappings(ctx, pool, q, originCustom, custom, nil); err != nil {
 		return err
 	}
@@ -52,7 +53,12 @@ func loadDatasetIfEmpty(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Querie
 		logger.Warn("could not load mapping dataset", "error", err)
 		return nil
 	}
-	return replaceMappings(ctx, pool, q, originDataset, mappings.ResolveAround(data.Rows, custom), &data.Links)
+	lists, err := mappings.FetchAnimeLists(fetchCtx, http.DefaultClient, animeListsURL)
+	if err != nil {
+		logger.Warn("could not load mapping dataset", "error", err)
+		return nil
+	}
+	return replaceMappings(ctx, pool, q, originDataset, mappings.ResolveAround(data.Rows, lists, custom), &data.Links)
 }
 
 func replaceMappings(ctx context.Context, pool *pgxpool.Pool, q *dbgen.Queries, origin string, resolved []mappings.Mapping, idLinks *[]mappings.IDLink) error {

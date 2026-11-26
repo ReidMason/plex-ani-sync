@@ -60,4 +60,4 @@ After editing migrations or queries, run `sqlc generate`.
 
 ## Credits
 
-Show-to-AniList mappings come from [Fribb/anime-lists](https://github.com/Fribb/anime-lists). Thanks to its maintainers and contributors.
+Show-to-AniList mappings come from [Fribb/anime-lists](https://github.com/Fribb/anime-lists). Episode-level mappings for Seasons folded into one Entry come from [Anime-Lists](https://github.com/Anime-Lists/anime-lists). Thanks to the maintainers and contributors of both.
