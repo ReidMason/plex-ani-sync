@@ -300,7 +300,7 @@ func TestEpisodeCountDisagreeingWithEntryTotalNeedsReview(t *testing.T) {
 	p, b := mismatchSetup(t, 13)
 	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12), Title: anilisttest.Title{Romaji: "Counted"}})
 
-	got := b.mappedShows()["Counted"]
+	got := p.settledShows(t, b)["Counted"]
 
 	if got.Status != "needs_review" || !strings.Contains(got.Reason, "13") || !strings.Contains(got.Reason, "12") {
 		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
@@ -311,7 +311,7 @@ func TestEpisodeCountMatchingEntryTotalStaysMapped(t *testing.T) {
 	p, b := mismatchSetup(t, 12)
 	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
 
-	if got := b.mappedShows()["Counted"]; got.Status != "mapped" {
+	if got := p.settledShows(t, b)["Counted"]; got.Status != "mapped" {
 		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
 	}
 }
@@ -320,7 +320,7 @@ func TestEntryWithUnknownTotalIsNotCompared(t *testing.T) {
 	p, b := mismatchSetup(t, 13)
 	p.anilist.Set(anilisttest.Media{ID: 10})
 
-	if got := b.mappedShows()["Counted"]; got.Status != "mapped" {
+	if got := p.settledShows(t, b)["Counted"]; got.Status != "mapped" {
 		t.Errorf("status = %q", got.Status)
 	}
 }
@@ -328,10 +328,10 @@ func TestEntryWithUnknownTotalIsNotCompared(t *testing.T) {
 func TestAniListMetadataIsCachedBetweenReads(t *testing.T) {
 	p, b := mismatchSetup(t, 13)
 	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
-	b.mappedShows()
+	p.settledShows(t, b)
 	before := p.anilist.Requests()
 
-	got := b.mappedShows()["Counted"]
+	got := p.settledShows(t, b)["Counted"]
 
 	if p.anilist.Requests() != before || got.Status != "needs_review" {
 		t.Errorf("requests %d -> %d, status = %q", before, p.anilist.Requests(), got.Status)
@@ -344,19 +344,20 @@ func TestAniListOutageDegradesToMissingSignal(t *testing.T) {
 		p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
 		p.anilist.FailWith(status)
 
-		got := b.mappedShows()["Counted"]
+		got := p.settledShows(t, b)["Counted"]
 
 		if got.Status != "mapped" {
 			t.Errorf("status %d: got %q", status, got.Status)
 		}
 		p.anilist.FailWith(0)
-		if got := b.mappedShows()["Counted"]; got.Status != "needs_review" {
+		p.clock.Advance(2 * time.Minute)
+		if got := p.settledShows(t, b)["Counted"]; got.Status != "needs_review" {
 			t.Errorf("status %d after recovery: got %q", status, got.Status)
 		}
 	}
 }
 
-func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) *browser {
+func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) (plexApp, *browser) {
 	t.Helper()
 	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
@@ -364,13 +365,13 @@ func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) 
 	srv.SetShowGUIDs("2", plexTitle, "tvdb://77")
 	selectAnime(b, srv)
 	p.anilist.Set(anilisttest.Media{ID: 10, Title: anilistTitle})
-	return b
+	return p, b
 }
 
 func TestWildlyDifferentTitleNeedsReviewWithoutChangingMappings(t *testing.T) {
-	b := titleSetup(t, "Cooking Show", anilisttest.Title{Romaji: "Sousou no Frieren", English: "Frieren: Beyond Journey's End"})
+	p, b := titleSetup(t, "Cooking Show", anilisttest.Title{Romaji: "Sousou no Frieren", English: "Frieren: Beyond Journey's End"})
 
-	got := b.mappedShows()["Cooking Show"]
+	got := p.settledShows(t, b)["Cooking Show"]
 
 	if got.Status != "needs_review" || !strings.Contains(got.Reason, "title") || len(got.Mappings) != 1 {
 		t.Errorf("status = %q reason = %q mappings = %+v", got.Status, got.Reason, got.Mappings)
@@ -388,18 +389,18 @@ func TestSimilarTitlesAreNotFlagged(t *testing.T) {
 		{"Re:Zero", anilisttest.Title{Romaji: "Re:Zero kara Hajimeru Isekai Seikatsu"}},
 	}
 	for _, c := range cases {
-		b := titleSetup(t, c.plex, c.title)
+		p, b := titleSetup(t, c.plex, c.title)
 
-		if got := b.mappedShows()[c.plex]; got.Status != "mapped" {
+		if got := p.settledShows(t, b)[c.plex]; got.Status != "mapped" {
 			t.Errorf("%q vs %+v: status = %q reason = %q", c.plex, c.title, got.Status, got.Reason)
 		}
 	}
 }
 
 func TestMissingAniListTitleNeverFlagsAShow(t *testing.T) {
-	b := titleSetup(t, "Cooking Show", anilisttest.Title{})
+	p, b := titleSetup(t, "Cooking Show", anilisttest.Title{})
 
-	if got := b.mappedShows()["Cooking Show"]; got.Status != "mapped" {
+	if got := p.settledShows(t, b)["Cooking Show"]; got.Status != "mapped" {
 		t.Errorf("status = %q reason = %q", got.Status, got.Reason)
 	}
 }
@@ -608,4 +609,137 @@ func TestSpecialsEpisodesDoNotCountAsUncoveredByMappings(t *testing.T) {
 	if len(got.Uncovered) != 0 {
 		t.Errorf("uncovered = %+v", got.Uncovered)
 	}
+}
+
+func TestEntriesUnknownToAniListAreNotRequestedAgain(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.settledShows(t, b)
+	before := p.anilist.Requests()
+
+	got := p.settledShows(t, b)["Counted"]
+
+	if p.anilist.Requests() != before || before != 1 || got.Status != "mapped" {
+		t.Errorf("requests %d -> %d, status = %q", before, p.anilist.Requests(), got.Status)
+	}
+}
+
+func TestRetryAfterPausesAniListRequestsUntilItPasses(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
+	p.anilist.FailWithRetryAfter(http.StatusTooManyRequests, 120)
+	p.settledShows(t, b)
+	p.anilist.FailWith(0)
+	before := p.anilist.Requests()
+
+	p.clock.Advance(119 * time.Second)
+	during := p.settledShows(t, b)["Counted"]
+	duringRequests := p.anilist.Requests()
+	p.clock.Advance(2 * time.Second)
+	p.quiesce(t)
+	after := b.mappedShows()["Counted"]
+
+	if duringRequests != before || during.Status != "mapped" {
+		t.Errorf("during window: requests %d -> %d, status = %q", before, duringRequests, during.Status)
+	}
+	if p.anilist.Requests() != before+1 || after.Status != "needs_review" {
+		t.Errorf("after window: requests = %d, status = %q", p.anilist.Requests(), after.Status)
+	}
+}
+
+func TestAniListFailuresBackOffExponentially(t *testing.T) {
+	p, b := mismatchSetup(t, 13)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(12)})
+	p.anilist.FailWith(http.StatusInternalServerError)
+	loadAfter := func(wait time.Duration) int {
+		p.clock.Advance(wait)
+		return p.settledRequests(t, b)
+	}
+
+	steps := []struct {
+		wait time.Duration
+		want int
+	}{
+		{0, 1},
+		{29 * time.Second, 1},
+		{2 * time.Second, 2},
+		{59 * time.Second, 2},
+		{2 * time.Second, 3},
+	}
+
+	for _, s := range steps {
+		if got := loadAfter(s.wait); got != s.want {
+			t.Fatalf("after waiting %s: requests = %d, want %d", s.wait, got, s.want)
+		}
+	}
+}
+
+func eventually(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestColdCacheWithManyEntriesIsFetchedAtTheConfiguredRate(t *testing.T) {
+	const entries = 120
+	var fribb []datasettest.FribbEntry
+	for i := 0; i < entries; i++ {
+		fribb = append(fribb, datasettest.FribbEntry{AniDBID: i + 1, AniListID: 1000 + i, TVDBID: 77, Season: tvdb(1), Offset: tvdb(i * 12), Type: "TV"})
+	}
+	p := startPlexAppTuned(t, func(c *server.Config) { c.Env.AniListRequestsPerMinute = 2 }, withFribb(fribb...))
+	for i := 0; i < entries; i++ {
+		p.anilist.Set(anilisttest.Media{ID: 1000 + i, Episodes: ptr(12)})
+	}
+	b, srv := animeSetup(t, p)
+	srv.AddEpisode("2", plexservertest.Episode{Show: "Long", Season: 1, Number: 1, Title: "x"})
+	srv.SetShowGUIDs("2", "Long", "tvdb://77")
+	selectAnime(b, srv)
+
+	b.mappedShows()
+	eventually(t, "first batch", func() bool { return p.anilist.Requests() == 1 })
+	time.Sleep(50 * time.Millisecond)
+	if got := p.anilist.Requests(); got != 1 {
+		t.Fatalf("requests before the rate allows = %d, want 1", got)
+	}
+	for want := 2; want <= 3; want++ {
+		p.clock.Advance(31 * time.Second)
+		eventually(t, "next batch", func() bool { return p.anilist.Requests() == want })
+	}
+
+	p.clock.Advance(time.Minute)
+	b.mappedShows()
+	time.Sleep(50 * time.Millisecond)
+	if got := p.anilist.Requests(); got != 3 {
+		t.Errorf("requests after the cache is warm = %d, want 3", got)
+	}
+}
+
+// quiesce waits for the AniList worker to stop sending and storing.
+func (p plexApp) quiesce(t *testing.T) {
+	t.Helper()
+	last, stableSince := -1, time.Now()
+	eventually(t, "AniList requests to settle", func() bool {
+		if n := p.anilist.Requests(); n != last {
+			last, stableSince = n, time.Now()
+		}
+		return time.Since(stableSince) > 60*time.Millisecond
+	})
+}
+
+func (p plexApp) settledRequests(t *testing.T, b *browser) int {
+	t.Helper()
+	b.mappedShows()
+	p.quiesce(t)
+	return p.anilist.Requests()
+}
+
+// settledShows loads the shows, lets the AniList worker finish, then loads them again.
+func (p plexApp) settledShows(t *testing.T, b *browser) map[string]mappedShow {
+	t.Helper()
+	p.settledRequests(t, b)
+	return b.mappedShows()
 }

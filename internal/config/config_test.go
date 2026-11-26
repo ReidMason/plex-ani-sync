@@ -99,3 +99,28 @@ func TestLoadRejectsMalformedEncryptionKey(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadDefaultsAniListRateAndAcceptsOverride(t *testing.T) {
+	env := validEnv()
+	cfg, err := config.Load(func(k string) string { return env[k] })
+	if err != nil || cfg.AniListRequestsPerMinute != 30 {
+		t.Fatalf("default: rate = %d, err = %v", cfg.AniListRequestsPerMinute, err)
+	}
+
+	env["ANILIST_REQUESTS_PER_MINUTE"] = "60"
+	cfg, err = config.Load(func(k string) string { return env[k] })
+	if err != nil || cfg.AniListRequestsPerMinute != 60 {
+		t.Errorf("override: rate = %d, err = %v", cfg.AniListRequestsPerMinute, err)
+	}
+}
+
+func TestLoadRejectsInvalidAniListRate(t *testing.T) {
+	for _, v := range []string{"0", "-5", "fast"} {
+		env := validEnv()
+		env["ANILIST_REQUESTS_PER_MINUTE"] = v
+		_, err := config.Load(func(k string) string { return env[k] })
+		if err == nil || !strings.Contains(err.Error(), "ANILIST_REQUESTS_PER_MINUTE") {
+			t.Errorf("%q: err = %v", v, err)
+		}
+	}
+}

@@ -31,6 +31,7 @@ Open <http://localhost:8080>.
 | `OIDC_CLIENT_SECRET` | OIDC client secret (required) |
 | `APP_ENCRYPTION_KEY` | Base64 of 32 random bytes; encrypts Plex tokens at rest (required). Losing it means everyone re-signs in to Plex |
 | `LISTEN_ADDR` | Listen address, default `:8080` |
+| `ANILIST_REQUESTS_PER_MINUTE` | Cap on requests to AniList, default `30` (AniList documents 90 but has lowered it before) |
 
 ## Authentik setup
 

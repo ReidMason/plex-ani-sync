@@ -106,6 +106,11 @@ type plexApp struct {
 
 func startPlexApp(t *testing.T, datasets ...func(*datasettest.Host)) plexApp {
 	t.Helper()
+	return startPlexAppTuned(t, nil, datasets...)
+}
+
+func startPlexAppTuned(t *testing.T, tune func(*server.Config), datasets ...func(*datasettest.Host)) plexApp {
+	t.Helper()
 	dbURL := newDatabase(t)
 	tv := plextest.New(t)
 	host := datasettest.New(t)
@@ -120,6 +125,10 @@ func startPlexApp(t *testing.T, datasets ...func(*datasettest.Host)) plexApp {
 		c.FribbURL = host.FribbURL
 		c.AnimeListsURL = host.AnimeListsURL
 		c.AniListURL = anilist.URL
+		c.AniListPollInterval = 5 * time.Millisecond
+		if tune != nil {
+			tune(c)
+		}
 	})
 	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv, clock: clock, anilist: anilist}
 }
