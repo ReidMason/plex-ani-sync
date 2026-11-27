@@ -19,6 +19,7 @@ func mustBox(t *testing.T, k []byte) *secretbox.Box {
 }
 
 func TestRoundTrip(t *testing.T) {
+	t.Parallel()
 	box := mustBox(t, key(1))
 	sealed, err := box.Seal([]byte("plex-token"))
 	if err != nil {
@@ -37,6 +38,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestSealingTwiceGivesDifferentCiphertext(t *testing.T) {
+	t.Parallel()
 	box := mustBox(t, key(1))
 	a, _ := box.Seal([]byte("x"))
 	b, _ := box.Seal([]byte("x"))
@@ -46,6 +48,7 @@ func TestSealingTwiceGivesDifferentCiphertext(t *testing.T) {
 }
 
 func TestOpenWithWrongKeyFails(t *testing.T) {
+	t.Parallel()
 	sealed, _ := mustBox(t, key(1)).Seal([]byte("plex-token"))
 	if _, err := mustBox(t, key(2)).Open(sealed); err == nil {
 		t.Error("expected error")
@@ -53,6 +56,7 @@ func TestOpenWithWrongKeyFails(t *testing.T) {
 }
 
 func TestOpenDetectsTampering(t *testing.T) {
+	t.Parallel()
 	box := mustBox(t, key(1))
 	sealed, _ := box.Seal([]byte("plex-token"))
 	for i := range sealed {
@@ -68,6 +72,7 @@ func TestOpenDetectsTampering(t *testing.T) {
 }
 
 func TestNewRejectsWrongKeyLength(t *testing.T) {
+	t.Parallel()
 	if _, err := secretbox.New([]byte("short")); err == nil {
 		t.Error("expected error")
 	}

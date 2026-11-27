@@ -10,6 +10,7 @@ import (
 )
 
 func TestServerClientCheckAccessOutcomes(t *testing.T) {
+	t.Parallel()
 	srv := plexservertest.New(t)
 	srv.Allow("good")
 	srv.Forbid("banned")
@@ -29,6 +30,7 @@ func TestServerClientCheckAccessOutcomes(t *testing.T) {
 	client := plex.NewServerClient()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			err := client.CheckAccess(context.Background(), "client-1", c.url, c.token)
 			if !errors.Is(err, c.want) {
 				t.Errorf("err = %v, want %v", err, c.want)
@@ -38,6 +40,7 @@ func TestServerClientCheckAccessOutcomes(t *testing.T) {
 }
 
 func TestNormalizeServerURL(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"192.168.1.5:32400":          "http://192.168.1.5:32400",
 		"plex.example.com":           "http://plex.example.com",

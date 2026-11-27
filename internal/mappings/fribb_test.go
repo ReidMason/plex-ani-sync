@@ -23,6 +23,7 @@ func serveFile(t *testing.T, path string) *httptest.Server {
 }
 
 func TestFetchFribbParsesRowsRecordedFromTheRealDataset(t *testing.T) {
+	t.Parallel()
 	srv := serveFile(t, "testdata/fribb-sample.json")
 
 	got, err := mappings.FetchFribb(context.Background(), srv.Client(), srv.URL)

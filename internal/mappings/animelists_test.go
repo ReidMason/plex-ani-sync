@@ -24,6 +24,7 @@ const animeListFixture = `<?xml version="1.0" encoding="utf-8"?>
 </anime-list>`
 
 func TestFetchAnimeListsKeepsOnlyRangeMappingsIntoTVDBSeasons(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(animeListFixture)) }))
 	defer srv.Close()
 
@@ -36,6 +37,7 @@ func TestFetchAnimeListsKeepsOnlyRangeMappingsIntoTVDBSeasons(t *testing.T) {
 }
 
 func TestFetchAnimeListsParsesDocumentRecordedFromTheRealDataset(t *testing.T) {
+	t.Parallel()
 	srv := serveFile(t, "testdata/anime-list-sample.xml")
 
 	got, err := mappings.FetchAnimeLists(context.Background(), srv.Client(), srv.URL)

@@ -21,6 +21,7 @@ func validEnv() map[string]string {
 }
 
 func TestLoadReadsEnvironment(t *testing.T) {
+	t.Parallel()
 	env := validEnv()
 	cfg, err := config.Load(func(k string) string { return env[k] })
 	if err != nil {
@@ -35,8 +36,10 @@ func TestLoadReadsEnvironment(t *testing.T) {
 }
 
 func TestLoadNamesEachMissingVariable(t *testing.T) {
+	t.Parallel()
 	for name := range validEnv() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			env := validEnv()
 			delete(env, name)
 			_, err := config.Load(func(k string) string { return env[k] })
@@ -51,6 +54,7 @@ func TestLoadNamesEachMissingVariable(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidPublicBaseURL(t *testing.T) {
+	t.Parallel()
 	env := validEnv()
 	env["PUBLIC_BASE_URL"] = "not a url"
 	_, err := config.Load(func(k string) string { return env[k] })
@@ -60,6 +64,7 @@ func TestLoadRejectsInvalidPublicBaseURL(t *testing.T) {
 }
 
 func TestLoadReportsAllMissingVariables(t *testing.T) {
+	t.Parallel()
 	env := validEnv()
 	delete(env, "DATABASE_URL")
 	delete(env, "OIDC_CLIENT_ID")
@@ -79,6 +84,7 @@ func TestLoadReportsAllMissingVariables(t *testing.T) {
 }
 
 func TestLoadDecodesEncryptionKey(t *testing.T) {
+	t.Parallel()
 	env := validEnv()
 	cfg, err := config.Load(func(k string) string { return env[k] })
 	if err != nil {
@@ -90,6 +96,7 @@ func TestLoadDecodesEncryptionKey(t *testing.T) {
 }
 
 func TestLoadRejectsMalformedEncryptionKey(t *testing.T) {
+	t.Parallel()
 	for _, bad := range []string{"not base64!!", base64.StdEncoding.EncodeToString([]byte("too short"))} {
 		env := validEnv()
 		env["APP_ENCRYPTION_KEY"] = bad
@@ -101,6 +108,7 @@ func TestLoadRejectsMalformedEncryptionKey(t *testing.T) {
 }
 
 func TestLoadDefaultsAniListRateAndAcceptsOverride(t *testing.T) {
+	t.Parallel()
 	env := validEnv()
 	cfg, err := config.Load(func(k string) string { return env[k] })
 	if err != nil || cfg.AniListRequestsPerMinute != 30 {
@@ -115,6 +123,7 @@ func TestLoadDefaultsAniListRateAndAcceptsOverride(t *testing.T) {
 }
 
 func TestLoadRejectsInvalidAniListRate(t *testing.T) {
+	t.Parallel()
 	for _, v := range []string{"0", "-5", "fast"} {
 		env := validEnv()
 		env["ANILIST_REQUESTS_PER_MINUTE"] = v

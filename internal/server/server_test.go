@@ -85,7 +85,22 @@ func newDatabase(t *testing.T) string {
 	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+templateDB); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { dropDatabase(t, name) })
 	return databaseURL(name)
+}
+
+// dropDatabase frees the tmpfs-backed data directory, which fills up across repeated runs.
+func dropDatabase(t *testing.T, name string) {
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)"); err != nil {
+		t.Error(err)
+	}
 }
 
 func databaseURL(name string) string {
@@ -112,6 +127,7 @@ func get(t *testing.T, url string) (*http.Response, string) {
 }
 
 func TestServesSPAShell(t *testing.T) {
+	t.Parallel()
 	a := startApp(t)
 
 	for _, path := range []string{"/", "/some/client/route"} {
@@ -129,6 +145,7 @@ func TestServesSPAShell(t *testing.T) {
 }
 
 func TestHashedAssetsCacheLong(t *testing.T) {
+	t.Parallel()
 	a := startApp(t)
 
 	resp, _ := get(t, a.URL+"/assets/index-abc.js")
@@ -141,6 +158,7 @@ func TestHashedAssetsCacheLong(t *testing.T) {
 }
 
 func TestUnknownAPIPathIsNotTheSPA(t *testing.T) {
+	t.Parallel()
 	a := startApp(t)
 
 	resp, _ := get(t, a.URL+"/api/nope")
@@ -150,6 +168,7 @@ func TestUnknownAPIPathIsNotTheSPA(t *testing.T) {
 }
 
 func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
+	t.Parallel()
 	a := startApp(t)
 
 	resp, _ := get(t, a.URL+"/api/health")
@@ -159,6 +178,7 @@ func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
 }
 
 func TestRefusesToStartWithoutExternalURL(t *testing.T) {
+	t.Parallel()
 	cases := map[string]func(*server.Config){
 		"PlexTVURL":     func(c *server.Config) { c.PlexTVURL = "" },
 		"AniListURL":    func(c *server.Config) { c.AniListURL = "" },
@@ -167,6 +187,7 @@ func TestRefusesToStartWithoutExternalURL(t *testing.T) {
 	}
 	for field, clear := range cases {
 		t.Run(field, func(t *testing.T) {
+			t.Parallel()
 			_, err := tryStartApp(t, withConfigEdit(clear))
 
 			if err == nil || !strings.Contains(err.Error(), field) {

@@ -10,6 +10,7 @@ import (
 )
 
 func TestProviderIsDiscoverable(t *testing.T) {
+	t.Parallel()
 	p := oidctest.New(t)
 
 	provider, err := oidc.NewProvider(context.Background(), p.URL)

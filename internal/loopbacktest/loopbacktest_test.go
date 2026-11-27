@@ -17,6 +17,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestRejectsNonLoopbackHostByName(t *testing.T) {
+	t.Parallel()
 	_, err := http.Get("http://example.invalid/")
 
 	if !errors.Is(err, loopbacktest.ErrNonLoopback) || !strings.Contains(err.Error(), "example.invalid") {
@@ -25,6 +26,7 @@ func TestRejectsNonLoopbackHostByName(t *testing.T) {
 }
 
 func TestRejectsNonLoopbackIP(t *testing.T) {
+	t.Parallel()
 	_, err := http.Get("http://192.0.2.1/")
 
 	if !errors.Is(err, loopbacktest.ErrNonLoopback) || !strings.Contains(err.Error(), "192.0.2.1") {
@@ -33,6 +35,7 @@ func TestRejectsNonLoopbackIP(t *testing.T) {
 }
 
 func TestAllowsLoopback(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	t.Cleanup(srv.Close)
 

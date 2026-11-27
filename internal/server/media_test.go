@@ -63,6 +63,7 @@ func (b *browser) mustAdd(serverURL string) mediaSource {
 }
 
 func TestAddingAReachablePlexServerSavesAMediaSource(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -80,6 +81,7 @@ func TestAddingAReachablePlexServerSavesAMediaSource(t *testing.T) {
 }
 
 func TestMediaSourcesStartEmpty(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 
@@ -89,6 +91,7 @@ func TestMediaSourcesStartEmpty(t *testing.T) {
 }
 
 func TestAccessCheckFailuresReturnDistinctErrorsAndSaveNothing(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -111,6 +114,7 @@ func TestAccessCheckFailuresReturnDistinctErrorsAndSaveNothing(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			status, _, e := b.addMediaSource(c.url)
 			if status != c.status || e.Error != c.code {
 				t.Errorf("got %d %q, want %d %q", status, e.Error, c.status, c.code)
@@ -123,6 +127,7 @@ func TestAccessCheckFailuresReturnDistinctErrorsAndSaveNothing(t *testing.T) {
 }
 
 func TestAddingWithoutALinkedPlexAccountIsRejectedWithoutContactingTheServer(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	srv := plexservertest.New(t)
@@ -138,6 +143,7 @@ func TestAddingWithoutALinkedPlexAccountIsRejectedWithoutContactingTheServer(t *
 }
 
 func TestRedirectsAreNotFollowed(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -155,6 +161,7 @@ func TestRedirectsAreNotFollowed(t *testing.T) {
 }
 
 func TestAUserCanAddSeveralServersButNotTheSameOneTwice(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -175,6 +182,7 @@ func TestAUserCanAddSeveralServersButNotTheSameOneTwice(t *testing.T) {
 }
 
 func TestMediaSourcesAreIsolatedBetweenUsers(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	alice := p.signedIn("sub-alice", "Alice")
 	bob := p.signedIn("sub-bob", "Bob")
@@ -196,6 +204,7 @@ func TestMediaSourcesAreIsolatedBetweenUsers(t *testing.T) {
 }
 
 func TestMediaSourceUsesThePlexAccountTokenAndKeepsNoneOfItsOwn(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -216,6 +225,7 @@ func TestMediaSourceUsesThePlexAccountTokenAndKeepsNoneOfItsOwn(t *testing.T) {
 }
 
 func TestMediaSourceEndpointsRequireSession(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.browser()
 
@@ -235,6 +245,7 @@ func (b *browser) removeMediaSource(id int64) int {
 }
 
 func TestRemovingAMediaSourceKeepsThePlexAccountAndOtherSources(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -257,6 +268,7 @@ func TestRemovingAMediaSourceKeepsThePlexAccountAndOtherSources(t *testing.T) {
 }
 
 func TestRemovingAnotherUsersMediaSourceDoesNothing(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	alice := p.signedIn("sub-alice", "Alice")
 	bob := p.signedIn("sub-bob", "Bob")
@@ -274,6 +286,7 @@ func TestRemovingAnotherUsersMediaSourceDoesNothing(t *testing.T) {
 }
 
 func TestRemovingRequiresSession(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.browser()
 
@@ -298,6 +311,7 @@ func (b *browser) libraries(id int64) (int, []library) {
 }
 
 func TestLibrariesListsOnlyShowLibrariesUnselectedByDefault(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -334,6 +348,7 @@ func (b *browser) selectAnimeLibraries(id int64, keys []string) int {
 }
 
 func TestSelectedAnimeLibrariesAreRememberedPerMediaSource(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -361,6 +376,7 @@ func TestSelectedAnimeLibrariesAreRememberedPerMediaSource(t *testing.T) {
 }
 
 func TestSelectingAnUnknownLibraryIsRejectedAndSavesNothing(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -403,6 +419,7 @@ func (b *browser) anime() (int, []animeShow) {
 }
 
 func TestAnimePullsShowsSeasonsAndWatchedEpisodesFromSelectedLibrariesOnly(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -446,6 +463,7 @@ func TestAnimePullsShowsSeasonsAndWatchedEpisodesFromSelectedLibrariesOnly(t *te
 }
 
 func TestAnimeIsEmptyUntilALibraryIsSelected(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -461,6 +479,7 @@ func TestAnimeIsEmptyUntilALibraryIsSelected(t *testing.T) {
 }
 
 func TestAnimeReturnsEveryEpisodeOfALargeLibrary(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -481,6 +500,7 @@ func TestAnimeReturnsEveryEpisodeOfALargeLibrary(t *testing.T) {
 }
 
 func TestAnimeSkipsSelectedLibrariesRemovedFromPlex(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -502,6 +522,7 @@ func TestAnimeSkipsSelectedLibrariesRemovedFromPlex(t *testing.T) {
 }
 
 func TestAnimeEndpointsRequireSession(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.browser()
 	for _, c := range []struct{ method, path string }{
@@ -518,6 +539,7 @@ func TestAnimeEndpointsRequireSession(t *testing.T) {
 }
 
 func TestAnotherUsersMediaSourceIsNotAccessible(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	alice := p.signedIn("sub-alice", "Alice")
 	alice.link(p, "tok-a", "alice_plex")
@@ -542,6 +564,7 @@ func TestAnotherUsersMediaSourceIsNotAccessible(t *testing.T) {
 }
 
 func TestPlexFailuresAreReportedOnLibraryAndAnimeEndpoints(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -569,6 +592,7 @@ func TestPlexFailuresAreReportedOnLibraryAndAnimeEndpoints(t *testing.T) {
 }
 
 func TestAnimeReusesCachedShowsUntilTheyExpire(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")

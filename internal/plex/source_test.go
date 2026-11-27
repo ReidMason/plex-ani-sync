@@ -12,6 +12,7 @@ import (
 )
 
 func TestSourceLibrariesReturnsOnlyShowLibraries(t *testing.T) {
+	t.Parallel()
 	srv := plexservertest.New(t)
 	srv.Allow("tok")
 	srv.AddLibrary("1", "movie", "Movies")
@@ -25,6 +26,7 @@ func TestSourceLibrariesReturnsOnlyShowLibraries(t *testing.T) {
 }
 
 func TestSourceShowsGroupsEpisodesIntoSeasonsAcrossPages(t *testing.T) {
+	t.Parallel()
 	srv := plexservertest.New(t)
 	srv.Allow("tok")
 	srv.AddLibrary("2", "show", "Anime")
@@ -56,6 +58,7 @@ func TestSourceShowsGroupsEpisodesIntoSeasonsAcrossPages(t *testing.T) {
 }
 
 func TestSourceReportsAccessAndReachabilityFailures(t *testing.T) {
+	t.Parallel()
 	srv := plexservertest.New(t)
 	src := plex.NewServerClient().Source("client-1")
 

@@ -70,6 +70,7 @@ func (b *browser) plexUsername() string {
 }
 
 func TestPlexPINFlowLinksAccountAndShowsUsername(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 
@@ -104,6 +105,7 @@ func (b *browser) link(p *app, token, username string) {
 }
 
 func TestPlexEndpointsRequireSession(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.browser()
 
@@ -116,6 +118,7 @@ func TestPlexEndpointsRequireSession(t *testing.T) {
 }
 
 func TestPlexTokenIsNotStoredInPlaintext(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 
@@ -128,6 +131,7 @@ func TestPlexTokenIsNotStoredInPlaintext(t *testing.T) {
 }
 
 func TestRelinkingReplacesTheUsersSinglePlexAccount(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 
@@ -140,6 +144,7 @@ func TestRelinkingReplacesTheUsersSinglePlexAccount(t *testing.T) {
 }
 
 func TestPlexAccountsAreSeparatePerUser(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	alice := p.signedIn("sub-alice", "Alice")
 	bob := p.signedIn("sub-bob", "Bob")
@@ -156,6 +161,7 @@ func TestPlexAccountsAreSeparatePerUser(t *testing.T) {
 }
 
 func TestPlexClientIdentifierIsGeneratedOnceAndSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.createPIN()
@@ -172,6 +178,7 @@ func TestPlexClientIdentifierIsGeneratedOnceAndSurvivesRestart(t *testing.T) {
 }
 
 func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	pin := b.createPIN()
@@ -187,6 +194,7 @@ func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
 }
 
 func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_old")
@@ -204,6 +212,7 @@ func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
 }
 
 func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -223,6 +232,7 @@ func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
 }
 
 func TestDashboardOmitsUsernameWhenPlexTVIsDownAndNothingIsCached(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -237,6 +247,7 @@ func TestDashboardOmitsUsernameWhenPlexTVIsDownAndNothingIsCached(t *testing.T) 
 }
 
 func TestRepeatedDashboardLoadsHitPlexTVOncePerTTL(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -258,6 +269,7 @@ func TestRepeatedDashboardLoadsHitPlexTVOncePerTTL(t *testing.T) {
 }
 
 func TestRelinkingInvalidatesTheCachedUsername(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-old", "alice_old")
@@ -297,6 +309,7 @@ func (b *browser) plexNeedsReSignIn() bool {
 }
 
 func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -326,6 +339,7 @@ func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testin
 }
 
 func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
@@ -337,6 +351,7 @@ func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
 }
 
 func TestUndecryptableTokenAfterKeyRotationFlagsReSignIn(t *testing.T) {
+	t.Parallel()
 	p := startApp(t)
 	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")

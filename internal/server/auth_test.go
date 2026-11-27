@@ -81,6 +81,7 @@ func mustParse(t *testing.T, raw string) *url.URL {
 }
 
 func TestLoginRedirectsToProviderWithPKCE(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 
 	resp := app.browser().get(app.URL + "/auth/login")
@@ -102,6 +103,7 @@ func TestLoginRedirectsToProviderWithPKCE(t *testing.T) {
 }
 
 func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	app.provider.SignInAs("sub-alice", "Alice")
 	b := app.browser()
@@ -121,6 +123,7 @@ func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
 }
 
 func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	first := app.signedIn("sub-alice", "Alice")
 	first.link(app, "tok-alice", "alice_plex")
@@ -139,6 +142,7 @@ func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
 }
 
 func TestDifferentSubjectsAreDifferentUsers(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	alice := app.signedIn("sub-alice", "Alice")
 	alice.link(app, "tok-alice", "alice_plex")
@@ -151,6 +155,7 @@ func TestDifferentSubjectsAreDifferentUsers(t *testing.T) {
 }
 
 func TestMeWithoutValidSessionIs401(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	if status, _ := b.me(); status != http.StatusUnauthorized {
@@ -163,6 +168,7 @@ func TestMeWithoutValidSessionIs401(t *testing.T) {
 }
 
 func TestSessionIDIsStoredOnlyAsHash(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	b.signIn()
@@ -174,6 +180,7 @@ func TestSessionIDIsStoredOnlyAsHash(t *testing.T) {
 }
 
 func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	b.signIn()
@@ -194,6 +201,7 @@ func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
 }
 
 func TestSessionSurvivesAppRestart(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	app.provider.SignInAs("sub-alice", "Alice")
 	b := app.browser()
@@ -209,6 +217,7 @@ func TestSessionSurvivesAppRestart(t *testing.T) {
 }
 
 func TestExpiredSessionIs401(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	b.signIn()
@@ -225,6 +234,7 @@ func TestExpiredSessionIs401(t *testing.T) {
 }
 
 func TestCallbackRejectsBadState(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	b.get(app.URL + "/auth/login")
@@ -240,6 +250,7 @@ func TestCallbackRejectsBadState(t *testing.T) {
 }
 
 func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	login := b.get(app.URL + "/auth/login")
@@ -259,6 +270,7 @@ func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
 }
 
 func TestCallbackRejectsNonceMismatch(t *testing.T) {
+	t.Parallel()
 	app := startApp(t)
 	b := app.browser()
 	login := b.get(app.URL + "/auth/login")
