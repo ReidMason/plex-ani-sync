@@ -67,18 +67,9 @@ func (d datasetSync) loadAtStartup(ctx context.Context) error {
 	return nil
 }
 
-func (d datasetSync) refreshEvery(ctx context.Context, every time.Duration) {
-	ticker := time.NewTicker(every)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := d.refresh(ctx); err != nil && ctx.Err() == nil {
-				d.logger.Warn("could not refresh mapping dataset", "error", err)
-			}
-		}
+func (d datasetSync) refreshOnTick(ctx context.Context) {
+	if err := d.refresh(ctx); err != nil && ctx.Err() == nil {
+		d.logger.Warn("could not refresh mapping dataset", "error", err)
 	}
 }
 
