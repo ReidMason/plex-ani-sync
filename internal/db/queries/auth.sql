@@ -11,7 +11,7 @@ VALUES ($1, $2, $3, $4);
 -- name: GetSessionUser :one
 SELECT user_id, display_name
 FROM sessions
-WHERE id_hash = $1 AND expires_at > now() AND revoked_at IS NULL;
+WHERE id_hash = @id_hash AND expires_at > @now AND revoked_at IS NULL;
 
 -- name: RevokeSession :exec
 UPDATE sessions SET revoked_at = now() WHERE id_hash = $1 AND revoked_at IS NULL;

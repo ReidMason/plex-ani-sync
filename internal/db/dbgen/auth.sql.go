@@ -36,16 +36,21 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 const getSessionUser = `-- name: GetSessionUser :one
 SELECT user_id, display_name
 FROM sessions
-WHERE id_hash = $1 AND expires_at > now() AND revoked_at IS NULL
+WHERE id_hash = $1 AND expires_at > $2 AND revoked_at IS NULL
 `
+
+type GetSessionUserParams struct {
+	IDHash []byte
+	Now    pgtype.Timestamptz
+}
 
 type GetSessionUserRow struct {
 	UserID      int64
 	DisplayName string
 }
 
-func (q *Queries) GetSessionUser(ctx context.Context, idHash []byte) (GetSessionUserRow, error) {
-	row := q.db.QueryRow(ctx, getSessionUser, idHash)
+func (q *Queries) GetSessionUser(ctx context.Context, arg GetSessionUserParams) (GetSessionUserRow, error) {
+	row := q.db.QueryRow(ctx, getSessionUser, arg.IDHash, arg.Now)
 	var i GetSessionUserRow
 	err := row.Scan(&i.UserID, &i.DisplayName)
 	return i, err

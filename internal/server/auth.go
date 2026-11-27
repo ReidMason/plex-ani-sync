@@ -30,6 +30,7 @@ type auth struct {
 	issuer   string
 	verifier *oidc.IDTokenVerifier
 	queries  *dbgen.Queries
+	now      func() time.Time
 	logger   *slog.Logger
 }
 
@@ -91,7 +92,7 @@ func (a *auth) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionID := randomID()
-	expires := time.Now().Add(sessionTTL)
+	expires := a.now().Add(sessionTTL)
 	if err := a.queries.CreateSession(r.Context(), dbgen.CreateSessionParams{
 		IDHash:      hashID(sessionID),
 		UserID:      userID,
@@ -125,7 +126,7 @@ func (a *auth) authenticated(next func(http.ResponseWriter, *http.Request, dbgen
 			http.Error(w, "unauthenticated", http.StatusUnauthorized)
 			return
 		}
-		session, err := a.queries.GetSessionUser(r.Context(), hashID(c.Value))
+		session, err := a.queries.GetSessionUser(r.Context(), dbgen.GetSessionUserParams{IDHash: hashID(c.Value), Now: pgtype.Timestamptz{Time: a.now(), Valid: true}})
 		if err != nil {
 			http.Error(w, "unauthenticated", http.StatusUnauthorized)
 			return

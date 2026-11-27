@@ -11,6 +11,7 @@ import (
 )
 
 func TestHTTPClientPINFlowAgainstPlexTV(t *testing.T) {
+	t.Parallel()
 	tv := plextest.New(t)
 	client := plex.NewHTTPClient(tv.URL)
 	ctx := context.Background()
@@ -41,6 +42,7 @@ func TestHTTPClientPINFlowAgainstPlexTV(t *testing.T) {
 }
 
 func TestHTTPClientReportsRevokedToken(t *testing.T) {
+	t.Parallel()
 	tv := plextest.New(t)
 	client := plex.NewHTTPClient(tv.URL)
 
@@ -51,6 +53,7 @@ func TestHTTPClientReportsRevokedToken(t *testing.T) {
 }
 
 func TestHTTPClientErrorsWhenPlexTVIsDown(t *testing.T) {
+	t.Parallel()
 	tv := plextest.New(t)
 	tv.SetDown(true)
 	client := plex.NewHTTPClient(tv.URL)
@@ -65,6 +68,7 @@ func TestHTTPClientErrorsWhenPlexTVIsDown(t *testing.T) {
 }
 
 func TestAuthURLCarriesClientIdentifierAndCode(t *testing.T) {
+	t.Parallel()
 	u := plex.AuthURL("client-1", plex.PIN{ID: 5, Code: "abcd"})
 	for _, want := range []string{"https://app.plex.tv/auth", "clientID=client-1", "code=abcd"} {
 		if !strings.Contains(u, want) {

@@ -1,55 +1,78 @@
 package server_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
-	"testing/fstest"
 
+	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/ReidMason/plex-ani-sync/internal/anilisttest"
-	"github.com/ReidMason/plex-ani-sync/internal/config"
-	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
-	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
-	"github.com/ReidMason/plex-ani-sync/internal/plextest"
+	"github.com/ReidMason/plex-ani-sync/internal/loopbacktest"
 	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
+
+const templateDB = "app_template"
 
 var (
 	adminURL string
 	dbSeq    atomic.Int64
 )
 
-func TestMain(m *testing.M) {
+func TestMain(m *testing.M) { os.Exit(loopbacktest.Run(postgresSuite{m})) }
+
+// postgresSuite runs the tests against a throwaway Postgres container.
+type postgresSuite struct{ m *testing.M }
+
+func (s postgresSuite) Run() int {
 	ctx := context.Background()
 	pg, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("postgres"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),
+		testcontainers.WithCmdArgs("-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"),
+		testcontainers.WithTmpfs(map[string]string{"/var/lib/postgresql/data": "rw"}),
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "start postgres container:", err)
-		os.Exit(1)
+		return 1
 	}
+	defer func() { _ = testcontainers.TerminateContainer(pg) }()
 	adminURL, err = pg.ConnectionString(ctx, "sslmode=disable")
+	if err == nil {
+		err = createTemplate(ctx)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
-	code := m.Run()
-	_ = testcontainers.TerminateContainer(pg)
-	os.Exit(code)
+	return s.m.Run()
+}
+
+func createTemplate(ctx context.Context) error {
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+templateDB); err != nil {
+		return err
+	}
+	pool, err := db.Open(ctx, databaseURL(templateDB))
+	if err != nil {
+		return fmt.Errorf("migrate template database: %w", err)
+	}
+	pool.Close()
+	return nil
 }
 
 func newDatabase(t *testing.T) string {
@@ -61,71 +84,34 @@ func newDatabase(t *testing.T) string {
 	}
 	defer conn.Close(ctx)
 	name := fmt.Sprintf("test_%d", dbSeq.Add(1))
-	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+templateDB); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { dropDatabase(t, name) })
+	return databaseURL(name)
+}
+
+// dropDatabase frees the tmpfs-backed data directory, which fills up across repeated runs.
+func dropDatabase(t *testing.T, name string) {
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)"); err != nil {
+		t.Error(err)
+	}
+}
+
+func databaseURL(name string) string {
 	u, err := url.Parse(adminURL)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	u.Path = "/" + name
 	return u.String()
-}
-
-var testEncryptionKey = bytes.Repeat([]byte{9}, 32)
-
-func testConfig(dbURL, issuer string) config.Config {
-	return config.Config{
-		DatabaseURL:      dbURL,
-		PublicBaseURL:    "https://plex-ani-sync.example.com",
-		OIDCIssuerURL:    issuer,
-		OIDCClientID:     "plex-ani-sync",
-		OIDCClientSecret: "super-secret-value",
-		EncryptionKey:    testEncryptionKey,
-	}
-}
-
-func startApp(t *testing.T) (*httptest.Server, string, *oidctest.Provider) {
-	t.Helper()
-	dbURL := newDatabase(t)
-	ts, issuer := startAppOn(t, dbURL, nil)
-	return ts, dbURL, issuer
-}
-
-func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	return startAppWith(t, dbURL, issuer, plextest.New(t))
-}
-
-func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	return startAppWithKey(t, dbURL, issuer, tv, testEncryptionKey, opts...)
-}
-
-func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, key []byte, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	if issuer == nil {
-		issuer = oidctest.New(t)
-	}
-	assets := fstest.MapFS{
-		"index.html":          {Data: []byte("<!doctype html><title>plex-ani-sync</title>")},
-		"assets/index-abc.js": {Data: []byte("console.log(1)")},
-	}
-	env := testConfig(dbURL, issuer.URL)
-	env.EncryptionKey = key
-	ds := datasettest.New(t)
-	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL, FribbURL: ds.FribbURL, AnimeListsURL: ds.AnimeListsURL, AniListURL: anilisttest.New(t).URL}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	h, closeFn, err := server.New(context.Background(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(closeFn)
-	ts := httptest.NewServer(h)
-	t.Cleanup(ts.Close)
-	return ts, issuer
 }
 
 func get(t *testing.T, url string) (*http.Response, string) {
@@ -143,10 +129,11 @@ func get(t *testing.T, url string) (*http.Response, string) {
 }
 
 func TestServesSPAShell(t *testing.T) {
-	ts, _, _ := startApp(t)
+	t.Parallel()
+	a := startApp(t)
 
 	for _, path := range []string{"/", "/some/client/route"} {
-		resp, body := get(t, ts.URL+path)
+		resp, body := get(t, a.URL+path)
 		if resp.StatusCode != 200 {
 			t.Fatalf("%s: status %d", path, resp.StatusCode)
 		}
@@ -160,9 +147,10 @@ func TestServesSPAShell(t *testing.T) {
 }
 
 func TestHashedAssetsCacheLong(t *testing.T) {
-	ts, _, _ := startApp(t)
+	t.Parallel()
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/assets/index-abc.js")
+	resp, _ := get(t, a.URL+"/assets/index-abc.js")
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
@@ -172,36 +160,41 @@ func TestHashedAssetsCacheLong(t *testing.T) {
 }
 
 func TestUnknownAPIPathIsNotTheSPA(t *testing.T) {
-	ts, _, _ := startApp(t)
+	t.Parallel()
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/api/nope")
+	resp, _ := get(t, a.URL+"/api/nope")
 	if resp.StatusCode != 404 {
 		t.Fatalf("status %d, want 404", resp.StatusCode)
 	}
 }
 
 func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
-	ts, _, _ := startApp(t)
+	t.Parallel()
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/api/health")
+	resp, _ := get(t, a.URL+"/api/health")
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
 	}
 }
 
-func TestMigrationsRunOnStartup(t *testing.T) {
-	_, dbURL, _ := startApp(t)
+func TestRefusesToStartWithoutExternalURL(t *testing.T) {
+	t.Parallel()
+	cases := map[string]func(*server.Config){
+		"ExternalURLs.PlexTV":     func(c *server.Config) { c.ExternalURLs.PlexTV = "" },
+		"ExternalURLs.AniList":    func(c *server.Config) { c.ExternalURLs.AniList = "" },
+		"ExternalURLs.Fribb":      func(c *server.Config) { c.ExternalURLs.Fribb = "" },
+		"ExternalURLs.AnimeLists": func(c *server.Config) { c.ExternalURLs.AnimeLists = "" },
+	}
+	for field, clear := range cases {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+			_, err := tryStartApp(t, withConfigEdit(clear))
 
-	conn, err := pgx.Connect(context.Background(), dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close(context.Background())
-	var applied int
-	if err := conn.QueryRow(context.Background(), "SELECT count(*) FROM goose_db_version WHERE is_applied AND version_id > 0").Scan(&applied); err != nil {
-		t.Fatal(err)
-	}
-	if applied == 0 {
-		t.Error("no migrations applied")
+			if err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("err = %v, want error naming %s", err, field)
+			}
+		})
 	}
 }

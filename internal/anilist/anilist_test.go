@@ -31,6 +31,7 @@ func serve(t *testing.T, status int, fixture string) *anilist.Client {
 }
 
 func TestFetchParsesTitlesAndEpisodeCounts(t *testing.T) {
+	t.Parallel()
 	got, err := serve(t, http.StatusOK, "media.json").Fetch(context.Background(), []int{154587, 999001})
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +47,7 @@ func TestFetchParsesTitlesAndEpisodeCounts(t *testing.T) {
 }
 
 func TestFetchReportsRateLimitAndServerErrors(t *testing.T) {
+	t.Parallel()
 	for _, status := range []int{http.StatusTooManyRequests, http.StatusInternalServerError} {
 		if _, err := serve(t, status, "media.json").Fetch(context.Background(), []int{1}); err == nil {
 			t.Errorf("status %d: want error", status)
@@ -70,6 +72,7 @@ func okResponse(w http.ResponseWriter, _ *http.Request) {
 }
 
 func TestRequestsAreSpacedByTheConfiguredRate(t *testing.T) {
+	t.Parallel()
 	c, clock := newPaced(t, 30, okResponse)
 	if _, err := c.Fetch(context.Background(), []int{1}); err != nil {
 		t.Fatal(err)
@@ -86,6 +89,7 @@ func TestRequestsAreSpacedByTheConfiguredRate(t *testing.T) {
 }
 
 func TestRateLimitWithoutRetryAfterPausesForAMinute(t *testing.T) {
+	t.Parallel()
 	c, clock := newPaced(t, 0, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
 	_, _ = c.Fetch(context.Background(), []int{1})
 
@@ -101,6 +105,7 @@ func TestRateLimitWithoutRetryAfterPausesForAMinute(t *testing.T) {
 }
 
 func TestFailureBackoffIsCappedAndResetsAfterSuccess(t *testing.T) {
+	t.Parallel()
 	fail := true
 	c, clock := newPaced(t, 0, func(w http.ResponseWriter, r *http.Request) {
 		if fail {
@@ -135,6 +140,7 @@ func TestFailureBackoffIsCappedAndResetsAfterSuccess(t *testing.T) {
 }
 
 func TestRetryAfterHeaderIsHonoured(t *testing.T) {
+	t.Parallel()
 	c, clock := newPaced(t, 0, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", strconv.Itoa(5))
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -151,6 +157,7 @@ func TestRetryAfterHeaderIsHonoured(t *testing.T) {
 }
 
 func TestCancelledRequestDoesNotBackOff(t *testing.T) {
+	t.Parallel()
 	c, _ := newPaced(t, 0, okResponse)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

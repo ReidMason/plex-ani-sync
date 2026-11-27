@@ -35,7 +35,16 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	handler, cleanup, err := server.New(ctx, server.Config{Env: cfg, Assets: web.Assets()})
+	handler, cleanup, err := server.New(ctx, server.Config{
+		Env:    cfg,
+		Assets: web.Assets(),
+		ExternalURLs: server.ExternalURLs{
+			PlexTV:     "https://plex.tv",
+			Fribb:      "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json",
+			AnimeLists: "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml",
+			AniList:    "https://graphql.anilist.co",
+		},
+	})
 	if err != nil {
 		return err
 	}

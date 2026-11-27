@@ -12,10 +12,7 @@ import (
 	"time"
 )
 
-const (
-	DefaultTVURL = "https://plex.tv"
-	productName  = "Plex Ani Sync"
-)
+const productName = "Plex Ani Sync"
 
 var ErrUnauthorized = errors.New("plex token rejected")
 

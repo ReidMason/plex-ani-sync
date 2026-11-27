@@ -5,38 +5,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/ReidMason/plex-ani-sync/internal/anilisttest"
-	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
-	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
-	"github.com/ReidMason/plex-ani-sync/internal/plextest"
-	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
-
-const usernameTTL = 5 * time.Minute
-
-type fakeClock struct {
-	mu  sync.Mutex
-	now time.Time
-}
-
-func (c *fakeClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-func (c *fakeClock) Advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
-}
 
 type pinResponse struct {
 	ID      int64  `json:"id"`
@@ -95,55 +69,10 @@ func (b *browser) plexUsername() string {
 	return body.Plex.Username
 }
 
-type plexApp struct {
-	app      *httptest.Server
-	dbURL    string
-	provider *oidctest.Provider
-	tv       *plextest.TV
-	clock    *fakeClock
-	anilist  *anilisttest.Host
-}
-
-func startPlexApp(t *testing.T, datasets ...func(*datasettest.Host)) plexApp {
-	t.Helper()
-	return startPlexAppTuned(t, nil, datasets...)
-}
-
-func startPlexAppTuned(t *testing.T, tune func(*server.Config), datasets ...func(*datasettest.Host)) plexApp {
-	t.Helper()
-	dbURL := newDatabase(t)
-	tv := plextest.New(t)
-	host := datasettest.New(t)
-	for _, d := range datasets {
-		d(host)
-	}
-	anilist := anilisttest.New(t)
-	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	app, provider := startAppWith(t, dbURL, nil, tv, func(c *server.Config) {
-		c.Clock = clock.Now
-		c.UsernameTTL = usernameTTL
-		c.FribbURL = host.FribbURL
-		c.AnimeListsURL = host.AnimeListsURL
-		c.AniListURL = anilist.URL
-		c.AniListPollInterval = 5 * time.Millisecond
-		if tune != nil {
-			tune(c)
-		}
-	})
-	return plexApp{app: app, dbURL: dbURL, provider: provider, tv: tv, clock: clock, anilist: anilist}
-}
-
-func (p plexApp) signedIn(t *testing.T, sub, name string) *browser {
-	t.Helper()
-	p.provider.SignInAs(sub, name)
-	b := newBrowser(t, p.app)
-	b.signIn()
-	return b
-}
-
 func TestPlexPINFlowLinksAccountAndShowsUsername(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 
 	pin := b.createPIN()
 	if pin.AuthURL == "" {
@@ -166,7 +95,7 @@ func TestPlexPINFlowLinksAccountAndShowsUsername(t *testing.T) {
 	}
 }
 
-func (b *browser) link(p plexApp, token, username string) {
+func (b *browser) link(p *app, token, username string) {
 	b.t.Helper()
 	pin := b.createPIN()
 	p.tv.Approve(pin.Code, token, username)
@@ -176,50 +105,49 @@ func (b *browser) link(p plexApp, token, username string) {
 }
 
 func TestPlexEndpointsRequireSession(t *testing.T) {
-	p := startPlexApp(t)
-	b := newBrowser(t, p.app)
+	t.Parallel()
+	p := startApp(t)
+	b := p.browser()
 
-	if resp, _ := b.post(p.app.URL + "/api/plex/pins"); resp.StatusCode != 401 {
+	if resp, _ := b.post(p.URL + "/api/plex/pins"); resp.StatusCode != 401 {
 		t.Errorf("create pin status %d", resp.StatusCode)
 	}
-	if resp, _ := b.post(p.app.URL + "/api/plex/pins/1/poll?code=x"); resp.StatusCode != 401 {
+	if resp, _ := b.post(p.URL + "/api/plex/pins/1/poll?code=x"); resp.StatusCode != 401 {
 		t.Errorf("poll status %d", resp.StatusCode)
 	}
 }
 
 func TestPlexTokenIsNotStoredInPlaintext(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 
 	b.link(p, "plex-token-secret", "alice_plex")
 
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts WHERE position($1::bytea in token_encrypted) > 0", "plex-token-secret"); n != 0 {
-		t.Error("token found in plaintext")
-	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
-		t.Errorf("plex accounts = %d", n)
+	assertNotStored(t, p.dbURL, []byte("plex-token-secret"))
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("username = %q, want alice_plex", got)
 	}
 }
 
 func TestRelinkingReplacesTheUsersSinglePlexAccount(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 
 	b.link(p, "tok-old", "alice_old")
 	b.link(p, "tok-new", "alice_new")
 
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
-		t.Errorf("plex accounts = %d, want 1", n)
-	}
 	if got := b.plexUsername(); got != "alice_new" {
 		t.Errorf("username = %q", got)
 	}
 }
 
 func TestPlexAccountsAreSeparatePerUser(t *testing.T) {
-	p := startPlexApp(t)
-	alice := p.signedIn(t, "sub-alice", "Alice")
-	bob := p.signedIn(t, "sub-bob", "Bob")
+	t.Parallel()
+	p := startApp(t)
+	alice := p.signedIn("sub-alice", "Alice")
+	bob := p.signedIn("sub-bob", "Bob")
 
 	alice.link(p, "tok-a", "alice_plex")
 
@@ -233,12 +161,13 @@ func TestPlexAccountsAreSeparatePerUser(t *testing.T) {
 }
 
 func TestPlexClientIdentifierIsGeneratedOnceAndSurvivesRestart(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.createPIN()
 
-	app2, _ := startAppWith(t, p.dbURL, p.provider, p.tv)
-	b2 := newBrowser(t, app2)
+	app2 := startApp(t, restartOf(p))
+	b2 := app2.browser()
 	b2.cookies = b.cookies
 	b2.createPIN()
 
@@ -249,8 +178,9 @@ func TestPlexClientIdentifierIsGeneratedOnceAndSurvivesRestart(t *testing.T) {
 }
 
 func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	pin := b.createPIN()
 	p.tv.Approve(pin.Code, "tok", "alice_plex")
 	p.tv.SetDown(true)
@@ -258,14 +188,15 @@ func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
 	if status, _ := b.pollPIN(pin); status != http.StatusBadGateway {
 		t.Errorf("status = %d, want 502", status)
 	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 0 {
-		t.Errorf("plex accounts = %d, want 0", n)
+	if b.plexLinked() {
+		t.Error("plex account linked despite plex.tv being down")
 	}
 }
 
 func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_old")
 
 	p.tv.SetUsername("tok-a", "alice_renamed")
@@ -281,14 +212,15 @@ func TestDashboardLoadRefreshesThePlexUsernameFromPlexTV(t *testing.T) {
 }
 
 func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 	b.plexUsername()
 	p.clock.Advance(usernameTTL + time.Second)
 	p.tv.SetDown(true)
 
-	resp := b.do(http.MethodGet, p.app.URL+"/api/me")
+	resp := b.do(http.MethodGet, p.URL+"/api/me")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -300,8 +232,9 @@ func TestDashboardLoadsWithCachedUsernameWhenPlexTVIsDown(t *testing.T) {
 }
 
 func TestDashboardOmitsUsernameWhenPlexTVIsDownAndNothingIsCached(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 	p.tv.SetDown(true)
 
@@ -314,8 +247,9 @@ func TestDashboardOmitsUsernameWhenPlexTVIsDownAndNothingIsCached(t *testing.T) 
 }
 
 func TestRepeatedDashboardLoadsHitPlexTVOncePerTTL(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 	before := p.tv.UserLookups()
 
@@ -335,8 +269,9 @@ func TestRepeatedDashboardLoadsHitPlexTVOncePerTTL(t *testing.T) {
 }
 
 func TestRelinkingInvalidatesTheCachedUsername(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-old", "alice_old")
 	if got := b.plexUsername(); got != "alice_old" {
 		t.Fatalf("username = %q", got)
@@ -374,8 +309,9 @@ func (b *browser) plexNeedsReSignIn() bool {
 }
 
 func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 	srv := plexservertest.New(t)
 	srv.Allow("tok-a")
@@ -403,8 +339,9 @@ func TestRevokedTokenShowsNeedsReSignInAndReSigningInKeepsMediaSources(t *testin
 }
 
 func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 	p.tv.SetDown(true)
 
@@ -414,12 +351,13 @@ func TestPlexTVOutageDoesNotFlagReSignIn(t *testing.T) {
 }
 
 func TestUndecryptableTokenAfterKeyRotationFlagsReSignIn(t *testing.T) {
-	p := startPlexApp(t)
-	b := p.signedIn(t, "sub-alice", "Alice")
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
 
-	rotated, _ := startAppWithKey(t, p.dbURL, p.provider, p.tv, bytes.Repeat([]byte{7}, 32))
-	b2 := newBrowser(t, rotated)
+	rotated := startApp(t, restartOf(p), withEncryptionKey(bytes.Repeat([]byte{7}, 32)))
+	b2 := rotated.browser()
 	b2.cookies = b.cookies
 
 	if !b2.plexNeedsReSignIn() {

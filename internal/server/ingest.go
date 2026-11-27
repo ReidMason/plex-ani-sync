@@ -15,11 +15,9 @@ import (
 )
 
 const (
-	originCustom         = "custom"
-	defaultFribbURL      = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
-	defaultAnimeListsURL = "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml"
-	originDataset        = "dataset"
-	datasetFetchWindow   = 2 * time.Minute
+	originCustom       = "custom"
+	originDataset      = "dataset"
+	datasetFetchWindow = 2 * time.Minute
 
 	defaultDatasetRefreshInterval = 24 * time.Hour
 )
@@ -67,18 +65,9 @@ func (d datasetSync) loadAtStartup(ctx context.Context) error {
 	return nil
 }
 
-func (d datasetSync) refreshEvery(ctx context.Context, every time.Duration) {
-	ticker := time.NewTicker(every)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := d.refresh(ctx); err != nil && ctx.Err() == nil {
-				d.logger.Warn("could not refresh mapping dataset", "error", err)
-			}
-		}
+func (d datasetSync) refreshOnTick(ctx context.Context) {
+	if err := d.refresh(ctx); err != nil && ctx.Err() == nil {
+		d.logger.Warn("could not refresh mapping dataset", "error", err)
 	}
 }
 

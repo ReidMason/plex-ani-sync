@@ -10,6 +10,7 @@ import (
 func ptr(n int) *int { return &n }
 
 func TestRangesOverlap(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		a, b mappings.Range
@@ -23,6 +24,7 @@ func TestRangesOverlap(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			if got := c.a.Overlaps(c.b); got != c.want {
 				t.Errorf("a.Overlaps(b) = %v", got)
 			}
@@ -34,6 +36,7 @@ func TestRangesOverlap(t *testing.T) {
 }
 
 func TestResolveEndsEachRangeWhereTheNextEntryOfTheSeasonBegins(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 3, AniListID: 303, TVDBID: 1, Season: 1, EpisodeOffset: 24},
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
@@ -51,6 +54,7 @@ func TestResolveEndsEachRangeWhereTheNextEntryOfTheSeasonBegins(t *testing.T) {
 }
 
 func TestResolveKeepsTheLowestAniDBIDWhenTVDBRangesOverlap(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 909, TVDBID: 1, Season: 1},
 		{AniDBID: 4, AniListID: 404, TVDBID: 1, Season: 1},
@@ -62,6 +66,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenTVDBRangesOverlap(t *testing.T) {
 }
 
 func TestResolveKeepsTheLowestAniDBIDWhenEntryRangesOverlap(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 9, AniListID: 5, TVDBID: 2, Season: 1},
 		{AniDBID: 4, AniListID: 5, TVDBID: 1, Season: 1},
@@ -73,6 +78,7 @@ func TestResolveKeepsTheLowestAniDBIDWhenEntryRangesOverlap(t *testing.T) {
 }
 
 func TestResolveDropsALosingAniDBRowWholeWhenOneOfItsSpansOverlaps(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 10, TVDBID: 1},
 		{AniDBID: 2, AniListID: 20, TVDBID: 1},
@@ -90,6 +96,7 @@ func TestResolveDropsALosingAniDBRowWholeWhenOneOfItsSpansOverlaps(t *testing.T)
 }
 
 func TestResolveSkipsSpecialsAndRowsMissingIDs(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 1, TVDBID: 1, Season: 0},
 		{AniDBID: 2, AniListID: 0, TVDBID: 1, Season: 1},
@@ -113,12 +120,14 @@ func custom(tvdbID, season int, episodes mappings.Range, anilistID int, entry ma
 }
 
 func TestResolveDropsDatasetRowOverlappingACustomMapping(t *testing.T) {
+	t.Parallel()
 	cases := map[string]mappings.Mapping{
 		"TVDB side":  custom(1, 1, mappings.Range{First: 5, Last: ptr(6)}, 999, mappings.Range{First: 1, Last: ptr(2)}),
 		"entry side": custom(2, 3, mappings.Range{First: 1, Last: ptr(12)}, 101, mappings.Range{First: 1, Last: ptr(12)}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			got := mappings.Resolve([]mappings.Row{{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1}}, nil, []mappings.Mapping{c})
 
 			if len(got) != 0 {
@@ -129,6 +138,7 @@ func TestResolveDropsDatasetRowOverlappingACustomMapping(t *testing.T) {
 }
 
 func TestResolveDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
@@ -143,6 +153,7 @@ func TestResolveDropsAPartlyOverlappingRowWholeAndKeepsTheOthers(t *testing.T) {
 }
 
 func TestResolveKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t *testing.T) {
+	t.Parallel()
 	got := mappings.Resolve([]mappings.Row{
 		{AniDBID: 1, AniListID: 101, TVDBID: 1, Season: 1},
 		{AniDBID: 2, AniListID: 202, TVDBID: 1, Season: 1, EpisodeOffset: 12},
@@ -157,6 +168,7 @@ func TestResolveKeepsRowsThatOnlyShareASeasonOrEntryWithoutIntersecting(t *testi
 }
 
 func TestParseCustomReadsRangesAndRejectsInvertedOnes(t *testing.T) {
+	t.Parallel()
 	got, err := mappings.ParseCustom([]byte(`[{"tvdbId":1,"season":2,"firstEpisode":13,"lastEpisode":24,"anilistId":9,"entryFirstEpisode":1}]`))
 	want := mappings.Mapping{TVDBID: 1, Season: 2, Episodes: mappings.Range{First: 13, Last: ptr(24)}, AniListID: 9, Entry: mappings.Range{First: 1}}
 	if err != nil || len(got) != 1 || !equal(got[0], want) {
