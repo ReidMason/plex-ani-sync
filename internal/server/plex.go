@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,6 +34,7 @@ type plexLink struct {
 	logger        *slog.Logger
 	anilist       *aniListCache
 	anilistClient *anilist.Client
+	now           func() time.Time
 	lists         *aniListListCache
 	shows         *showsCache
 	syncing       sync.Map

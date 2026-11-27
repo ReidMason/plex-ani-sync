@@ -9,6 +9,11 @@ const (
 	listStatusWatching  = "CURRENT"
 	listStatusCompleted = "COMPLETED"
 	listStatusRepeating = "REPEATING"
+	listStatusPaused    = "PAUSED"
+	listStatusDropped   = "DROPPED"
+
+	pausedAfter  = 14 * 24 * time.Hour
+	droppedAfter = 30 * 24 * time.Hour
 )
 
 type listState struct {
@@ -21,6 +26,8 @@ type entryFacts struct {
 	title       string
 	watched     int
 	lastWatched *time.Time
+	total       *int
+	now         time.Time
 }
 
 type planChange struct {
@@ -39,23 +46,46 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 	if current != nil && (current.Status == listStatusCompleted || current.Status == listStatusRepeating) {
 		return planChange{}, false
 	}
-	proposed := listState{Status: proposedStatus(f, current), Progress: f.watched}
-	reason := "Not on your AniList list; " + episodes(f.watched) + " watched in Plex"
+	progress := f.watched
 	if current != nil {
-		if f.watched <= current.Progress {
-			return planChange{}, false
-		}
-		reason = episodes(f.watched) + " watched in Plex, AniList has " + episodes(current.Progress)
+		progress = max(progress, current.Progress)
 	}
-	return planChange{AniListID: f.anilistID, Title: f.title, Current: current, Proposed: proposed, Reason: reason}, true
+	proposed := listState{Status: proposedStatus(f, progress, current), Progress: progress}
+	if current != nil && proposed == *current {
+		return planChange{}, false
+	}
+	return planChange{AniListID: f.anilistID, Title: f.title, Current: current, Proposed: proposed, Reason: changeReason(f, current, proposed)}, true
+}
+
+func changeReason(f entryFacts, current *listState, proposed listState) string {
+	switch {
+	case current == nil:
+		return "Not on your AniList list; " + episodes(f.watched) + " watched in Plex"
+	case proposed.Progress > current.Progress:
+		return episodes(f.watched) + " watched in Plex, AniList has " + episodes(current.Progress)
+	default:
+		return "Progress " + strconv.Itoa(proposed.Progress) + " suggests " + proposed.Status + " instead of " + current.Status
+	}
 }
 
 // proposedStatus is where status rules grow; for now an Entry keeps its status and additions are Watching.
-func proposedStatus(_ entryFacts, current *listState) string {
-	if current == nil {
-		return listStatusWatching
+func proposedStatus(f entryFacts, progress int, current *listState) string {
+	if f.total != nil && progress == *f.total {
+		return listStatusCompleted
 	}
-	return current.Status
+	if f.lastWatched != nil {
+		idle := f.now.Sub(*f.lastWatched)
+		switch {
+		case idle > droppedAfter:
+			return listStatusDropped
+		case idle > pausedAfter:
+			if current != nil && current.Status == listStatusDropped {
+				return listStatusDropped
+			}
+			return listStatusPaused
+		}
+	}
+	return listStatusWatching
 }
 
 func episodes(n int) string {

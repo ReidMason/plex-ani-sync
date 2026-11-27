@@ -52,8 +52,10 @@ func (p *plexLink) syncNow(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 		return
 	}
 	current := map[int64]listState{}
+	totals := map[int64]*int{}
 	for _, e := range list {
 		current[int64(e.MediaID)] = listState{Status: e.Status, Progress: e.Progress}
+		totals[int64(e.MediaID)] = e.Episodes
 	}
 
 	plan := syncPlanJSON{Changes: []planChange{}, Skipped: []skippedJSON{}}
@@ -63,6 +65,8 @@ func (p *plexLink) syncNow(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 		}
 	}
 	for _, f := range entryFactsOf(shows) {
+		f.total = totals[f.anilistID]
+		f.now = p.now()
 		var cur *listState
 		if state, ok := current[f.anilistID]; ok {
 			cur = &state
