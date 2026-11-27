@@ -160,6 +160,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	p.registerMediaSources(mux, a)
 	p.registerAnime(mux, a)
 	p.registerTrackers(mux, a)
+	p.registerSync(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

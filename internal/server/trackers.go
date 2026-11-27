@@ -54,23 +54,8 @@ func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s 
 		writeError(w, http.StatusBadRequest, "invalid_username")
 		return
 	}
-	_, err := p.anilistClient.UserList(r.Context(), username)
-	var throttled *anilist.ThrottledError
-	switch {
-	case errors.Is(err, anilist.ErrUserNotFound):
-		writeError(w, http.StatusNotFound, "user_not_found")
-		return
-	case errors.Is(err, anilist.ErrPrivateList):
-		writeError(w, http.StatusUnprocessableEntity, "private_list")
-		return
-	case errors.As(err, &throttled):
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "throttled", "until": throttled.Until.UTC().Format(time.RFC3339)})
-		return
-	case err != nil:
-		p.logger.Warn("anilist user lookup failed", "error", err)
-		writeError(w, http.StatusBadGateway, "anilist_unavailable")
+	if _, err := p.anilistClient.UserList(r.Context(), username); err != nil {
+		p.writeAniListError(w, err)
 		return
 	}
 	if err := p.queries.UpsertTracker(r.Context(), dbgen.UpsertTrackerParams{UserID: s.UserID, Kind: trackerKindAniList, Username: username}); err != nil {
@@ -86,4 +71,21 @@ func (p *plexLink) unlinkAniListTracker(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (p *plexLink) writeAniListError(w http.ResponseWriter, err error) {
+	var throttled *anilist.ThrottledError
+	switch {
+	case errors.Is(err, anilist.ErrUserNotFound):
+		writeError(w, http.StatusNotFound, "user_not_found")
+	case errors.Is(err, anilist.ErrPrivateList):
+		writeError(w, http.StatusUnprocessableEntity, "private_list")
+	case errors.As(err, &throttled):
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "throttled", "until": throttled.Until.UTC().Format(time.RFC3339)})
+	default:
+		p.logger.Warn("anilist request failed", "error", err)
+		writeError(w, http.StatusBadGateway, "anilist_unavailable")
+	}
 }

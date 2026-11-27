@@ -7,6 +7,7 @@ import { Anime } from "@/pages/Anime";
 import { MediaSources } from "@/pages/MediaSources";
 import { Overview } from "@/pages/Overview";
 import { Settings } from "@/pages/Settings";
+import { Sync } from "@/pages/Sync";
 import { SetupAniList, SetupPlex, SetupServers } from "@/pages/Setup";
 
 function Splash({ children }: { children: string }) {
@@ -23,11 +24,12 @@ const animeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/anime"
 const mediaSourcesRoute = createRoute({ getParentRoute: () => rootRoute, path: "/media-sources", component: () => <Page page="media-sources" /> });
 const setupPlexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/plex", component: () => <Page page="setup-plex" /> });
 const setupServersRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/servers", component: () => <Page page="setup-servers" /> });
+const syncRoute = createRoute({ getParentRoute: () => rootRoute, path: "/sync", component: Sync });
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: Settings });
 const setupAniListRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/anilist", component: SetupAniList });
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([overviewRoute, animeRoute, mediaSourcesRoute, settingsRoute, setupPlexRoute, setupServersRoute, setupAniListRoute]),
+  routeTree: rootRoute.addChildren([overviewRoute, animeRoute, syncRoute, mediaSourcesRoute, settingsRoute, setupPlexRoute, setupServersRoute, setupAniListRoute]),
 });
 
 declare module "@tanstack/react-router" {

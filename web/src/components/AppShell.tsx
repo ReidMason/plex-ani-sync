@@ -26,6 +26,9 @@ export function AppShell({ me }: { me: Me }) {
           <Link to="/anime" className={navClass} activeProps={{ className: navActiveClass }}>
             Anime
           </Link>
+          <Link to="/sync" className={navClass} activeProps={{ className: navActiveClass }}>
+            Sync
+          </Link>
           <Link to="/media-sources" className={navClass} activeProps={{ className: navActiveClass }}>
             Media sources
           </Link>

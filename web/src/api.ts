@@ -181,3 +181,35 @@ export function useAnime() {
     },
   });
 }
+
+interface PlanState {
+  status: string;
+  progress: number;
+}
+
+export interface SyncPlan {
+  changes: {
+    anilistId: number;
+    title: string;
+    current: PlanState | null;
+    proposed: PlanState;
+    reason: string;
+  }[];
+  skipped: { title: string; status: "needs_review" | "unmapped"; reason: string }[];
+}
+
+const syncErrors: Record<string, string> = {
+  anilist_not_linked: "Link your AniList username in Settings first",
+  sync_in_progress: "A sync is already running",
+  user_not_found: "AniList has no user with your linked name. Check it in Settings",
+  private_list: "Your AniList list is private. Make it public, then try again",
+  anilist_unavailable: "Could not reach AniList. Try again shortly",
+};
+
+export async function syncNow(): Promise<SyncPlan> {
+  const res = await fetch("/api/sync", { method: "POST" });
+  if (res.ok) return res.json();
+  const body = await res.json().catch(() => ({ error: "" }));
+  if (body.error === "throttled") throw new Error(`AniList is busy. Try again at ${new Date(body.until).toLocaleTimeString()}`);
+  throw new Error(syncErrors[body.error] ?? `Sync failed (${res.status})`);
+}

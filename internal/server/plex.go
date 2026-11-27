@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,6 +34,7 @@ type plexLink struct {
 	anilist       *aniListCache
 	anilistClient *anilist.Client
 	shows         *showsCache
+	syncing       sync.Map
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {
