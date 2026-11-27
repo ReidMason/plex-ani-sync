@@ -64,8 +64,17 @@ func (p *plexLink) syncNow(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 			plan.Skipped = append(plan.Skipped, skippedJSON{Title: show.Title, Status: show.Status, Reason: show.Reason})
 		}
 	}
-	for _, f := range entryFactsOf(shows) {
+	facts := entryFactsOf(shows)
+	ids := make([]int, len(facts))
+	for i, f := range facts {
+		ids[i] = int(f.anilistID)
+	}
+	media := p.anilist.mediaFor(r.Context(), ids)
+	for _, f := range facts {
 		f.total = totals[f.anilistID]
+		if f.total == nil {
+			f.total = media[int(f.anilistID)].Episodes
+		}
 		f.now = p.now()
 		var cur *listState
 		if state, ok := current[f.anilistID]; ok {
