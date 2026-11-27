@@ -15,11 +15,9 @@ import (
 )
 
 const (
-	originCustom         = "custom"
-	defaultFribbURL      = "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json"
-	defaultAnimeListsURL = "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml"
-	originDataset        = "dataset"
-	datasetFetchWindow   = 2 * time.Minute
+	originCustom       = "custom"
+	originDataset      = "dataset"
+	datasetFetchWindow = 2 * time.Minute
 
 	defaultDatasetRefreshInterval = 24 * time.Hour
 )
