@@ -1,0 +1,6 @@
+{"data":{"MediaListCollection":{"lists":[
+{"entries":[{"status":"DROPPED","progress":4,"media":{"id":18507,"episodes":12}}]},
+{"entries":[{"status":"COMPLETED","progress":12,"media":{"id":18229,"episodes":12}}]},
+{"entries":[{"status":"CURRENT","progress":8,"media":{"id":80,"episodes":43}}]},
+{"entries":[{"status":"PLANNING","progress":0,"media":{"id":102675,"episodes":null}}]}
+]}}}

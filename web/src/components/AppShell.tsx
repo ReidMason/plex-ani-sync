@@ -26,8 +26,14 @@ export function AppShell({ me }: { me: Me }) {
           <Link to="/anime" className={navClass} activeProps={{ className: navActiveClass }}>
             Anime
           </Link>
+          <Link to="/sync" className={navClass} activeProps={{ className: navActiveClass }}>
+            Sync
+          </Link>
           <Link to="/media-sources" className={navClass} activeProps={{ className: navActiveClass }}>
             Media sources
+          </Link>
+          <Link to="/settings" className={navClass} activeProps={{ className: navActiveClass }}>
+            Settings
           </Link>
         </nav>
         <div className="flex items-center justify-between gap-3 md:mt-auto md:flex-col md:items-stretch">

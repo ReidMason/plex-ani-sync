@@ -42,6 +42,8 @@ type Config struct {
 	Cache cache.Cache
 	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
 	ShowsTTL time.Duration
+	// AniListListTTL is how long a User's AniList list is cached; it defaults to 5 minutes.
+	AniListListTTL time.Duration
 	// Clock drives sessions, caches and dataset refresh; it defaults to the real clock.
 	Clock Clock
 	// UsernameTTL is how long a plex.tv username is cached; it defaults to 5 minutes.
@@ -135,7 +137,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.ExternalURLs.AniList, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListClient := anilist.New(anilist.Options{URL: cfg.ExternalURLs.AniList, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate})
+	aniListWorker := newAniListCache(aniListClient, queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
 	go func() {
@@ -151,13 +154,19 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if showsTTL == 0 {
 		showsTTL = defaultShowsTTL
 	}
-	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
-		anilist: aniListWorker}
+	listTTL := cfg.AniListListTTL
+	if listTTL == 0 {
+		listTTL = defaultAniListListTTL
+	}
+	p := &plexLink{now: clock.Now, lists: &aniListListCache{store: store, ttl: listTTL, logger: logger}, shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+		anilist: aniListWorker, anilistClient: aniListClient}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
 	p.registerMediaSources(mux, a)
 	p.registerAnime(mux, a)
+	p.registerTrackers(mux, a)
+	p.registerSync(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {
 			logger.Error("health check failed", "error", err)

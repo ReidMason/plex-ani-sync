@@ -43,7 +43,7 @@ An Episode state: the User's Plex Account has played it at least once. Carries w
 _Avoid_: Seen, viewed, completed
 
 **Tracker**:
-A site a User's watch progress is written to, such as AniList. Added after Media Sources.
+A site a User's watch progress is tracked on, such as AniList. A User links one by their public username. Added after Media Sources.
 _Avoid_: Destination, target, sink
 
 **Entry**:
@@ -64,3 +64,11 @@ A Show with no Mapping at all.
 **Needs Review**:
 A Show whose Mappings exist but disagree with the Episodes it has, such as differing episode counts. It is not synced until the dataset or a Custom Mapping fixes it.
 _Avoid_: Broken, invalid
+
+**Progress**:
+The number of an Entry's Episodes that are Watched, counted across every Season Mapped to it. Episodes need not be consecutive.
+_Avoid_: Position, last episode
+
+**Sync Plan**:
+The changes a sync would make to a User's Tracker, each with the Entry's current and proposed state and a reason, plus the Shows skipped and why. It is computed on request and never applied.
+_Avoid_: Diff, preview

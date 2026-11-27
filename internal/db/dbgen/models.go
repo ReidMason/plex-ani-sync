@@ -72,6 +72,13 @@ type TmdbTvdbLink struct {
 	TvdbID int64
 }
 
+type Tracker struct {
+	UserID    int64
+	Kind      string
+	Username  string
+	CreatedAt pgtype.Timestamptz
+}
+
 type User struct {
 	ID          int64
 	OidcIssuer  string
