@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	DefaultURL = "https://graphql.anilist.co"
-	MaxBatch   = 50
+	MaxBatch = 50
 
 	defaultRetryAfter = time.Minute
 	initialBackoff    = 30 * time.Second

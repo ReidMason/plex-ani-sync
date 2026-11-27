@@ -7,12 +7,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/ReidMason/plex-ani-sync/internal/loopbacktest"
+	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
 
 var (
@@ -21,6 +25,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	loopbacktest.Install()
 	ctx := context.Background()
 	pg, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("postgres"),
@@ -137,5 +142,23 @@ func TestMigrationsRunOnStartup(t *testing.T) {
 	}
 	if applied == 0 {
 		t.Error("no migrations applied")
+	}
+}
+
+func TestRefusesToStartWithoutExternalURL(t *testing.T) {
+	cases := map[string]func(*server.Config){
+		"PlexTVURL":     func(c *server.Config) { c.PlexTVURL = "" },
+		"AniListURL":    func(c *server.Config) { c.AniListURL = "" },
+		"FribbURL":      func(c *server.Config) { c.FribbURL = "" },
+		"AnimeListsURL": func(c *server.Config) { c.AnimeListsURL = "" },
+	}
+	for field, clear := range cases {
+		t.Run(field, func(t *testing.T) {
+			_, err := tryStartApp(t, withConfigEdit(clear))
+
+			if err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("err = %v, want error naming %s", err, field)
+			}
+		})
 	}
 }

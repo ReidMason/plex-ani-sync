@@ -67,6 +67,7 @@ type appSettings struct {
 	customMappings   []mappings.Mapping
 	refreshInterval  time.Duration
 	aniListPerMinute int
+	configEdits      []func(*server.Config)
 }
 
 type appOption func(*appSettings)
@@ -117,10 +118,23 @@ func withDatasetSetup(fn func(*datasettest.Host)) appOption {
 	return func(s *appSettings) { s.datasetSetup = append(s.datasetSetup, fn) }
 }
 
+func withConfigEdit(fn func(*server.Config)) appOption {
+	return func(s *appSettings) { s.configEdits = append(s.configEdits, fn) }
+}
+
 // restartOf starts against prev's database, key, clock and fakes, unless other options replace them.
 func restartOf(prev *app) appOption { return func(s *appSettings) { s.restart = prev } }
 
 func startApp(t *testing.T, opts ...appOption) *app {
+	t.Helper()
+	a, err := tryStartApp(t, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func tryStartApp(t *testing.T, opts ...appOption) (*app, error) {
 	t.Helper()
 	var s appSettings
 	for _, opt := range opts {
@@ -178,15 +192,18 @@ func startApp(t *testing.T, opts ...appOption) *app {
 		Clock:                  a.clock.Now,
 		UsernameTTL:            usernameTTL,
 	}
+	for _, edit := range s.configEdits {
+		edit(&cfg)
+	}
 	h, closeFn, err := server.New(context.Background(), cfg)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	t.Cleanup(closeFn)
 	a.server = httptest.NewServer(h)
 	t.Cleanup(a.server.Close)
 	a.URL = a.server.URL
-	return &a
+	return &a, nil
 }
 
 func (a *app) browser() *browser {
