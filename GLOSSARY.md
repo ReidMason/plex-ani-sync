@@ -43,8 +43,12 @@ An Episode state: the User's Plex Account has played it at least once. Carries w
 _Avoid_: Seen, viewed, completed
 
 **Tracker**:
-A site a User's watch progress is tracked on, such as AniList. A User links one by their public username. Added after Media Sources.
+A site a User's watch progress is tracked on, such as AniList. A User links one by their public username, and may then Authorise it so syncs can change their list. Added after Media Sources.
 _Avoid_: Destination, target, sink
+
+**Authorised**:
+A Tracker state: the User has granted this project permission to change their list on the site. A Tracker that is not Authorised can only be read, so it yields a Sync Plan but is never changed. Authorisation can lapse or be revoked, returning the Tracker to not Authorised.
+_Avoid_: Connected, logged in
 
 **Entry**:
 A single item on a Tracker with its own episode numbering, such as one AniList anime. One Show can span several Entries, and one Entry can span several Seasons.
