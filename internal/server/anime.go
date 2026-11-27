@@ -74,17 +74,24 @@ func (p *plexLink) registerAnime(mux *http.ServeMux, a *auth) {
 }
 
 func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
-	rows, err := p.queries.ListAnimeLibrariesForUser(r.Context(), s.UserID)
+	out, err := p.userShows(r, s.UserID)
 	if err != nil {
-		internalError(w, p.logger, err)
+		p.writeMediaError(w, err)
 		return
+	}
+	writeJSON(w, out)
+}
+
+func (p *plexLink) userShows(r *http.Request, userID int64) ([]showJSON, error) {
+	rows, err := p.queries.ListAnimeLibrariesForUser(r.Context(), userID)
+	if err != nil {
+		return nil, err
 	}
 	out := []showJSON{}
 	if len(rows) > 0 {
-		token, err := p.accountToken(r, s.UserID)
+		token, err := p.accountToken(r, userID)
 		if err != nil {
-			internalError(w, p.logger, err)
-			return
+			return nil, err
 		}
 		selections := groupSelections(rows)
 		perSource := make([][]media.Show, len(selections))
@@ -96,8 +103,7 @@ func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSess
 			})
 		}
 		if err := g.Wait(); err != nil {
-			p.writeMediaError(w, err)
-			return
+			return nil, err
 		}
 		for i, sel := range selections {
 			for _, show := range perSource[i] {
@@ -106,11 +112,10 @@ func (p *plexLink) anime(w http.ResponseWriter, r *http.Request, s dbgen.GetSess
 		}
 	}
 	if err := p.attachMappings(r.Context(), out); err != nil {
-		internalError(w, p.logger, err)
-		return
+		return nil, err
 	}
 	slices.SortStableFunc(out, func(a, b showJSON) int { return strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title)) })
-	writeJSON(w, out)
+	return out, nil
 }
 
 type selection struct {

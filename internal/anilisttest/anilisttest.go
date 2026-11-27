@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -37,6 +38,9 @@ type Host struct {
 	status   int
 	retry    string
 	requests int
+	writes   int
+	hold     chan struct{}
+	arrived  chan struct{}
 }
 
 func New(t *testing.T) *Host {
@@ -84,6 +88,24 @@ func (h *Host) FailWithRetryAfter(status, seconds int) {
 	h.retry = strconv.Itoa(seconds)
 }
 
+// HoldUserLists makes user list requests block once they arrive, until release is called; arrived receives one value per held request.
+func (h *Host) HoldUserLists() (arrived <-chan struct{}, release func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.hold = make(chan struct{})
+	h.arrived = make(chan struct{}, 16)
+	var once sync.Once
+	hold := h.hold
+	return h.arrived, func() { once.Do(func() { close(hold) }) }
+}
+
+// Writes counts requests that tried to change data on AniList.
+func (h *Host) Writes() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.writes
+}
+
 func (h *Host) Requests() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -92,6 +114,7 @@ func (h *Host) Requests() int {
 
 func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		Query     string `json:"query"`
 		Variables struct {
 			IDs  []int   `json:"ids"`
 			Name *string `json:"name"`
@@ -100,6 +123,10 @@ func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	h.mu.Lock()
 	h.requests++
+	if strings.Contains(strings.ToLower(body.Query), "mutation") {
+		h.writes++
+	}
+	hold, arrived := h.hold, h.arrived
 	status, retry := h.status, h.retry
 	found := []Media{}
 	for _, id := range body.Variables.IDs {
@@ -115,6 +142,10 @@ func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 		private = h.private[*name]
 	}
 	h.mu.Unlock()
+	if hold != nil && name != nil {
+		arrived <- struct{}{}
+		<-hold
+	}
 	if status != 0 {
 		if retry != "" {
 			w.Header().Set("Retry-After", retry)
