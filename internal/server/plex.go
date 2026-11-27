@@ -35,6 +35,7 @@ type plexLink struct {
 	anilist       *aniListCache
 	anilistClient *anilist.Client
 	now           func() time.Time
+	lists         *aniListListCache
 	shows         *showsCache
 	syncing       sync.Map
 }
