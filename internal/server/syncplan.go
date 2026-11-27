@@ -24,6 +24,7 @@ type listState struct {
 type entryFacts struct {
 	anilistID   int64
 	title       string
+	seasons     []int
 	watched     int
 	lastWatched *time.Time
 	total       *int
@@ -33,6 +34,7 @@ type entryFacts struct {
 type planChange struct {
 	AniListID int64      `json:"anilistId"`
 	Title     string     `json:"title"`
+	Seasons   []int      `json:"seasons"`
 	Current   *listState `json:"current"`
 	Proposed  listState  `json:"proposed"`
 	Reason    string     `json:"reason"`
@@ -53,7 +55,7 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 	if current != nil && proposed == *current {
 		return planChange{}, false
 	}
-	return planChange{AniListID: f.anilistID, Title: f.title, Current: current, Proposed: proposed, Reason: changeReason(f, current, proposed)}, true
+	return planChange{AniListID: f.anilistID, Title: f.title, Seasons: f.seasons, Current: current, Proposed: proposed, Reason: changeReason(f, current, proposed)}, true
 }
 
 func changeReason(f entryFacts, current *listState, proposed listState) string {

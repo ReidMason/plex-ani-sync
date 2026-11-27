@@ -3,6 +3,7 @@ package server_test
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ type planState struct {
 type planChange struct {
 	AniListID int        `json:"anilistId"`
 	Title     string     `json:"title"`
+	Seasons   []int      `json:"seasons"`
 	Current   *planState `json:"current"`
 	Proposed  planState  `json:"proposed"`
 	Reason    string     `json:"reason"`
@@ -493,5 +495,25 @@ func TestAdditionsFollowTheIdleRulesPausedAfter14DaysAndDroppedAfter30(t *testin
 	}
 	if got := plan.change(20); got == nil || got.Proposed != (planState{"DROPPED", 2}) {
 		t.Errorf("abandoned: %+v", got)
+	}
+}
+
+func TestChangesNameThePlexSeasonsEachEntryCovers(t *testing.T) {
+	t.Parallel()
+	p, b, srv := syncSetup(t,
+		datasettest.FribbEntry{AniDBID: 100, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(2), Type: "TV"},
+	)
+	watch(srv, "Multi", 1, true, true)
+	watch(srv, "Multi", 2, true)
+	srv.SetShowGUIDs("2", "Multi", "tvdb://77")
+	selectAnime(b, srv)
+	linkedToList(p, b)
+
+	_, plan := b.syncNow()
+
+	first, second := plan.change(1001), plan.change(2002)
+	if first == nil || !slices.Equal(first.Seasons, []int{1}) || second == nil || !slices.Equal(second.Seasons, []int{2}) {
+		t.Fatalf("plan %+v", plan)
 	}
 }
