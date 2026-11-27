@@ -33,6 +33,7 @@ type plexLink struct {
 	logger        *slog.Logger
 	anilist       *aniListCache
 	anilistClient *anilist.Client
+	lists         *aniListListCache
 	shows         *showsCache
 	syncing       sync.Map
 }

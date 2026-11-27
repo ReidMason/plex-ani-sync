@@ -34,6 +34,7 @@ type syncPlan struct {
 	Changes []planChange `json:"changes"`
 	Skipped []planSkip   `json:"skipped"`
 	Error   string       `json:"error"`
+	Until   time.Time    `json:"until"`
 }
 
 func (b *browser) syncNow() (int, syncPlan) {
@@ -213,7 +214,7 @@ func TestSyncReportsAniListThrottle(t *testing.T) {
 
 	status, plan := b.syncNow()
 
-	if status != http.StatusTooManyRequests || plan.Error != "throttled" {
+	if status != http.StatusTooManyRequests || plan.Error != "throttled" || !plan.Until.After(p.clock.Now()) {
 		t.Errorf("status %d %+v", status, plan)
 	}
 }
@@ -253,5 +254,51 @@ func TestSyncNeverWritesToAniList(t *testing.T) {
 
 	if len(plan.Changes) != 1 || p.anilist.Writes() != 0 {
 		t.Errorf("changes %d, writes %d", len(plan.Changes), p.anilist.Writes())
+	}
+}
+
+func TestSecondSyncDoesNotRefetchTheAniListList(t *testing.T) {
+	t.Parallel()
+	p, b, _ := syncSetup(t)
+	linkedToList(p, b, anilisttest.ListEntry{MediaID: 10, Status: "CURRENT", Progress: 1})
+	b.syncNow()
+	before := p.anilist.Requests()
+
+	status, _ := b.syncNow()
+
+	if status != http.StatusOK || p.anilist.Requests() != before {
+		t.Errorf("status %d, anilist requests %d -> %d", status, before, p.anilist.Requests())
+	}
+}
+
+func TestSyncRefetchesTheAniListListOnceTheCacheExpires(t *testing.T) {
+	t.Parallel()
+	p, b, _ := syncSetup(t)
+	linkedToList(p, b)
+	b.syncNow()
+	before := p.anilist.Requests()
+	p.clock.Advance(10 * time.Minute)
+
+	status, _ := b.syncNow()
+
+	if status != http.StatusOK || p.anilist.Requests() != before+1 {
+		t.Errorf("status %d, anilist requests %d -> %d", status, before, p.anilist.Requests())
+	}
+}
+
+func TestSecondSyncDoesNotRefetchPlexShows(t *testing.T) {
+	t.Parallel()
+	p, b, srv := syncSetup(t, datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"})
+	watch(srv, "Show", 1, true)
+	srv.SetShowGUIDs("2", "Show", "tvdb://1")
+	selectAnime(b, srv)
+	linkedToList(p, b)
+	b.syncNow()
+	before := srv.Requests()
+
+	_, plan := b.syncNow()
+
+	if srv.Requests() != before+1 || len(plan.Changes) != 1 {
+		t.Errorf("plex requests %d -> %d, plan %+v", before, srv.Requests(), plan)
 	}
 }

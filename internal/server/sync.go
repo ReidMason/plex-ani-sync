@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilist"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 )
 
@@ -38,7 +39,9 @@ func (p *plexLink) syncNow(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 	}
 	defer p.syncing.Delete(s.UserID)
 
-	list, err := p.anilistClient.UserList(r.Context(), *username)
+	list, err := p.lists.get(r.Context(), *username, func() ([]anilist.ListEntry, error) {
+		return p.anilistClient.UserList(r.Context(), *username)
+	})
 	if err != nil {
 		p.writeAniListError(w, err)
 		return
