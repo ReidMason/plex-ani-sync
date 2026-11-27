@@ -17,6 +17,9 @@ type Config struct {
 	OIDCClientID     string
 	OIDCClientSecret string
 	EncryptionKey    []byte
+	// AniListClientID and AniListClientSecret are either both set, enabling AniList authorisation, or both empty.
+	AniListClientID     string
+	AniListClientSecret string
 	// AniListRequestsPerMinute caps requests to AniList; it defaults to 30, well below AniList's documented limit.
 	AniListRequestsPerMinute int
 }
@@ -60,6 +63,14 @@ func Load(getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("APP_ENCRYPTION_KEY must be %d random bytes encoded as base64, e.g. from `openssl rand -base64 32` (see README)", secretbox.KeySize)
 	}
 	cfg.EncryptionKey = key
+	cfg.AniListClientID = getenv("ANILIST_CLIENT_ID")
+	cfg.AniListClientSecret = getenv("ANILIST_CLIENT_SECRET")
+	switch {
+	case cfg.AniListClientID != "" && cfg.AniListClientSecret == "":
+		return Config{}, fmt.Errorf("ANILIST_CLIENT_SECRET is missing: ANILIST_CLIENT_ID and ANILIST_CLIENT_SECRET must be set together (see README)")
+	case cfg.AniListClientID == "" && cfg.AniListClientSecret != "":
+		return Config{}, fmt.Errorf("ANILIST_CLIENT_ID is missing: ANILIST_CLIENT_ID and ANILIST_CLIENT_SECRET must be set together (see README)")
+	}
 	cfg.AniListRequestsPerMinute = DefaultAniListRequestsPerMinute
 	if v := getenv("ANILIST_REQUESTS_PER_MINUTE"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -69,6 +80,10 @@ func Load(getenv func(string) string) (Config, error) {
 		cfg.AniListRequestsPerMinute = n
 	}
 	return cfg, nil
+}
+
+func (c Config) AniListAuthorisationAvailable() bool {
+	return c.AniListClientID != ""
 }
 
 func (c Config) RedirectURI() string {

@@ -23,21 +23,22 @@ import (
 const clientIdentifierSetting = "plex_client_identifier"
 
 type plexLink struct {
-	usernames     *usernameCache
-	client        plex.Client
-	server        plex.ServerClient
-	sources       map[mediaKind]media.Source
-	clientID      string
-	box           *secretbox.Box
-	queries       *dbgen.Queries
-	pool          *pgxpool.Pool
-	logger        *slog.Logger
-	anilist       *aniListCache
-	anilistClient *anilist.Client
-	now           func() time.Time
-	lists         *aniListListCache
-	shows         *showsCache
-	syncing       sync.Map
+	aniListAuthorisationAvailable bool
+	usernames                     *usernameCache
+	client                        plex.Client
+	server                        plex.ServerClient
+	sources                       map[mediaKind]media.Source
+	clientID                      string
+	box                           *secretbox.Box
+	queries                       *dbgen.Queries
+	pool                          *pgxpool.Pool
+	logger                        *slog.Logger
+	anilist                       *aniListCache
+	anilistClient                 *anilist.Client
+	now                           func() time.Time
+	lists                         *aniListListCache
+	shows                         *showsCache
+	syncing                       sync.Map
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {

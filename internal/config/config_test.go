@@ -83,6 +83,39 @@ func TestLoadReportsAllMissingVariables(t *testing.T) {
 	}
 }
 
+func TestLoadAniListCredentialsAreOptionalButMustComeTogether(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, id, secret, missing string
+	}{
+		{"neither", "", "", ""},
+		{"both", "id", "secret", ""},
+		{"only id", "id", "", "ANILIST_CLIENT_SECRET"},
+		{"only secret", "", "secret", "ANILIST_CLIENT_ID"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			env := validEnv()
+			env["ANILIST_CLIENT_ID"] = c.id
+			env["ANILIST_CLIENT_SECRET"] = c.secret
+			cfg, err := config.Load(func(k string) string { return env[k] })
+			if c.missing != "" {
+				if err == nil || !strings.Contains(err.Error(), c.missing) {
+					t.Fatalf("err = %v, want one naming %s", err, c.missing)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.AniListClientID != c.id || cfg.AniListClientSecret != c.secret {
+				t.Errorf("unexpected credentials: %+v", cfg)
+			}
+		})
+	}
+}
+
 func TestLoadDecodesEncryptionKey(t *testing.T) {
 	t.Parallel()
 	env := validEnv()

@@ -159,7 +159,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		listTTL = defaultAniListListTTL
 	}
 	p := &plexLink{now: clock.Now, lists: &aniListListCache{store: store, ttl: listTTL, logger: logger}, shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
-		anilist: aniListWorker, anilistClient: aniListClient}
+		anilist: aniListWorker, anilistClient: aniListClient, aniListAuthorisationAvailable: cfg.Env.AniListAuthorisationAvailable()}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)

@@ -39,7 +39,18 @@ func (p *plexLink) getAniListTracker(w http.ResponseWriter, r *http.Request, s d
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, map[string]*string{"username": name})
+	writeJSON(w, p.trackerStatus(name))
+}
+
+// Authorised stays false until the OAuth callback can store a token.
+func (p *plexLink) trackerStatus(username *string) trackerStatus {
+	return trackerStatus{Username: username, Authorised: false, AuthorisationAvailable: p.aniListAuthorisationAvailable}
+}
+
+type trackerStatus struct {
+	Username               *string `json:"username"`
+	Authorised             bool    `json:"authorised"`
+	AuthorisationAvailable bool    `json:"authorisationAvailable"`
 }
 
 func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
@@ -62,7 +73,7 @@ func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s 
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, map[string]string{"username": username})
+	writeJSON(w, p.trackerStatus(&username))
 }
 
 func (p *plexLink) unlinkAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {

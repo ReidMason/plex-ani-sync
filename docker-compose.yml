@@ -24,6 +24,9 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set the OIDC client id}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set the OIDC client secret}
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?set a base64 32 byte key, e.g. openssl rand -base64 32}
+      # Optional, set both or neither. Redirect URI to register: <PUBLIC_BASE_URL>/auth/anilist/callback
+      ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
+      ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

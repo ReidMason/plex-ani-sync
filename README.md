@@ -31,6 +31,8 @@ Open <http://localhost:8080>.
 | `OIDC_CLIENT_SECRET` | OIDC client secret (required) |
 | `APP_ENCRYPTION_KEY` | Base64 of 32 random bytes; encrypts Plex tokens at rest (required). Losing it means everyone re-signs in to Plex |
 | `LISTEN_ADDR` | Listen address, default `:8080` |
+| `ANILIST_CLIENT_ID` | AniList API client ID. Optional, but must be set together with `ANILIST_CLIENT_SECRET`; enables authorising Trackers on AniList. See [AniList setup](#anilist-setup) |
+| `ANILIST_CLIENT_SECRET` | AniList API client secret. Optional, but must be set together with `ANILIST_CLIENT_ID` |
 | `ANILIST_REQUESTS_PER_MINUTE` | Cap on requests to AniList, default `30` (AniList documents 90 but has lowered it before) |
 
 ## Authentik setup
@@ -38,6 +40,14 @@ Open <http://localhost:8080>.
 1. **Applications > Providers > Create > OAuth2/OpenID Provider.** Client type `Confidential`, redirect URI strict match on `<PUBLIC_BASE_URL>/auth/callback`.
 2. **Applications > Applications > New Application > With existing provider.** Set a name and slug (e.g. `plex-ani-sync`).
 3. Copy the client ID and secret from the provider into `.env`. The issuer is normally `https://<authentik-host>/application/o/<slug>/`.
+
+## AniList setup
+
+Optional. Without it Users can still link an AniList username and read their Sync Plan, but cannot authorise the app to change their list.
+
+1. Open <https://anilist.co/settings/developer> and **Create New Client**.
+2. Set the redirect URL to `<PUBLIC_BASE_URL>/auth/anilist/callback`.
+3. Copy the client ID and secret into `ANILIST_CLIENT_ID` and `ANILIST_CLIENT_SECRET` in `.env`. Setting only one makes startup fail.
 
 ## Development
 
