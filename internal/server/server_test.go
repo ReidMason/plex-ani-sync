@@ -10,10 +10,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/ReidMason/plex-ani-sync/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
+
+const templateDB = "app_template"
 
 var (
 	adminURL string
@@ -27,19 +30,42 @@ func TestMain(m *testing.M) {
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),
+		testcontainers.WithCmdArgs("-c", "synchronous_commit=off", "-c", "full_page_writes=off"),
+		testcontainers.WithTmpfs(map[string]string{"/var/lib/postgresql/data": "rw"}),
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "start postgres container:", err)
 		os.Exit(1)
 	}
 	adminURL, err = pg.ConnectionString(ctx, "sslmode=disable")
+	if err == nil {
+		err = createTemplate(ctx)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		_ = testcontainers.TerminateContainer(pg)
 		os.Exit(1)
 	}
 	code := m.Run()
 	_ = testcontainers.TerminateContainer(pg)
 	os.Exit(code)
+}
+
+func createTemplate(ctx context.Context) error {
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+templateDB); err != nil {
+		return err
+	}
+	pool, err := db.Open(ctx, databaseURL(templateDB))
+	if err != nil {
+		return fmt.Errorf("migrate template database: %w", err)
+	}
+	pool.Close()
+	return nil
 }
 
 func newDatabase(t *testing.T) string {
@@ -51,12 +77,16 @@ func newDatabase(t *testing.T) string {
 	}
 	defer conn.Close(ctx)
 	name := fmt.Sprintf("test_%d", dbSeq.Add(1))
-	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name); err != nil {
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+templateDB); err != nil {
 		t.Fatal(err)
 	}
+	return databaseURL(name)
+}
+
+func databaseURL(name string) string {
 	u, err := url.Parse(adminURL)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	u.Path = "/" + name
 	return u.String()
