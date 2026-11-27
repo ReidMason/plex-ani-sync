@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/ReidMason/plex-ani-sync/internal/anilist"
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 	"github.com/ReidMason/plex-ani-sync/internal/media"
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
@@ -20,17 +21,18 @@ import (
 const clientIdentifierSetting = "plex_client_identifier"
 
 type plexLink struct {
-	usernames *usernameCache
-	client    plex.Client
-	server    plex.ServerClient
-	sources   map[mediaKind]media.Source
-	clientID  string
-	box       *secretbox.Box
-	queries   *dbgen.Queries
-	pool      *pgxpool.Pool
-	logger    *slog.Logger
-	anilist   *aniListCache
-	shows     *showsCache
+	usernames     *usernameCache
+	client        plex.Client
+	server        plex.ServerClient
+	sources       map[mediaKind]media.Source
+	clientID      string
+	box           *secretbox.Box
+	queries       *dbgen.Queries
+	pool          *pgxpool.Pool
+	logger        *slog.Logger
+	anilist       *aniListCache
+	anilistClient *anilist.Client
+	shows         *showsCache
 }
 
 func (p *plexLink) register(mux *http.ServeMux, a *auth) {
