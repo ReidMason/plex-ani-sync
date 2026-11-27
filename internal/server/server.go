@@ -31,18 +31,15 @@ type Config struct {
 	Env    config.Config
 	Assets fs.FS
 	Logger *slog.Logger
-	// PlexTVURL overrides https://plex.tv, for tests.
-	PlexTVURL string
-	// FribbURL overrides the Fribb anime-list-full.json location, for tests.
-	FribbURL string
+	// PlexTVURL, FribbURL, AnimeListsURL and AniListURL locate the external services; all are required.
+	PlexTVURL     string
+	FribbURL      string
+	AnimeListsURL string
+	AniListURL    string
 	// CustomMappings replaces the embedded Custom Mappings, for tests.
 	CustomMappings []mappings.Mapping
-	// AnimeListsURL overrides the Anime-Lists anime-list.xml location, for tests.
-	AnimeListsURL string
 	// DatasetRefreshInterval is how often the mapping datasets are re-downloaded; it defaults to 24 hours.
 	DatasetRefreshInterval time.Duration
-	// AniListURL overrides the AniList GraphQL endpoint, for tests.
-	AniListURL string
 	// AniListPollInterval is how often the AniList worker rechecks its queue; it defaults to 1 second.
 	AniListPollInterval time.Duration
 	// Cache stores shows pulled from media sources; it defaults to an in-memory cache.
@@ -57,6 +54,9 @@ type Config struct {
 
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
 func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
+	if err := cfg.requireExternalURLs(); err != nil {
+		return nil, nil, err
+	}
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -101,14 +101,6 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load plex client identifier: %w", err)
 	}
-	plexTV := cfg.PlexTVURL
-	if plexTV == "" {
-		plexTV = plex.DefaultTVURL
-	}
-	fribbURL := cfg.FribbURL
-	if fribbURL == "" {
-		fribbURL = defaultFribbURL
-	}
 	custom := cfg.CustomMappings
 	if custom == nil {
 		if custom, err = mappings.Custom(); err != nil {
@@ -116,11 +108,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 			return nil, nil, err
 		}
 	}
-	animeListsURL := cfg.AnimeListsURL
-	if animeListsURL == "" {
-		animeListsURL = defaultAnimeListsURL
-	}
-	datasets := datasetSync{pool: pool, queries: queries, fribbURL: fribbURL, animeListsURL: animeListsURL, custom: custom, logger: logger}
+	datasets := datasetSync{pool: pool, queries: queries, fribbURL: cfg.FribbURL, animeListsURL: cfg.AnimeListsURL, custom: custom, logger: logger}
 	if err := datasets.loadAtStartup(ctx); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
@@ -131,10 +119,6 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	}
 	refreshCtx, cancelRefresh := context.WithCancel(ctx)
 	stopTicks := clock.Every(refreshEvery, func() { datasets.refreshOnTick(refreshCtx) })
-	aniListURL := cfg.AniListURL
-	if aniListURL == "" {
-		aniListURL = anilist.DefaultURL
-	}
 	ttl := cfg.UsernameTTL
 	if ttl == 0 {
 		ttl = defaultUsernameTTL
@@ -147,7 +131,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: aniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock.Now, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.AniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock.Now, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
 	go func() {
@@ -163,7 +147,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if showsTTL == 0 {
 		showsTTL = defaultShowsTTL
 	}
-	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.PlexTVURL), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: aniListWorker}
 	mux := http.NewServeMux()
 	a.register(mux)
@@ -186,6 +170,24 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		<-aniListDone
 		pool.Close()
 	}, nil
+}
+
+func (c Config) requireExternalURLs() error {
+	var missing []string
+	for _, u := range []struct{ name, value string }{
+		{"PlexTVURL", c.PlexTVURL},
+		{"FribbURL", c.FribbURL},
+		{"AnimeListsURL", c.AnimeListsURL},
+		{"AniListURL", c.AniListURL},
+	} {
+		if u.value == "" {
+			missing = append(missing, u.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("server config missing required %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func staticHandler(assets fs.FS) http.Handler {
