@@ -20,6 +20,8 @@ func (p *plexLink) registerTrackers(mux *http.ServeMux, a *auth) {
 	mux.HandleFunc("GET /api/trackers/anilist", a.authenticated(p.getAniListTracker))
 	mux.HandleFunc("PUT /api/trackers/anilist", a.authenticated(p.linkAniListTracker))
 	mux.HandleFunc("DELETE /api/trackers/anilist", a.authenticated(p.unlinkAniListTracker))
+	mux.HandleFunc("GET /auth/anilist/start", a.authenticated(p.startAniListAuthorisation))
+	mux.HandleFunc("GET /auth/anilist/callback", a.authenticated(p.finishAniListAuthorisation))
 }
 
 func (p *plexLink) aniListUsername(ctx context.Context, userID int64) (*string, error) {
@@ -34,17 +36,20 @@ func (p *plexLink) aniListUsername(ctx context.Context, userID int64) (*string, 
 }
 
 func (p *plexLink) getAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
-	name, err := p.aniListUsername(r.Context(), s.UserID)
+	row, err := p.queries.GetTrackerStatus(r.Context(), dbgen.GetTrackerStatusParams{UserID: s.UserID, Kind: trackerKindAniList})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeJSON(w, p.trackerStatus(nil, false))
+		return
+	}
 	if err != nil {
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, p.trackerStatus(name))
+	writeJSON(w, p.trackerStatus(&row.Username, row.Authorised))
 }
 
-// Authorised stays false until the OAuth callback can store a token.
-func (p *plexLink) trackerStatus(username *string) trackerStatus {
-	return trackerStatus{Username: username, Authorised: false, AuthorisationAvailable: p.aniListAuthorisationAvailable}
+func (p *plexLink) trackerStatus(username *string, authorised bool) trackerStatus {
+	return trackerStatus{Username: username, Authorised: authorised, AuthorisationAvailable: p.aniListOAuth != nil}
 }
 
 type trackerStatus struct {
@@ -73,7 +78,12 @@ func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s 
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, p.trackerStatus(&username))
+	status, err := p.queries.GetTrackerStatus(r.Context(), dbgen.GetTrackerStatusParams{UserID: s.UserID, Kind: trackerKindAniList})
+	if err != nil {
+		internalError(w, p.logger, err)
+		return
+	}
+	writeJSON(w, p.trackerStatus(&username, status.Authorised))
 }
 
 func (p *plexLink) unlinkAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {

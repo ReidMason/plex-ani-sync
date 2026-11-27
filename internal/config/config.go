@@ -89,3 +89,7 @@ func (c Config) AniListAuthorisationAvailable() bool {
 func (c Config) RedirectURI() string {
 	return strings.TrimRight(c.PublicBaseURL, "/") + "/auth/callback"
 }
+
+func (c Config) AniListRedirectURI() string {
+	return strings.TrimRight(c.PublicBaseURL, "/") + "/auth/anilist/callback"
+}

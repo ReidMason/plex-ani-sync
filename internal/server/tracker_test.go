@@ -88,8 +88,8 @@ func (b *browser) trackerStatus() trackerStatus {
 
 func withAniListCredentials() appOption {
 	return withConfigEdit(func(c *server.Config) {
-		c.Env.AniListClientID = "anilist-client"
-		c.Env.AniListClientSecret = "anilist-secret"
+		c.Env.AniListClientID = anilisttest.ClientID
+		c.Env.AniListClientSecret = anilisttest.ClientSecret
 	})
 }
 

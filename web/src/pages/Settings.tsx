@@ -7,7 +7,7 @@ export function Settings() {
     <>
       <PageHeader title="Settings" description="Where your watch progress is tracked. Your AniList list must be public." />
       <Card className="p-5">
-        <AniListLink />
+        <AniListLink returnTo="settings" />
       </Card>
     </>
   );

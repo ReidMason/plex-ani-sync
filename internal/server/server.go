@@ -56,12 +56,17 @@ type ExternalURLs struct {
 	Fribb      string
 	AnimeLists string
 	AniList    string
+	// AniListOAuth is the base URL of AniList's OAuth endpoints; it is required only when AniList credentials are set.
+	AniListOAuth string
 }
 
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
 func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if err := cfg.ExternalURLs.requireAll(); err != nil {
 		return nil, nil, err
+	}
+	if cfg.Env.AniListAuthorisationAvailable() && cfg.ExternalURLs.AniListOAuth == "" {
+		return nil, nil, fmt.Errorf("server config missing required ExternalURLs.AniListOAuth")
 	}
 	logger := cfg.Logger
 	if logger == nil {
@@ -159,7 +164,11 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		listTTL = defaultAniListListTTL
 	}
 	p := &plexLink{now: clock.Now, lists: &aniListListCache{store: store, ttl: listTTL, logger: logger}, shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
-		anilist: aniListWorker, anilistClient: aniListClient, aniListAuthorisationAvailable: cfg.Env.AniListAuthorisationAvailable()}
+		anilist: aniListWorker, anilistClient: aniListClient}
+	if cfg.Env.AniListAuthorisationAvailable() {
+		p.aniListOAuth = &anilist.OAuth{BaseURL: cfg.ExternalURLs.AniListOAuth, ClientID: cfg.Env.AniListClientID, ClientSecret: cfg.Env.AniListClientSecret, RedirectURI: cfg.Env.AniListRedirectURI(), HTTP: http.DefaultClient}
+		p.stateKey = cfg.Env.EncryptionKey
+	}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
