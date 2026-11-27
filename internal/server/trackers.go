@@ -21,8 +21,6 @@ func (p *plexLink) registerTrackers(mux *http.ServeMux, a *auth) {
 	mux.HandleFunc("GET /api/trackers/anilist", a.authenticated(p.getAniListTracker))
 	mux.HandleFunc("PUT /api/trackers/anilist", a.authenticated(p.linkAniListTracker))
 	mux.HandleFunc("DELETE /api/trackers/anilist", a.authenticated(p.unlinkAniListTracker))
-	mux.HandleFunc("GET /auth/anilist/start", a.authenticated(p.startAniListAuthorisation))
-	mux.HandleFunc("GET /auth/anilist/callback", a.authenticated(p.finishAniListAuthorisation))
 }
 
 func (p *plexLink) aniListUsername(ctx context.Context, userID int64) (*string, error) {

@@ -17,6 +17,11 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/db/dbgen"
 )
 
+func (p *plexLink) registerAniListAuthorisation(mux *http.ServeMux, a *auth) {
+	mux.HandleFunc("GET /auth/anilist/start", a.authenticated(p.startAniListAuthorisation))
+	mux.HandleFunc("GET /auth/anilist/callback", a.authenticated(p.finishAniListAuthorisation))
+}
+
 const (
 	aniListStateCookie = "plex_ani_sync_anilist_state"
 	cookieFieldSep     = "~"
