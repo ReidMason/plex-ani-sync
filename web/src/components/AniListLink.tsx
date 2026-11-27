@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { linkAniList, unlinkAniList, useAniListStatus } from "@/api";
+import { AniListSetupNotice } from "@/components/AniListSetupNotice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -80,6 +81,7 @@ export function AniListLink({ returnTo }: { returnTo: "setup" | "settings" }) {
           {revokeHint}
         </div>
       )}
+      {current.data && !canAuthorise && <AniListSetupNotice />}
       {canAuthorise && (
         <Button asChild variant={authorised ? "outline" : "default"} className="self-start">
           <a href={`/auth/anilist/start?return=${returnTo}`}>{authorised ? "Re-authorise on AniList" : "Authorise on AniList"}</a>

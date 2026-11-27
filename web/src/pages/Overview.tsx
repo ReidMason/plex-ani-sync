@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { type MediaSource, type Me } from "@/api";
+import { type MediaSource, type Me, useAniListStatus } from "@/api";
+import { AniListSetupNotice } from "@/components/AniListSetupNotice";
 import { PageHeader } from "@/components/PageHeader";
 import { ReSignInBanner } from "@/components/ReSignInBanner";
 import { ServerRow } from "@/components/ServerRow";
@@ -9,10 +10,12 @@ import { Card } from "@/components/ui/card";
 
 export function Overview({ me, sources }: { me: Me; sources: MediaSource[] }) {
   const needsSignIn = me.plex?.needsReSignIn;
+  const aniList = useAniListStatus().data;
   return (
     <>
       <PageHeader title="Overview" description="Where your watch history comes from." />
       <ReSignInBanner me={me} />
+      {aniList && !aniList.authorisationAvailable && <AniListSetupNotice className="mb-8" />}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="gap-3 p-5">
           <h2 className="text-sm font-medium text-muted-foreground">Plex account</h2>
