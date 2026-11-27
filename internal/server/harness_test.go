@@ -257,7 +257,7 @@ func locationsHolding(t *testing.T, dbURL string, needle []byte) []string {
 		SELECT table_schema, table_name, column_name, data_type = 'bytea'
 		FROM information_schema.columns
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-		  AND data_type IN ('text', 'character varying', 'character', 'bytea', 'json', 'jsonb')`)
+		AND data_type IN ('text', 'character varying', 'character', 'bytea', 'json', 'jsonb')`)
 	if err != nil {
 		t.Fatal(err)
 	}
