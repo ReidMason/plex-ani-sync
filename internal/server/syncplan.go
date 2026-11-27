@@ -46,15 +46,26 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 	if current != nil && (current.Status == listStatusCompleted || current.Status == listStatusRepeating) {
 		return planChange{}, false
 	}
-	proposed := listState{Status: proposedStatus(f, f.watched, current), Progress: f.watched}
-	reason := "Not on your AniList list; " + episodes(f.watched) + " watched in Plex"
+	progress := f.watched
 	if current != nil {
-		if f.watched <= current.Progress {
-			return planChange{}, false
-		}
-		reason = episodes(f.watched) + " watched in Plex, AniList has " + episodes(current.Progress)
+		progress = max(progress, current.Progress)
 	}
-	return planChange{AniListID: f.anilistID, Title: f.title, Current: current, Proposed: proposed, Reason: reason}, true
+	proposed := listState{Status: proposedStatus(f, progress, current), Progress: progress}
+	if current != nil && proposed == *current {
+		return planChange{}, false
+	}
+	return planChange{AniListID: f.anilistID, Title: f.title, Current: current, Proposed: proposed, Reason: changeReason(f, current, proposed)}, true
+}
+
+func changeReason(f entryFacts, current *listState, proposed listState) string {
+	switch {
+	case current == nil:
+		return "Not on your AniList list; " + episodes(f.watched) + " watched in Plex"
+	case proposed.Progress > current.Progress:
+		return episodes(f.watched) + " watched in Plex, AniList has " + episodes(current.Progress)
+	default:
+		return "Progress " + strconv.Itoa(proposed.Progress) + " suggests " + proposed.Status + " instead of " + current.Status
+	}
 }
 
 // proposedStatus is where status rules grow; for now an Entry keeps its status and additions are Watching.
