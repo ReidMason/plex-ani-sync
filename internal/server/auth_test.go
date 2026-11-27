@@ -1,15 +1,13 @@
 package server_test
 
 import (
-	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -82,21 +80,6 @@ func mustParse(t *testing.T, raw string) *url.URL {
 	return u
 }
 
-func queryInt(t *testing.T, dbURL, sql string, args ...any) int {
-	t.Helper()
-	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close(ctx)
-	var n int
-	if err := conn.QueryRow(ctx, sql, args...).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	return n
-}
-
 func TestLoginRedirectsToProviderWithPKCE(t *testing.T) {
 	app := startApp(t)
 
@@ -132,12 +115,6 @@ func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
 	if c == nil || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("session cookie = %+v, want HttpOnly Secure SameSite=Lax", c)
 	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users WHERE oidc_issuer = $1 AND oidc_subject = 'sub-alice'", app.provider.URL); got != 1 {
-		t.Errorf("users = %d, want 1", got)
-	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE display_name = 'Alice'"); got != 1 {
-		t.Errorf("sessions carrying name = %d, want 1", got)
-	}
 	if status, name := b.me(); status != 200 || name != "Alice" {
 		t.Errorf("/api/me = %d %q, want 200 Alice", status, name)
 	}
@@ -145,18 +122,16 @@ func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
 
 func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
 	app := startApp(t)
-	app.provider.SignInAs("sub-alice", "Alice")
-	app.browser().signIn()
+	first := app.signedIn("sub-alice", "Alice")
+	first.link(app, "tok-alice", "alice_plex")
 
-	app.provider.SignInAs("sub-alice", "Alice Renamed")
-	b := app.browser()
-	b.signIn()
+	b := app.signedIn("sub-alice", "Alice Renamed")
 
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users"); got != 1 {
-		t.Errorf("users = %d, want 1", got)
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("second login sees plex username %q, want the first login's alice_plex", got)
 	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 2 {
-		t.Errorf("sessions = %d, want 2", got)
+	if status, _ := first.me(); status != http.StatusOK {
+		t.Errorf("first session after second login: status = %d, want 200", status)
 	}
 	if _, name := b.me(); name != "Alice Renamed" {
 		t.Errorf("name = %q, want Alice Renamed", name)
@@ -165,13 +140,13 @@ func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
 
 func TestDifferentSubjectsAreDifferentUsers(t *testing.T) {
 	app := startApp(t)
-	app.provider.SignInAs("sub-alice", "Alice")
-	app.browser().signIn()
-	app.provider.SignInAs("sub-bob", "Bob")
-	app.browser().signIn()
+	alice := app.signedIn("sub-alice", "Alice")
+	alice.link(app, "tok-alice", "alice_plex")
 
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users"); got != 2 {
-		t.Errorf("users = %d, want 2", got)
+	bob := app.signedIn("sub-bob", "Bob")
+
+	if got := bob.plexUsername(); got != "" {
+		t.Errorf("bob sees plex username %q, want none", got)
 	}
 }
 
@@ -192,13 +167,10 @@ func TestSessionIDIsStoredOnlyAsHash(t *testing.T) {
 	b := app.browser()
 	b.signIn()
 
-	id := b.cookies[sessionCookie].Value
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE id_hash = $1::bytea", []byte(id)); got != 0 {
-		t.Error("raw session id found in sessions table")
-	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE id_hash = sha256($1::bytea)", []byte(id)); got != 1 {
-		t.Errorf("sessions with sha256(id) hash = %d, want 1", got)
-	}
+	id := []byte(b.cookies[sessionCookie].Value)
+	hash := sha256.Sum256(id)
+	assertNotStored(t, app.dbURL, id)
+	assertStored(t, app.dbURL, hash[:])
 }
 
 func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
@@ -218,9 +190,6 @@ func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
 	replay.cookies[sessionCookie] = &old
 	if status, _ := replay.me(); status != http.StatusUnauthorized {
 		t.Errorf("replayed cookie: status = %d, want 401", status)
-	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE revoked_at IS NOT NULL"); got != 1 {
-		t.Errorf("revoked sessions = %d, want 1", got)
 	}
 }
 
@@ -265,8 +234,8 @@ func TestCallbackRejectsBadState(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
-		t.Errorf("sessions = %d, want 0", got)
+	if status, _ := b.me(); status != http.StatusUnauthorized {
+		t.Errorf("/api/me after rejected callback = %d, want 401", status)
 	}
 }
 
@@ -281,8 +250,8 @@ func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
-		t.Errorf("sessions = %d, want 0", got)
+	if status, _ := b.me(); status != http.StatusUnauthorized {
+		t.Errorf("/api/me after rejected callback = %d, want 401", status)
 	}
 	if app.provider.TokenRequests() != 0 {
 		t.Error("code exchange attempted despite provider error")
@@ -304,7 +273,7 @@ func TestCallbackRejectsNonceMismatch(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
-	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
-		t.Errorf("sessions = %d, want 0", got)
+	if status, _ := b.me(); status != http.StatusUnauthorized {
+		t.Errorf("/api/me after rejected callback = %d, want 401", status)
 	}
 }

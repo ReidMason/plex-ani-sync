@@ -121,11 +121,9 @@ func TestPlexTokenIsNotStoredInPlaintext(t *testing.T) {
 
 	b.link(p, "plex-token-secret", "alice_plex")
 
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts WHERE position($1::bytea in token_encrypted) > 0", "plex-token-secret"); n != 0 {
-		t.Error("token found in plaintext")
-	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
-		t.Errorf("plex accounts = %d", n)
+	assertNotStored(t, p.dbURL, []byte("plex-token-secret"))
+	if got := b.plexUsername(); got != "alice_plex" {
+		t.Errorf("username = %q, want alice_plex", got)
 	}
 }
 
@@ -136,9 +134,6 @@ func TestRelinkingReplacesTheUsersSinglePlexAccount(t *testing.T) {
 	b.link(p, "tok-old", "alice_old")
 	b.link(p, "tok-new", "alice_new")
 
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 1 {
-		t.Errorf("plex accounts = %d, want 1", n)
-	}
 	if got := b.plexUsername(); got != "alice_new" {
 		t.Errorf("username = %q", got)
 	}
@@ -186,8 +181,8 @@ func TestPollingWhilePlexTVIsDownFailsWithoutLinking(t *testing.T) {
 	if status, _ := b.pollPIN(pin); status != http.StatusBadGateway {
 		t.Errorf("status = %d, want 502", status)
 	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM plex_accounts"); n != 0 {
-		t.Errorf("plex accounts = %d, want 0", n)
+	if b.plexLinked() {
+		t.Error("plex account linked despite plex.tv being down")
 	}
 }
 

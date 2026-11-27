@@ -3,6 +3,7 @@ package server_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
 	"github.com/ReidMason/plex-ani-sync/internal/plextest"
 	"github.com/ReidMason/plex-ani-sync/internal/server"
+	"github.com/jackc/pgx/v5"
 )
 
 const usernameTTL = 5 * time.Minute
@@ -266,4 +268,66 @@ func orElse[T comparable](v T, fallback func() T) T {
 		return fallback()
 	}
 	return v
+}
+
+func locationsHolding(t *testing.T, dbURL string, needle []byte) []string {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dbURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	rows, err := conn.Query(ctx, `
+		SELECT table_schema, table_name, column_name, data_type = 'bytea'
+		FROM information_schema.columns
+		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+		  AND data_type IN ('text', 'character varying', 'character', 'bytea', 'json', 'jsonb')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type column struct {
+		schema, table, name string
+		isBytea             bool
+	}
+	columns, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (column, error) {
+		var c column
+		err := r.Scan(&c.schema, &c.table, &c.name, &c.isBytea)
+		return c, err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hits []string
+	for _, c := range columns {
+		col := pgx.Identifier{c.name}.Sanitize()
+		value := col
+		if !c.isBytea {
+			value = "convert_to(" + col + "::text, 'UTF8')"
+		}
+		sql := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM %s WHERE position($1::bytea in %s) > 0)",
+			pgx.Identifier{c.schema, c.table}.Sanitize(), value)
+		var found bool
+		if err := conn.QueryRow(ctx, sql, needle).Scan(&found); err != nil {
+			t.Fatal(err)
+		}
+		if found {
+			hits = append(hits, c.table+"."+c.name)
+		}
+	}
+	return hits
+}
+
+func assertNotStored(t *testing.T, dbURL string, secret []byte) {
+	t.Helper()
+	if hits := locationsHolding(t, dbURL, secret); len(hits) != 0 {
+		t.Errorf("secret stored in plaintext at %v", hits)
+	}
+}
+
+func assertStored(t *testing.T, dbURL string, value []byte) {
+	t.Helper()
+	if hits := locationsHolding(t, dbURL, value); len(hits) == 0 {
+		t.Error("value not found anywhere in the database")
+	}
 }

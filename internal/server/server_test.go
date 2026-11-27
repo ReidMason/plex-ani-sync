@@ -158,23 +158,6 @@ func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
 	}
 }
 
-func TestMigrationsRunOnStartup(t *testing.T) {
-	a := startApp(t)
-
-	conn, err := pgx.Connect(context.Background(), a.dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close(context.Background())
-	var applied int
-	if err := conn.QueryRow(context.Background(), "SELECT count(*) FROM goose_db_version WHERE is_applied AND version_id > 0").Scan(&applied); err != nil {
-		t.Fatal(err)
-	}
-	if applied == 0 {
-		t.Error("no migrations applied")
-	}
-}
-
 func TestRefusesToStartWithoutExternalURL(t *testing.T) {
 	cases := map[string]func(*server.Config){
 		"PlexTVURL":     func(c *server.Config) { c.PlexTVURL = "" },

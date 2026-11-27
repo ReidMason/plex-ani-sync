@@ -117,8 +117,8 @@ func TestAccessCheckFailuresReturnDistinctErrorsAndSaveNothing(t *testing.T) {
 			}
 		})
 	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM media_sources"); n != 0 {
-		t.Errorf("media sources = %d, want 0", n)
+	if got := b.mediaSources(); len(got) != 0 {
+		t.Errorf("media sources = %+v, want none", got)
 	}
 }
 
@@ -201,16 +201,17 @@ func TestMediaSourceUsesThePlexAccountTokenAndKeepsNoneOfItsOwn(t *testing.T) {
 	b.link(p, "tok-a", "alice_plex")
 	srv := plexservertest.New(t)
 	srv.Allow("tok-a")
-	b.mustAdd(srv.URL)
+	src := b.mustAdd(srv.URL)
 
 	b.link(p, "tok-new", "alice_plex")
 	srv.Allow("tok-new")
+	srv.Forbid("tok-a")
 
 	if got := b.mediaSources(); len(got) != 1 {
 		t.Errorf("relinking dropped media sources: %+v", got)
 	}
-	if n := queryInt(t, p.dbURL, "SELECT count(*) FROM information_schema.columns WHERE table_name = 'media_sources' AND column_name ILIKE '%token%'"); n != 0 {
-		t.Error("media_sources has a token column")
+	if status, _ := b.libraries(src.ID); status != http.StatusOK {
+		t.Errorf("libraries after relink = %d, want 200 using the new account token", status)
 	}
 }
 
