@@ -36,12 +36,14 @@ func run() error {
 	defer stop()
 
 	handler, cleanup, err := server.New(ctx, server.Config{
-		Env:           cfg,
-		Assets:        web.Assets(),
-		PlexTVURL:     "https://plex.tv",
-		FribbURL:      "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json",
-		AnimeListsURL: "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml",
-		AniListURL:    "https://graphql.anilist.co",
+		Env:    cfg,
+		Assets: web.Assets(),
+		ExternalURLs: server.ExternalURLs{
+			PlexTV:     "https://plex.tv",
+			Fribb:      "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json",
+			AnimeLists: "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml",
+			AniList:    "https://graphql.anilist.co",
+		},
 	})
 	if err != nil {
 		return err

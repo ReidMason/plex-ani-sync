@@ -182,10 +182,10 @@ func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
 func TestRefusesToStartWithoutExternalURL(t *testing.T) {
 	t.Parallel()
 	cases := map[string]func(*server.Config){
-		"PlexTVURL":     func(c *server.Config) { c.PlexTVURL = "" },
-		"AniListURL":    func(c *server.Config) { c.AniListURL = "" },
-		"FribbURL":      func(c *server.Config) { c.FribbURL = "" },
-		"AnimeListsURL": func(c *server.Config) { c.AnimeListsURL = "" },
+		"ExternalURLs.PlexTV":     func(c *server.Config) { c.ExternalURLs.PlexTV = "" },
+		"ExternalURLs.AniList":    func(c *server.Config) { c.ExternalURLs.AniList = "" },
+		"ExternalURLs.Fribb":      func(c *server.Config) { c.ExternalURLs.Fribb = "" },
+		"ExternalURLs.AnimeLists": func(c *server.Config) { c.ExternalURLs.AnimeLists = "" },
 	}
 	for field, clear := range cases {
 		t.Run(field, func(t *testing.T) {

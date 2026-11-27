@@ -28,14 +28,10 @@ import (
 )
 
 type Config struct {
-	Env    config.Config
-	Assets fs.FS
-	Logger *slog.Logger
-	// PlexTVURL, FribbURL, AnimeListsURL and AniListURL locate the external services; all are required.
-	PlexTVURL     string
-	FribbURL      string
-	AnimeListsURL string
-	AniListURL    string
+	Env          config.Config
+	Assets       fs.FS
+	Logger       *slog.Logger
+	ExternalURLs ExternalURLs
 	// CustomMappings replaces the embedded Custom Mappings, for tests.
 	CustomMappings []mappings.Mapping
 	// DatasetRefreshInterval is how often the mapping datasets are re-downloaded; it defaults to 24 hours.
@@ -52,9 +48,17 @@ type Config struct {
 	UsernameTTL time.Duration
 }
 
+// ExternalURLs locate the external services the app calls; all are required.
+type ExternalURLs struct {
+	PlexTV     string
+	Fribb      string
+	AnimeLists string
+	AniList    string
+}
+
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
 func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
-	if err := cfg.requireExternalURLs(); err != nil {
+	if err := cfg.ExternalURLs.requireAll(); err != nil {
 		return nil, nil, err
 	}
 	logger := cfg.Logger
@@ -108,7 +112,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 			return nil, nil, err
 		}
 	}
-	datasets := datasetSync{pool: pool, queries: queries, fribbURL: cfg.FribbURL, animeListsURL: cfg.AnimeListsURL, custom: custom, logger: logger}
+	datasets := datasetSync{pool: pool, queries: queries, fribbURL: cfg.ExternalURLs.Fribb, animeListsURL: cfg.ExternalURLs.AnimeLists, custom: custom, logger: logger}
 	if err := datasets.loadAtStartup(ctx); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
@@ -131,7 +135,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.AniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.ExternalURLs.AniList, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
 	go func() {
@@ -147,7 +151,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if showsTTL == 0 {
 		showsTTL = defaultShowsTTL
 	}
-	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.PlexTVURL), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: aniListWorker}
 	mux := http.NewServeMux()
 	a.register(mux)
@@ -172,16 +176,16 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	}, nil
 }
 
-func (c Config) requireExternalURLs() error {
+func (u ExternalURLs) requireAll() error {
 	var missing []string
-	for _, u := range []struct{ name, value string }{
-		{"PlexTVURL", c.PlexTVURL},
-		{"FribbURL", c.FribbURL},
-		{"AnimeListsURL", c.AnimeListsURL},
-		{"AniListURL", c.AniListURL},
+	for _, field := range []struct{ name, value string }{
+		{"ExternalURLs.PlexTV", u.PlexTV},
+		{"ExternalURLs.Fribb", u.Fribb},
+		{"ExternalURLs.AnimeLists", u.AnimeLists},
+		{"ExternalURLs.AniList", u.AniList},
 	} {
-		if u.value == "" {
-			missing = append(missing, u.name)
+		if field.value == "" {
+			missing = append(missing, field.name)
 		}
 	}
 	if len(missing) > 0 {
