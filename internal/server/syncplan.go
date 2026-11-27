@@ -21,6 +21,7 @@ type entryFacts struct {
 	title       string
 	watched     int
 	lastWatched *time.Time
+	total       *int
 }
 
 type planChange struct {
@@ -39,7 +40,7 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 	if current != nil && (current.Status == listStatusCompleted || current.Status == listStatusRepeating) {
 		return planChange{}, false
 	}
-	proposed := listState{Status: proposedStatus(f, current), Progress: f.watched}
+	proposed := listState{Status: proposedStatus(f, f.watched), Progress: f.watched}
 	reason := "Not on your AniList list; " + episodes(f.watched) + " watched in Plex"
 	if current != nil {
 		if f.watched <= current.Progress {
@@ -51,11 +52,11 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 }
 
 // proposedStatus is where status rules grow; for now an Entry keeps its status and additions are Watching.
-func proposedStatus(_ entryFacts, current *listState) string {
-	if current == nil {
-		return listStatusWatching
+func proposedStatus(f entryFacts, progress int) string {
+	if f.total != nil && progress == *f.total {
+		return listStatusCompleted
 	}
-	return current.Status
+	return listStatusWatching
 }
 
 func episodes(n int) string {

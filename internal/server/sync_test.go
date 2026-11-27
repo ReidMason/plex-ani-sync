@@ -55,12 +55,18 @@ func (p syncPlan) change(anilistID int) *planChange {
 	return nil
 }
 
+var testStart = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 func watch(srv *plexservertest.Server, show string, season int, watched ...bool) {
+	watchedDaysAgo(srv, show, season, 0, watched...)
+}
+
+func watchedDaysAgo(srv *plexservertest.Server, show string, season int, days int, watched ...bool) {
 	for i, w := range watched {
 		e := plexservertest.Episode{Show: show, Season: season, Number: i + 1, Title: "x"}
 		if w {
 			e.ViewCount = 1
-			e.LastViewedAt = 1700000000
+			e.LastViewedAt = testStart.AddDate(0, 0, -days).Unix()
 		}
 		srv.AddEpisode("2", e)
 	}
@@ -255,3 +261,36 @@ func TestSyncNeverWritesToAniList(t *testing.T) {
 		t.Errorf("changes %d, writes %d", len(plan.Changes), p.anilist.Writes())
 	}
 }
+
+func TestKnownTotalMatchingProgressProposesCompletedAndUnknownTotalStaysWatching(t *testing.T) {
+	t.Parallel()
+	three := 3
+	p, b, srv := syncSetup(t,
+		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 2, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 3, AniListID: 30, TVDBID: 3, Season: tvdb(1), Type: "TV"},
+	)
+	for i, title := range []string{"Finished", "Ongoing", "Partway"} {
+		watch(srv, title, 1, true, true, true)
+		srv.SetShowGUIDs("2", title, "tvdb://"+string(rune('1'+i)))
+	}
+	selectAnime(b, srv)
+	linkedToList(p, b,
+		anilisttest.ListEntry{MediaID: 10, Status: "CURRENT", Progress: 1, Episodes: &three},
+		anilisttest.ListEntry{MediaID: 20, Status: "CURRENT", Progress: 1},
+		anilisttest.ListEntry{MediaID: 30, Status: "CURRENT", Progress: 1, Episodes: ptr(12)},
+	)
+
+	_, plan := b.syncNow()
+
+	if got := plan.change(10); got == nil || got.Proposed != (planState{"COMPLETED", 3}) {
+		t.Errorf("finished: %+v", got)
+	}
+	if got := plan.change(20); got == nil || got.Proposed != (planState{"CURRENT", 3}) {
+		t.Errorf("ongoing: %+v", got)
+	}
+	if got := plan.change(30); got == nil || got.Proposed != (planState{"CURRENT", 3}) {
+		t.Errorf("partway: %+v", got)
+	}
+}
+
