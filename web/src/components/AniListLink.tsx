@@ -38,6 +38,15 @@ export function AniListLink({ returnTo }: { returnTo: "setup" | "settings" }) {
     },
   });
   const unlink = useMutation({ mutationFn: unlinkAniList, onSuccess: refresh });
+  const revokeHint = (
+    <p className="text-xs text-muted-foreground">
+      To also revoke access on AniList, visit{" "}
+      <a className="underline" href="https://anilist.co/settings/apps" target="_blank" rel="noreferrer">
+        anilist.co/settings/apps
+      </a>
+      .
+    </p>
+  );
   const linked = current.data?.username;
   const authorised = current.data?.authorised ?? false;
   const canAuthorise = current.data?.authorisationAvailable ?? false;
@@ -56,13 +65,13 @@ export function AniListLink({ returnTo }: { returnTo: "setup" | "settings" }) {
             </Button>
           </div>
           {!authorised && <p className="text-sm text-muted-foreground">Authorise to enable syncing</p>}
-          <p className="text-xs text-muted-foreground">
-            Removing deletes the stored token. To also revoke access on AniList, visit{" "}
-            <a className="underline" href="https://anilist.co/settings/apps" target="_blank" rel="noreferrer">
-              anilist.co/settings/apps
-            </a>
-            .
-          </p>
+          {revokeHint}
+        </div>
+      )}
+      {!linked && unlink.isSuccess && (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted-foreground">AniList Tracker removed</p>
+          {revokeHint}
         </div>
       )}
       {canAuthorise && (

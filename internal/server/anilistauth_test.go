@@ -278,6 +278,8 @@ func TestRemovingTheTrackerClearsAuthorisation(t *testing.T) {
 	if name, authorised := b.authorisedAs(); name != "" || authorised {
 		t.Errorf("username %q authorised %v", name, authorised)
 	}
+	assertNotStored(t, p.dbURL, []byte(p.anilist.IssuedTokens()[0]))
+	assertNotStored(t, p.dbURL, []byte("alice_anime"))
 }
 
 func TestRelinkingADifferentUsernameDropsAuthorisation(t *testing.T) {
