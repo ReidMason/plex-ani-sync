@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -111,27 +112,13 @@ type appSettings struct {
 
 type appOption func(*appSettings)
 
-func withDatabase(dbURL string) appOption { return func(s *appSettings) { s.dbURL = dbURL } }
-
-func withOIDC(p *oidctest.Provider) appOption { return func(s *appSettings) { s.provider = p } }
-
-func withPlexTV(tv *plextest.TV) appOption { return func(s *appSettings) { s.tv = tv } }
-
-func withPlexServer(srv *plexservertest.Server) appOption {
-	return func(s *appSettings) { s.plexServer = srv }
-}
-
 func withDatasets(h *datasettest.Host) appOption { return func(s *appSettings) { s.datasets = h } }
-
-func withAniList(h *anilisttest.Host) appOption { return func(s *appSettings) { s.anilist = h } }
 
 func withEncryptionKey(key []byte) appOption { return func(s *appSettings) { s.key = key } }
 
 func withCustomMappings(m []mappings.Mapping) appOption {
 	return func(s *appSettings) { s.customMappings = m }
 }
-
-func withClock(c *fakeClock) appOption { return func(s *appSettings) { s.clock = c } }
 
 func withDatasetRefreshInterval(d time.Duration) appOption {
 	return func(s *appSettings) { s.refreshInterval = d }
@@ -180,29 +167,19 @@ func tryStartApp(t *testing.T, opts ...appOption) (*app, error) {
 		opt(&s)
 	}
 	a := s.app
-	if prev := s.restart; prev != nil {
-		a.dbURL = or(a.dbURL, prev.dbURL)
-		if a.key == nil {
-			a.key = prev.key
-		}
-		a.provider = or(a.provider, prev.provider)
-		a.tv = or(a.tv, prev.tv)
-		a.plexServer = or(a.plexServer, prev.plexServer)
-		a.datasets = or(a.datasets, prev.datasets)
-		a.anilist = or(a.anilist, prev.anilist)
-		a.clock = or(a.clock, prev.clock)
-	}
 	a.t = t
-	a.dbURL = orElse(a.dbURL, func() string { return newDatabase(t) })
-	if a.key == nil {
-		a.key = testEncryptionKey
+	prev := s.restart
+	if prev == nil {
+		prev = &app{}
 	}
-	a.provider = orElse(a.provider, func() *oidctest.Provider { return oidctest.New(t) })
-	a.tv = orElse(a.tv, func() *plextest.TV { return plextest.New(t) })
-	a.plexServer = orElse(a.plexServer, func() *plexservertest.Server { return plexservertest.New(t) })
-	a.datasets = orElse(a.datasets, func() *datasettest.Host { return datasettest.New(t) })
-	a.anilist = orElse(a.anilist, func() *anilisttest.Host { return anilisttest.New(t) })
-	a.clock = orElse(a.clock, newFakeClock)
+	a.dbURL = firstSet(a.dbURL, prev.dbURL, func() string { return newDatabase(t) })
+	a.key = firstSet(a.key, prev.key, func() []byte { return testEncryptionKey })
+	a.provider = firstSet(a.provider, prev.provider, func() *oidctest.Provider { return oidctest.New(t) })
+	a.tv = firstSet(a.tv, prev.tv, func() *plextest.TV { return plextest.New(t) })
+	a.plexServer = firstSet(a.plexServer, prev.plexServer, func() *plexservertest.Server { return plexservertest.New(t) })
+	a.datasets = firstSet(a.datasets, prev.datasets, func() *datasettest.Host { return datasettest.New(t) })
+	a.anilist = firstSet(a.anilist, prev.anilist, func() *anilisttest.Host { return anilisttest.New(t) })
+	a.clock = firstSet(a.clock, prev.clock, newFakeClock)
 	for _, fn := range s.datasetSetup {
 		fn(a.datasets)
 	}
@@ -257,20 +234,15 @@ func (a *app) signedIn(sub, name string) *browser {
 	return b
 }
 
-func or[T comparable](v, fallback T) T {
-	var zero T
-	if v == zero {
-		return fallback
+// firstSet returns the first non-zero of v and inherited, building a default only when both are zero.
+func firstSet[T any](v, inherited T, build func() T) T {
+	switch {
+	case !reflect.ValueOf(&v).Elem().IsZero():
+		return v
+	case !reflect.ValueOf(&inherited).Elem().IsZero():
+		return inherited
 	}
-	return v
-}
-
-func orElse[T comparable](v T, fallback func() T) T {
-	var zero T
-	if v == zero {
-		return fallback()
-	}
-	return v
+	return build()
 }
 
 func locationsHolding(t *testing.T, dbURL string, needle []byte) []string {

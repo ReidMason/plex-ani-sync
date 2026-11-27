@@ -71,6 +71,13 @@ func (b *browser) me() (int, string) {
 	return resp.StatusCode, body.DisplayName
 }
 
+func assertNoSessionAfterRejectedCallback(t *testing.T, b *browser) {
+	t.Helper()
+	if status, _ := b.me(); status != http.StatusUnauthorized {
+		t.Errorf("/api/me after rejected callback = %d, want 401", status)
+	}
+}
+
 func mustParse(t *testing.T, raw string) *url.URL {
 	t.Helper()
 	u, err := url.Parse(raw)
@@ -244,9 +251,7 @@ func TestCallbackRejectsBadState(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if status, _ := b.me(); status != http.StatusUnauthorized {
-		t.Errorf("/api/me after rejected callback = %d, want 401", status)
-	}
+	assertNoSessionAfterRejectedCallback(t, b)
 }
 
 func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
@@ -261,9 +266,7 @@ func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if status, _ := b.me(); status != http.StatusUnauthorized {
-		t.Errorf("/api/me after rejected callback = %d, want 401", status)
-	}
+	assertNoSessionAfterRejectedCallback(t, b)
 	if app.provider.TokenRequests() != 0 {
 		t.Error("code exchange attempted despite provider error")
 	}
@@ -285,7 +288,5 @@ func TestCallbackRejectsNonceMismatch(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
-	if status, _ := b.me(); status != http.StatusUnauthorized {
-		t.Errorf("/api/me after rejected callback = %d, want 401", status)
-	}
+	assertNoSessionAfterRejectedCallback(t, b)
 }
