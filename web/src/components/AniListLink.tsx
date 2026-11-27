@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { linkAniList, unlinkAniList, useAniListStatus } from "@/api";
 import { Button } from "@/components/ui/button";
@@ -7,20 +7,18 @@ import { Input } from "@/components/ui/input";
 
 const outcomeMessages: Record<string, string> = {
   denied: "AniList authorisation was denied. Your Tracker is unchanged",
+  invalid: "AniList authorisation could not be verified. Your Tracker is unchanged. Try again",
   failed: "Could not complete authorisation with AniList. Your Tracker is unchanged. Try again",
 };
 
 function outcomeFromUrl(): { message: string; error: boolean } | null {
-  const params = new URLSearchParams(window.location.search);
-  const result = params.get("anilist");
-  if (result === "authorised") {
-    const previous = params.get("previous");
-    return {
-      message: previous ? `Authorised. Your username changed from ${previous} to the authorised account` : "Authorised on AniList",
-      error: false,
-    };
-  }
-  const message = result ? outcomeMessages[result] : undefined;
+  const url = new URL(window.location.href);
+  const result = url.searchParams.get("anilist");
+  if (result === null) return null;
+  url.searchParams.delete("anilist");
+  window.history.replaceState(window.history.state, "", url);
+  if (result === "authorised") return { message: "Authorised on AniList", error: false };
+  const message = outcomeMessages[result];
   return message ? { message, error: true } : null;
 }
 
@@ -29,6 +27,11 @@ export function AniListLink({ returnTo }: { returnTo: "setup" | "settings" }) {
   const current = useAniListStatus();
   const [username, setUsername] = useState("");
   const [outcome] = useState(outcomeFromUrl);
+  const [previous, setPrevious] = useState<string | null>(null);
+  const reportedPrevious = current.data?.previousUsername;
+  useEffect(() => {
+    if (reportedPrevious) setPrevious(reportedPrevious);
+  }, [reportedPrevious]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["anilist"] });
   const link = useMutation({
     mutationFn: () => linkAniList(username.trim()),
@@ -54,6 +57,9 @@ export function AniListLink({ returnTo }: { returnTo: "setup" | "settings" }) {
   return (
     <div className="flex flex-col gap-3">
       {outcome && <p className={`text-sm ${outcome.error ? "text-destructive" : "text-muted-foreground"}`}>{outcome.message}</p>}
+      {previous && outcome && !outcome.error && (
+        <p className="text-sm text-muted-foreground">Your username changed from {previous} to the authorised account</p>
+      )}
       {linked && (
         <div className="flex flex-col gap-3 rounded-lg border border-border px-4 py-3">
           <div className="flex items-center justify-between gap-3">

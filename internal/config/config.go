@@ -65,11 +65,12 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg.EncryptionKey = key
 	cfg.AniListClientID = getenv("ANILIST_CLIENT_ID")
 	cfg.AniListClientSecret = getenv("ANILIST_CLIENT_SECRET")
-	switch {
-	case cfg.AniListClientID != "" && cfg.AniListClientSecret == "":
-		return Config{}, fmt.Errorf("ANILIST_CLIENT_SECRET is missing: ANILIST_CLIENT_ID and ANILIST_CLIENT_SECRET must be set together (see README)")
-	case cfg.AniListClientID == "" && cfg.AniListClientSecret != "":
-		return Config{}, fmt.Errorf("ANILIST_CLIENT_ID is missing: ANILIST_CLIENT_ID and ANILIST_CLIENT_SECRET must be set together (see README)")
+	if (cfg.AniListClientID == "") != (cfg.AniListClientSecret == "") {
+		missing := "ANILIST_CLIENT_SECRET"
+		if cfg.AniListClientID == "" {
+			missing = "ANILIST_CLIENT_ID"
+		}
+		return Config{}, fmt.Errorf("%s is missing: ANILIST_CLIENT_ID and ANILIST_CLIENT_SECRET must be set together (see README)", missing)
 	}
 	cfg.AniListRequestsPerMinute = DefaultAniListRequestsPerMinute
 	if v := getenv("ANILIST_REQUESTS_PER_MINUTE"); v != "" {
@@ -87,9 +88,13 @@ func (c Config) AniListAuthorisationAvailable() bool {
 }
 
 func (c Config) RedirectURI() string {
-	return strings.TrimRight(c.PublicBaseURL, "/") + "/auth/callback"
+	return c.publicURL("/auth/callback")
 }
 
 func (c Config) AniListRedirectURI() string {
-	return strings.TrimRight(c.PublicBaseURL, "/") + "/auth/anilist/callback"
+	return c.publicURL("/auth/anilist/callback")
+}
+
+func (c Config) publicURL(path string) string {
+	return strings.TrimRight(c.PublicBaseURL, "/") + path
 }

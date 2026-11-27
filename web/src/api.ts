@@ -128,7 +128,7 @@ export async function unlinkAniList(): Promise<void> {
   if (!res.ok) throw new Error(`Removing AniList failed (${res.status})`);
 }
 
-export type AniListStatus = { username: string | null; authorised: boolean; authorisationAvailable: boolean };
+export type AniListStatus = { username: string | null; authorised: boolean; authorisationAvailable: boolean; previousUsername: string | null };
 
 export function useAniListStatus() {
   return useQuery({
