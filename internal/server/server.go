@@ -49,8 +49,9 @@ type Config struct {
 	Cache cache.Cache
 	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
 	ShowsTTL time.Duration
-	// Clock and UsernameTTL control the plex.tv username cache; they default to time.Now and 5 minutes.
-	Clock       func() time.Time
+	// Clock drives caches and dataset refresh; it defaults to the real clock.
+	Clock Clock
+	// UsernameTTL is how long a plex.tv username is cached; it defaults to 5 minutes.
 	UsernameTTL time.Duration
 }
 
@@ -119,23 +120,19 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
 	}
+	clock := cfg.Clock
+	if clock == nil {
+		clock = realClock{}
+	}
 	refreshEvery := cfg.DatasetRefreshInterval
 	if refreshEvery == 0 {
 		refreshEvery = defaultDatasetRefreshInterval
 	}
-	refreshCtx, stopRefresh := context.WithCancel(ctx)
-	refreshDone := make(chan struct{})
-	go func() {
-		defer close(refreshDone)
-		datasets.refreshEvery(refreshCtx, refreshEvery)
-	}()
+	refreshCtx, cancelRefresh := context.WithCancel(ctx)
+	stopTicks := clock.Every(refreshEvery, func() { datasets.refreshOnTick(refreshCtx) })
 	aniListURL := cfg.AniListURL
 	if aniListURL == "" {
 		aniListURL = anilist.DefaultURL
-	}
-	clock := cfg.Clock
-	if clock == nil {
-		clock = time.Now
 	}
 	ttl := cfg.UsernameTTL
 	if ttl == 0 {
@@ -149,7 +146,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: aniListURL, HTTP: http.DefaultClient, Now: clock, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: aniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock.Now, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
 	go func() {
@@ -159,13 +156,13 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	serverClient := plex.NewServerClient()
 	store := cfg.Cache
 	if store == nil {
-		store = cache.NewMemory(clock)
+		store = cache.NewMemory(clock.Now)
 	}
 	showsTTL := cfg.ShowsTTL
 	if showsTTL == 0 {
 		showsTTL = defaultShowsTTL
 	}
-	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(plexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: aniListWorker}
 	mux := http.NewServeMux()
 	a.register(mux)
@@ -182,8 +179,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	})
 	mux.Handle("/", staticHandler(cfg.Assets))
 	return mux, func() {
-		stopRefresh()
-		<-refreshDone
+		cancelRefresh()
+		stopTicks()
 		stopAniList()
 		<-aniListDone
 		pool.Close()
