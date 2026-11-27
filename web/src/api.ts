@@ -104,6 +104,41 @@ export async function pollPin(pin: Pin, signal: AbortSignal): Promise<"pending" 
   return (await res.json()).status;
 }
 
+const aniListErrors: Record<string, string> = {
+  invalid_username: "Enter your AniList username",
+  user_not_found: "AniList has no user with that name. Check the spelling",
+  private_list: "That anime list is private. Make it public in your AniList settings, then try again",
+  anilist_unavailable: "Could not reach AniList. Try again shortly",
+};
+
+export async function linkAniList(username: string): Promise<void> {
+  const res = await fetch("/api/trackers/anilist", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+  if (res.ok) return;
+  const body = await res.json().catch(() => ({ error: "" }));
+  if (body.error === "throttled") throw new Error(`AniList is busy. Try again at ${new Date(body.until).toLocaleTimeString()}`);
+  throw new Error(aniListErrors[body.error] ?? `Linking AniList failed (${res.status})`);
+}
+
+export async function unlinkAniList(): Promise<void> {
+  const res = await fetch("/api/trackers/anilist", { method: "DELETE" });
+  if (!res.ok) throw new Error(`Removing AniList failed (${res.status})`);
+}
+
+export function useAniListUsername() {
+  return useQuery({
+    queryKey: ["anilist"],
+    queryFn: async (): Promise<string | null> => {
+      const res = await fetch("/api/trackers/anilist");
+      if (!res.ok) throw new Error(`Could not load AniList (${res.status})`);
+      return (await res.json()).username;
+    },
+  });
+}
+
 export function useMe() {
   return useQuery({ queryKey: ["me"], queryFn: fetchMe, retry: false });
 }
