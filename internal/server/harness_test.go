@@ -75,9 +75,7 @@ func (c *fakeClock) Advance(d time.Duration) {
 			continue
 		}
 		due = append(due, tk.fn)
-		for !c.now.Before(tk.next) {
-			tk.next = tk.next.Add(tk.period)
-		}
+		tk.next = tk.next.Add((c.now.Sub(tk.next)/tk.period + 1) * tk.period)
 	}
 	c.mu.Unlock()
 	for _, fn := range due {
