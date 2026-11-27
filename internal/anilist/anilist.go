@@ -228,7 +228,7 @@ func (c *Client) sendAs(ctx context.Context, token, q string, vars map[string]an
 	env, err := c.post(ctx, token, q, vars)
 	var limited *rateLimitedError
 	switch {
-	case err == nil, errors.Is(err, ErrUnauthorised):
+	case err == nil, errors.Is(err, ErrUnauthorised): // a rejected token means AniList answered, so it is not an outage
 		c.recordSuccess()
 	case errors.As(err, &limited):
 		c.pauseFor(limited.retryAfter)

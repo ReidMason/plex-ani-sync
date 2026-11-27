@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -121,9 +122,12 @@ func TestAuthorisingAsAnotherAccountReplacesTheUsernameAndSaysSo(t *testing.T) {
 	resp := b.authorise()
 
 	name, authorised := b.authorisedAs()
-	want := "/settings?anilist=authorised&previous=alice_anime"
-	if resp.Header.Get("Location") != want || name != "bob_anime" || !authorised {
+	if resp.Header.Get("Location") != "/settings?anilist=authorised" || name != "bob_anime" || !authorised {
 		t.Errorf("location %q, username %q, authorised %v", resp.Header.Get("Location"), name, authorised)
+	}
+	first, second := b.statusKeepingCookies(), b.statusKeepingCookies()
+	if first.PreviousUsername == nil || *first.PreviousUsername != "alice_anime" || second.PreviousUsername != nil {
+		t.Errorf("previous username: first %v, second %v", first.PreviousUsername, second.PreviousUsername)
 	}
 }
 
@@ -137,7 +141,7 @@ func TestAuthorisingAsTheLinkedAccountDoesNotReportAChange(t *testing.T) {
 
 	resp := b.authorise()
 
-	if resp.Header.Get("Location") != "/settings?anilist=authorised" {
+	if resp.Header.Get("Location") != "/settings?anilist=authorised" || b.statusKeepingCookies().PreviousUsername != nil {
 		t.Errorf("location %q", resp.Header.Get("Location"))
 	}
 }
@@ -155,8 +159,8 @@ func TestACallbackWithoutAMatchingStateIsRejectedAndChangesNothing(t *testing.T)
 	forged := url.Values{"code": {callback.Query().Get("code")}, "state": {"forged"}}
 	missing := url.Values{"code": {callback.Query().Get("code")}}
 	for name, q := range map[string]url.Values{"forged": forged, "missing": missing} {
-		if status := b.get(p.URL + "/auth/anilist/callback?" + q.Encode()).StatusCode; status != http.StatusBadRequest {
-			t.Errorf("%s state: status %d", name, status)
+		if loc := b.get(p.URL + "/auth/anilist/callback?" + q.Encode()).Header.Get("Location"); loc != "/settings?anilist=invalid" {
+			t.Errorf("%s state: location %q", name, loc)
 		}
 	}
 
@@ -175,10 +179,10 @@ func TestAReplayedCallbackIsRejected(t *testing.T) {
 	b.get(callback)
 	b.trackerRequest(http.MethodDelete, "")
 
-	status := b.get(callback).StatusCode
+	loc := b.get(callback).Header.Get("Location")
 
-	if name, authorised := b.authorisedAs(); status != http.StatusBadRequest || name != "" || authorised {
-		t.Errorf("status %d username %q authorised %v", status, name, authorised)
+	if name, authorised := b.authorisedAs(); loc != "/settings?anilist=invalid" || name != "" || authorised {
+		t.Errorf("location %q username %q authorised %v", loc, name, authorised)
 	}
 }
 
@@ -192,11 +196,38 @@ func TestAStateIssuedToAnotherSessionIsRejected(t *testing.T) {
 	callback := alice.approveOnAniList(alice.startAuthorisation())
 	bob.cookies[stateCookie] = alice.cookies[stateCookie]
 
-	status := bob.get(callback).StatusCode
+	loc := bob.get(callback).Header.Get("Location")
 
-	if name, authorised := bob.authorisedAs(); status != http.StatusBadRequest || name != "" || authorised {
-		t.Errorf("status %d username %q authorised %v", status, name, authorised)
+	if name, authorised := bob.authorisedAs(); loc != "/settings?anilist=invalid" || name != "" || authorised {
+		t.Errorf("location %q username %q authorised %v", loc, name, authorised)
 	}
+}
+
+func TestAnExpiredStateIsRejectedEvenIfTheCookieSurvives(t *testing.T) {
+	t.Parallel()
+	p := startApp(t, withAniListCredentials())
+	p.anilist.ApproveAs("alice_anime")
+	b := p.signedIn("sub-alice", "Alice")
+	p.clock.Advance(time.Minute)
+	callback := b.approveOnAniList(b.startAuthorisation())
+	p.clock.Advance(11 * time.Minute)
+
+	loc := b.get(callback).Header.Get("Location")
+
+	if name, authorised := b.authorisedAs(); loc != "/settings?anilist=invalid" || name != "" || authorised {
+		t.Errorf("location %q username %q authorised %v", loc, name, authorised)
+	}
+}
+
+func (b *browser) statusKeepingCookies() trackerStatus {
+	b.t.Helper()
+	resp := b.do(http.MethodGet, b.app.URL+"/api/trackers/anilist")
+	defer resp.Body.Close()
+	var out trackerStatus
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		b.t.Fatal(err)
+	}
+	return out
 }
 
 func TestACallbackWhileSignedOutIsRejected(t *testing.T) {

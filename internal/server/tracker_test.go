@@ -66,6 +66,7 @@ type trackerStatus struct {
 	Username               *string `json:"username"`
 	Authorised             *bool   `json:"authorised"`
 	AuthorisationAvailable *bool   `json:"authorisationAvailable"`
+	PreviousUsername       *string `json:"previousUsername"`
 }
 
 func (b *browser) trackerStatus() trackerStatus {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,24 +39,39 @@ func (p *plexLink) aniListUsername(ctx context.Context, userID int64) (*string, 
 func (p *plexLink) getAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
 	row, err := p.queries.GetTrackerStatus(r.Context(), dbgen.GetTrackerStatusParams{UserID: s.UserID, Kind: trackerKindAniList})
 	if errors.Is(err, pgx.ErrNoRows) {
-		writeJSON(w, p.trackerStatus(nil, false))
+		writeJSON(w, p.trackerStatus(nil, false, nil))
 		return
 	}
 	if err != nil {
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, p.trackerStatus(&row.Username, row.Authorised))
+	writeJSON(w, p.trackerStatus(&row.Username, row.Authorised, takePreviousUsername(w, r)))
 }
 
-func (p *plexLink) trackerStatus(username *string, authorised bool) trackerStatus {
-	return trackerStatus{Username: username, Authorised: authorised, AuthorisationAvailable: p.aniListOAuth != nil}
+// takePreviousUsername reports, once, the username a just-completed authorisation replaced.
+func takePreviousUsername(w http.ResponseWriter, r *http.Request) *string {
+	c, err := r.Cookie(aniListPreviousCookie)
+	if err != nil {
+		return nil
+	}
+	http.SetCookie(w, clearedCookie(aniListPreviousCookie, "/api/trackers/anilist"))
+	previous, err := url.QueryUnescape(c.Value)
+	if err != nil || previous == "" {
+		return nil
+	}
+	return &previous
+}
+
+func (p *plexLink) trackerStatus(username *string, authorised bool, previous *string) trackerStatus {
+	return trackerStatus{Username: username, Authorised: authorised, AuthorisationAvailable: p.aniListOAuth != nil, PreviousUsername: previous}
 }
 
 type trackerStatus struct {
 	Username               *string `json:"username"`
 	Authorised             bool    `json:"authorised"`
 	AuthorisationAvailable bool    `json:"authorisationAvailable"`
+	PreviousUsername       *string `json:"previousUsername"`
 }
 
 func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {
@@ -83,7 +99,7 @@ func (p *plexLink) linkAniListTracker(w http.ResponseWriter, r *http.Request, s 
 		internalError(w, p.logger, err)
 		return
 	}
-	writeJSON(w, p.trackerStatus(&username, status.Authorised))
+	writeJSON(w, p.trackerStatus(&username, status.Authorised, nil))
 }
 
 func (p *plexLink) unlinkAniListTracker(w http.ResponseWriter, r *http.Request, s dbgen.GetSessionUserRow) {

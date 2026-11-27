@@ -2,6 +2,7 @@
 INSERT INTO trackers (user_id, kind, username) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, kind) DO UPDATE SET
     username = EXCLUDED.username,
+    -- a token authorises one AniList account, so changing the username invalidates it
     token_encrypted = CASE WHEN trackers.username = EXCLUDED.username THEN trackers.token_encrypted END;
 
 -- name: UpsertAuthorisedTracker :exec
