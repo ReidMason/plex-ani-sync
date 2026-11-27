@@ -620,7 +620,6 @@ func TestRetryAfterPausesAniListRequestsUntilItPasses(t *testing.T) {
 	during := p.settledShows(t, b)["Counted"]
 	duringRequests := p.anilist.Requests()
 	p.clock.Advance(2 * time.Second)
-	p.quiesce(t)
 	after := b.mappedShows()["Counted"]
 
 	if duringRequests != before || during.Status != "mapped" {
@@ -659,17 +658,6 @@ func TestAniListFailuresBackOffExponentially(t *testing.T) {
 	}
 }
 
-func eventually(t *testing.T, what string, ok func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for !ok() {
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
 func TestColdCacheWithManyEntriesIsFetchedAtTheConfiguredRate(t *testing.T) {
 	t.Parallel()
 	const entries = 120
@@ -686,41 +674,30 @@ func TestColdCacheWithManyEntriesIsFetchedAtTheConfiguredRate(t *testing.T) {
 	srv.SetShowGUIDs("2", "Long", "tvdb://77")
 	selectAnime(b, srv)
 
-	b.mappedShows()
-	eventually(t, "first batch", func() bool { return p.anilist.Requests() == 1 })
-	time.Sleep(50 * time.Millisecond)
+	p.settledRequests(t, b)
 	if got := p.anilist.Requests(); got != 1 {
 		t.Fatalf("requests before the rate allows = %d, want 1", got)
 	}
 	for want := 2; want <= 3; want++ {
 		p.clock.Advance(31 * time.Second)
-		eventually(t, "next batch", func() bool { return p.anilist.Requests() == want })
+		if got := p.anilist.Requests(); got != want {
+			t.Fatalf("requests after the next slot = %d, want %d", got, want)
+		}
 	}
 
 	p.clock.Advance(time.Minute)
-	b.mappedShows()
-	time.Sleep(50 * time.Millisecond)
-	if got := p.anilist.Requests(); got != 3 {
+	if got := p.settledRequests(t, b); got != 3 {
 		t.Errorf("requests after the cache is warm = %d, want 3", got)
 	}
 }
 
-// quiesce waits for the AniList worker to stop sending and storing.
-func (p *app) quiesce(t *testing.T) {
-	t.Helper()
-	last, stableSince := -1, time.Now()
-	eventually(t, "AniList requests to settle", func() bool {
-		if n := p.anilist.Requests(); n != last {
-			last, stableSince = n, time.Now()
-		}
-		return time.Since(stableSince) > 60*time.Millisecond
-	})
-}
+// drainAniList fires the AniList worker's next poll, which returns once the queue is empty or AniList may not be called yet.
+func (p *app) drainAniList() { p.clock.Advance(aniListPollInterval) }
 
 func (p *app) settledRequests(t *testing.T, b *browser) int {
 	t.Helper()
 	b.mappedShows()
-	p.quiesce(t)
+	p.drainAniList()
 	return p.anilist.Requests()
 }
 

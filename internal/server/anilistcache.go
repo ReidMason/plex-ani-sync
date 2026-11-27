@@ -24,7 +24,7 @@ const (
 type aniListCache struct {
 	client    *anilist.Client
 	queries   *dbgen.Queries
-	clock     func() time.Time
+	clock     Clock
 	ttl       time.Duration
 	pollEvery time.Duration
 	logger    *slog.Logger
@@ -32,9 +32,11 @@ type aniListCache struct {
 	mu      sync.Mutex
 	pending map[int]struct{}
 	kick    chan struct{}
+
+	draining sync.Mutex
 }
 
-func newAniListCache(client *anilist.Client, queries *dbgen.Queries, clock func() time.Time, ttl, pollEvery time.Duration, logger *slog.Logger) *aniListCache {
+func newAniListCache(client *anilist.Client, queries *dbgen.Queries, clock Clock, ttl, pollEvery time.Duration, logger *slog.Logger) *aniListCache {
 	return &aniListCache{client: client, queries: queries, clock: clock, ttl: ttl, pollEvery: pollEvery, logger: logger, pending: map[int]struct{}{}, kick: make(chan struct{}, 1)}
 }
 
@@ -60,7 +62,7 @@ func (c *aniListCache) mediaFor(ctx context.Context, ids []int) map[int]anilist.
 	if err != nil {
 		c.logger.Warn("could not read anilist cache", "error", err)
 	}
-	now := c.clock()
+	now := c.clock.Now()
 	fresh := map[int]bool{}
 	for _, row := range rows {
 		id := int(row.AnilistID)
@@ -104,22 +106,23 @@ func (c *aniListCache) settle(ids []int) {
 	}
 }
 
-// run fetches queued IDs until ctx ends, one batch per slot the client allows.
+// run fetches queued IDs until ctx ends, one batch per slot the client allows, on every kick and clock tick.
 func (c *aniListCache) run(ctx context.Context) {
-	ticker := time.NewTicker(c.pollEvery)
-	defer ticker.Stop()
+	stop := c.clock.Every(c.pollEvery, func() { c.drain(ctx) })
+	defer stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-c.kick:
-		case <-ticker.C:
+			c.drain(ctx)
 		}
-		c.drain(ctx)
 	}
 }
 
 func (c *aniListCache) drain(ctx context.Context) {
+	c.draining.Lock()
+	defer c.draining.Unlock()
 	for ctx.Err() == nil {
 		batch := c.nextBatch()
 		if len(batch) == 0 {
@@ -136,7 +139,7 @@ func (c *aniListCache) drain(ctx context.Context) {
 			c.logger.Warn("could not fetch anilist metadata", "error", err)
 			return
 		}
-		if c.store(ctx, batch, fetched, c.clock()) {
+		if c.store(ctx, batch, fetched, c.clock.Now()) {
 			c.settle(batch)
 		}
 	}

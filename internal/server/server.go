@@ -131,7 +131,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.AniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock.Now, defaultAniListMetadataTTL, aniListPoll, logger)
+	aniListWorker := newAniListCache(anilist.New(anilist.Options{URL: cfg.AniListURL, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate}), queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
 	go func() {

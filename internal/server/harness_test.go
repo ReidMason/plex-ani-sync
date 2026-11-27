@@ -22,7 +22,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const usernameTTL = 5 * time.Minute
+const (
+	usernameTTL         = 5 * time.Minute
+	aniListPollInterval = 5 * time.Millisecond
+)
 
 var testEncryptionKey = bytes.Repeat([]byte{9}, 32)
 
@@ -224,7 +227,7 @@ func tryStartApp(t *testing.T, opts ...appOption) (*app, error) {
 		CustomMappings:         s.customMappings,
 		DatasetRefreshInterval: s.refreshInterval,
 		AniListURL:             a.anilist.URL,
-		AniListPollInterval:    5 * time.Millisecond,
+		AniListPollInterval:    aniListPollInterval,
 		Clock:                  a.clock,
 		UsernameTTL:            usernameTTL,
 	}
