@@ -457,35 +457,20 @@ func TestCustomMappingAppearsAlongsideDatasetRowsAndDisplacesOverlappingOnes(t *
 	)
 }
 
+const refreshInterval = time.Hour
+
 func startRefreshingApp(t *testing.T, custom []mappings.Mapping, host *datasettest.Host) *app {
 	t.Helper()
-	return startApp(t, withDatasets(host), withCustomMappings(custom), withDatasetRefreshInterval(20*time.Millisecond))
+	return startApp(t, withDatasets(host), withCustomMappings(custom), withDatasetRefreshInterval(refreshInterval))
 }
 
-func waitForRefreshes(t *testing.T, host *datasettest.Host, n int) {
+// refreshDatasets advances past one refresh interval and fails unless the app fetched the datasets.
+func (p *app) refreshDatasets(t *testing.T) {
 	t.Helper()
-	start := host.Requests()
-	deadline := time.Now().Add(5 * time.Second)
-	for host.Requests() < start+n {
-		if time.Now().After(deadline) {
-			t.Fatal("no dataset refresh happened")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-func waitForMapping(t *testing.T, b *browser, show string, anilistID int) mappedShow {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		got := b.mappedShows()[show]
-		if len(got.Mappings) > 0 && got.Mappings[0].AniListID == anilistID {
-			return got
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s never resolved to %d: %+v", show, anilistID, got)
-		}
-		time.Sleep(10 * time.Millisecond)
+	before := p.datasets.Requests()
+	p.clock.Advance(refreshInterval)
+	if p.datasets.Requests() == before {
+		t.Fatal("no dataset refresh happened")
 	}
 }
 
@@ -500,12 +485,14 @@ func TestRefreshReplacesDatasetRowsAndKeepsCustomMappings(t *testing.T) {
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Pinned", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Pinned", "tvdb://88")
 	selectAnime(b, srv)
-	waitForMapping(t, b, "Moving", 10)
+	assertMappings(t, b.mappedShows()["Moving"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
 
 	host.SetFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 99, TVDBID: 77, Season: tvdb(1), Type: "TV"})
+	p.refreshDatasets(t)
 
-	waitForMapping(t, b, "Moving", 99)
-	assertMappings(t, b.mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
+	got := b.mappedShows()
+	assertMappings(t, got["Moving"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 99, EntryFirst: 1})
+	assertMappings(t, got["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
 }
 
 func TestRefreshWithOverlappingCustomMappingKeepsCustomWinning(t *testing.T) {
@@ -518,7 +505,7 @@ func TestRefreshWithOverlappingCustomMappingKeepsCustomWinning(t *testing.T) {
 	selectAnime(b, srv)
 
 	host.SetFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"})
-	waitForRefreshes(t, host, 4)
+	p.refreshDatasets(t)
 
 	assertMappings(t, b.mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
 }
@@ -536,11 +523,11 @@ func TestFailedRefreshLeavesPreviousRowsInPlace(t *testing.T) {
 			srv.AddEpisode("2", plexservertest.Episode{Show: "Stable", Season: 1, Number: 1, Title: "x"})
 			srv.SetShowGUIDs("2", "Stable", "tvdb://77")
 			selectAnime(b, srv)
-			waitForMapping(t, b, "Stable", 10)
+			assertMappings(t, b.mappedShows()["Stable"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
 
 			host.SetFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 99, TVDBID: 77, Season: tvdb(1), Type: "TV"})
 			fail(host)
-			waitForRefreshes(t, host, 4)
+			p.refreshDatasets(t)
 
 			assertMappings(t, b.mappedShows()["Stable"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 10, EntryFirst: 1})
 		})

@@ -24,13 +24,21 @@ const usernameTTL = 5 * time.Minute
 
 var testEncryptionKey = bytes.Repeat([]byte{9}, 32)
 
+// fakeClock only moves on Advance, which runs every tick that falls due before returning.
 type fakeClock struct {
-	mu  sync.Mutex
-	now time.Time
+	mu      sync.Mutex
+	now     time.Time
+	tickers map[*fakeTicker]struct{}
+}
+
+type fakeTicker struct {
+	period time.Duration
+	next   time.Time
+	fn     func()
 }
 
 func newFakeClock() *fakeClock {
-	return &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	return &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), tickers: map[*fakeTicker]struct{}{}}
 }
 
 func (c *fakeClock) Now() time.Time {
@@ -39,10 +47,36 @@ func (c *fakeClock) Now() time.Time {
 	return c.now
 }
 
-func (c *fakeClock) Advance(d time.Duration) {
+func (c *fakeClock) Every(d time.Duration, fn func()) func() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	tk := &fakeTicker{period: d, next: c.now.Add(d), fn: fn}
+	c.tickers[tk] = struct{}{}
+	return func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		delete(c.tickers, tk)
+	}
+}
+
+// Advance moves time forward by d; like time.Ticker, a ticker that fell several periods behind fires once.
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
 	c.now = c.now.Add(d)
+	var due []func()
+	for tk := range c.tickers {
+		if c.now.Before(tk.next) {
+			continue
+		}
+		due = append(due, tk.fn)
+		for !c.now.Before(tk.next) {
+			tk.next = tk.next.Add(tk.period)
+		}
+	}
+	c.mu.Unlock()
+	for _, fn := range due {
+		fn()
+	}
 }
 
 // app is a running server wired to fakes for every external dependency.
@@ -189,7 +223,7 @@ func tryStartApp(t *testing.T, opts ...appOption) (*app, error) {
 		DatasetRefreshInterval: s.refreshInterval,
 		AniListURL:             a.anilist.URL,
 		AniListPollInterval:    5 * time.Millisecond,
-		Clock:                  a.clock.Now,
+		Clock:                  a.clock,
 		UsernameTTL:            usernameTTL,
 	}
 	for _, edit := range s.configEdits {
