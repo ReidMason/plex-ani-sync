@@ -23,6 +23,8 @@ import (
 const clientIdentifierSetting = "plex_client_identifier"
 
 type plexLink struct {
+	aniListOAuth  *anilist.OAuth
+	stateKey      []byte
 	usernames     *usernameCache
 	client        plex.Client
 	server        plex.ServerClient

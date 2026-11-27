@@ -39,10 +39,11 @@ func run() error {
 		Env:    cfg,
 		Assets: web.Assets(),
 		ExternalURLs: server.ExternalURLs{
-			PlexTV:     "https://plex.tv",
-			Fribb:      "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json",
-			AnimeLists: "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml",
-			AniList:    "https://graphql.anilist.co",
+			PlexTV:       "https://plex.tv",
+			Fribb:        "https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json",
+			AnimeLists:   "https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml",
+			AniList:      "https://graphql.anilist.co",
+			AniListOAuth: "https://anilist.co/api/v2/oauth",
 		},
 	})
 	if err != nil {

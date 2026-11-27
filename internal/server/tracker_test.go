@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ReidMason/plex-ani-sync/internal/anilisttest"
+	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
 
 type trackerResponse struct {
@@ -59,6 +60,76 @@ func (b *browser) aniListUsername() string {
 
 func publicUser(p *app, name string) {
 	p.anilist.SetUserList(name, anilisttest.ListEntry{MediaID: 1, Status: "CURRENT", Progress: 3})
+}
+
+type trackerStatus struct {
+	Username               *string `json:"username"`
+	Authorised             *bool   `json:"authorised"`
+	AuthorisationAvailable *bool   `json:"authorisationAvailable"`
+	PreviousUsername       *string `json:"previousUsername"`
+}
+
+func (b *browser) trackerStatus() trackerStatus {
+	b.t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, b.app.URL+"/api/trackers/anilist", nil)
+	for _, c := range b.cookies {
+		req.AddCookie(c)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		b.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out trackerStatus
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		b.t.Fatal(err)
+	}
+	return out
+}
+
+func withAniListCredentials() appOption {
+	return withConfigEdit(func(c *server.Config) {
+		c.Env.AniListClientID = anilisttest.ClientID
+		c.Env.AniListClientSecret = anilisttest.ClientSecret
+	})
+}
+
+func TestWithoutAniListCredentialsAuthorisationIsUnavailable(t *testing.T) {
+	t.Parallel()
+	p := startApp(t)
+	b := p.signedIn("sub-alice", "Alice")
+
+	got := b.trackerStatus()
+
+	if got.AuthorisationAvailable == nil || *got.AuthorisationAvailable {
+		t.Errorf("authorisationAvailable = %v, want false", got.AuthorisationAvailable)
+	}
+}
+
+func TestWithAniListCredentialsAuthorisationIsAvailable(t *testing.T) {
+	t.Parallel()
+	p := startApp(t, withAniListCredentials())
+	b := p.signedIn("sub-alice", "Alice")
+
+	got := b.trackerStatus()
+
+	if got.AuthorisationAvailable == nil || !*got.AuthorisationAvailable {
+		t.Errorf("authorisationAvailable = %v, want true", got.AuthorisationAvailable)
+	}
+}
+
+func TestUsernameOnlyTrackerIsNotAuthorised(t *testing.T) {
+	t.Parallel()
+	p := startApp(t, withAniListCredentials())
+	publicUser(p, "alice_anime")
+	b := p.signedIn("sub-alice", "Alice")
+	b.linkAniList("alice_anime")
+
+	got := b.trackerStatus()
+
+	if got.Authorised == nil || *got.Authorised || got.Username == nil || *got.Username != "alice_anime" {
+		t.Errorf("got %+v, want linked username and authorised=false", got)
+	}
 }
 
 func TestLinkingAPublicAniListUsernameSavesIt(t *testing.T) {

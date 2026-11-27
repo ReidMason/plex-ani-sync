@@ -128,13 +128,15 @@ export async function unlinkAniList(): Promise<void> {
   if (!res.ok) throw new Error(`Removing AniList failed (${res.status})`);
 }
 
-export function useAniListUsername() {
+export type AniListStatus = { username: string | null; authorised: boolean; authorisationAvailable: boolean; previousUsername: string | null };
+
+export function useAniListStatus() {
   return useQuery({
     queryKey: ["anilist"],
-    queryFn: async (): Promise<string | null> => {
+    queryFn: async (): Promise<AniListStatus> => {
       const res = await fetch("/api/trackers/anilist");
       if (!res.ok) throw new Error(`Could not load AniList (${res.status})`);
-      return (await res.json()).username;
+      return res.json();
     },
   });
 }

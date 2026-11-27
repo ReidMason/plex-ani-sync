@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { type MediaSource, useAniListUsername } from "@/api";
+import { type MediaSource, useAniListStatus } from "@/api";
 import { AddServer } from "@/components/AddServer";
 import { AniListLink } from "@/components/AniListLink";
 import { Brand } from "@/components/Brand";
@@ -84,10 +84,10 @@ export function SetupServers({ sources }: { sources: MediaSource[] }) {
 
 export function SetupAniList() {
   const navigate = useNavigate();
-  const linked = useAniListUsername().data;
+  const linked = useAniListStatus().data?.username;
   return (
     <SetupFrame step={3} title="Link your AniList account" description="Enter your public AniList username. Your anime list must be public so it can be read.">
-      <AniListLink />
+      <AniListLink returnTo="setup" />
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="outline" onClick={() => void navigate({ to: "/" })}>
           Skip for now

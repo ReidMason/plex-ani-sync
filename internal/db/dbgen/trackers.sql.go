@@ -23,6 +23,27 @@ func (q *Queries) DeleteTracker(ctx context.Context, arg DeleteTrackerParams) er
 	return err
 }
 
+const getTrackerStatus = `-- name: GetTrackerStatus :one
+SELECT username, (token_encrypted IS NOT NULL)::boolean AS authorised FROM trackers WHERE user_id = $1 AND kind = $2
+`
+
+type GetTrackerStatusParams struct {
+	UserID int64
+	Kind   string
+}
+
+type GetTrackerStatusRow struct {
+	Username   string
+	Authorised bool
+}
+
+func (q *Queries) GetTrackerStatus(ctx context.Context, arg GetTrackerStatusParams) (GetTrackerStatusRow, error) {
+	row := q.db.QueryRow(ctx, getTrackerStatus, arg.UserID, arg.Kind)
+	var i GetTrackerStatusRow
+	err := row.Scan(&i.Username, &i.Authorised)
+	return i, err
+}
+
 const getTrackerUsername = `-- name: GetTrackerUsername :one
 SELECT username FROM trackers WHERE user_id = $1 AND kind = $2
 `
@@ -39,9 +60,34 @@ func (q *Queries) GetTrackerUsername(ctx context.Context, arg GetTrackerUsername
 	return username, err
 }
 
+const upsertAuthorisedTracker = `-- name: UpsertAuthorisedTracker :exec
+INSERT INTO trackers (user_id, kind, username, token_encrypted) VALUES ($1, $2, $3, $4)
+ON CONFLICT (user_id, kind) DO UPDATE SET username = EXCLUDED.username, token_encrypted = EXCLUDED.token_encrypted
+`
+
+type UpsertAuthorisedTrackerParams struct {
+	UserID         int64
+	Kind           string
+	Username       string
+	TokenEncrypted []byte
+}
+
+func (q *Queries) UpsertAuthorisedTracker(ctx context.Context, arg UpsertAuthorisedTrackerParams) error {
+	_, err := q.db.Exec(ctx, upsertAuthorisedTracker,
+		arg.UserID,
+		arg.Kind,
+		arg.Username,
+		arg.TokenEncrypted,
+	)
+	return err
+}
+
 const upsertTracker = `-- name: UpsertTracker :exec
 INSERT INTO trackers (user_id, kind, username) VALUES ($1, $2, $3)
-ON CONFLICT (user_id, kind) DO UPDATE SET username = EXCLUDED.username
+ON CONFLICT (user_id, kind) DO UPDATE SET
+    username = EXCLUDED.username,
+    -- a token authorises one AniList account, so changing the username invalidates it
+    token_encrypted = CASE WHEN trackers.username = EXCLUDED.username THEN trackers.token_encrypted END
 `
 
 type UpsertTrackerParams struct {

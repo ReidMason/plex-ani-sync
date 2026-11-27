@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/plex"
 	"github.com/ReidMason/plex-ani-sync/internal/secretbox"
 )
+
+const aniListHTTPTimeout = 15 * time.Second
 
 type Config struct {
 	Env          config.Config
@@ -56,12 +59,17 @@ type ExternalURLs struct {
 	Fribb      string
 	AnimeLists string
 	AniList    string
+	// AniListOAuth is the base URL of AniList's OAuth endpoints; it is required only when AniList credentials are set.
+	AniListOAuth string
 }
 
 // New opens the database, applies migrations and returns the HTTP handler plus a cleanup func.
 func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if err := cfg.ExternalURLs.requireAll(); err != nil {
 		return nil, nil, err
+	}
+	if cfg.Env.AniListAuthorisationAvailable() && cfg.ExternalURLs.AniListOAuth == "" {
+		return nil, nil, fmt.Errorf("server config missing required ExternalURLs.AniListOAuth")
 	}
 	logger := cfg.Logger
 	if logger == nil {
@@ -137,7 +145,8 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if aniListPoll == 0 {
 		aniListPoll = time.Second
 	}
-	aniListClient := anilist.New(anilist.Options{URL: cfg.ExternalURLs.AniList, HTTP: http.DefaultClient, Now: clock.Now, RequestsPerMinute: aniListRate})
+	aniListHTTP := &http.Client{Timeout: aniListHTTPTimeout}
+	aniListClient := anilist.New(anilist.Options{URL: cfg.ExternalURLs.AniList, HTTP: aniListHTTP, Now: clock.Now, RequestsPerMinute: aniListRate})
 	aniListWorker := newAniListCache(aniListClient, queries, clock, defaultAniListMetadataTTL, aniListPoll, logger)
 	aniListCtx, stopAniList := context.WithCancel(ctx)
 	aniListDone := make(chan struct{})
@@ -160,12 +169,19 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	}
 	p := &plexLink{now: clock.Now, lists: &aniListListCache{store: store, ttl: listTTL, logger: logger}, shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: aniListWorker, anilistClient: aniListClient}
+	if cfg.Env.AniListAuthorisationAvailable() {
+		p.aniListOAuth = &anilist.OAuth{BaseURL: cfg.ExternalURLs.AniListOAuth, ClientID: cfg.Env.AniListClientID, ClientSecret: cfg.Env.AniListClientSecret, RedirectURI: cfg.Env.AniListRedirectURI(), HTTP: aniListHTTP}
+		stateKey := hmac.New(sha256.New, cfg.Env.EncryptionKey)
+		stateKey.Write([]byte("plex-ani-sync/anilist-oauth-state"))
+		p.stateKey = stateKey.Sum(nil)
+	}
 	mux := http.NewServeMux()
 	a.register(mux)
 	p.register(mux, a)
 	p.registerMediaSources(mux, a)
 	p.registerAnime(mux, a)
 	p.registerTrackers(mux, a)
+	p.registerAniListAuthorisation(mux, a)
 	p.registerSync(mux, a)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := queries.Ping(r.Context()); err != nil {

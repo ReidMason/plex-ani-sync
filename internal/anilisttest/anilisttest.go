@@ -2,12 +2,19 @@ package anilisttest
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+)
+
+const (
+	ClientID     = "anilist-client"
+	ClientSecret = "anilist-secret"
 )
 
 type Title struct {
@@ -41,15 +48,132 @@ type Host struct {
 	writes   int
 	hold     chan struct{}
 	arrived  chan struct{}
+
+	approver     string
+	deny         bool
+	failExchange bool
+	rejectTokens bool
+	codes        map[string]string
+	tokens       map[string]string
+	issued       []string
 }
 
 func New(t *testing.T) *Host {
 	t.Helper()
-	h := &Host{media: map[int]Media{}, lists: map[string][]ListEntry{}, private: map[string]bool{}}
-	srv := httptest.NewServer(http.HandlerFunc(h.serve))
+	h := &Host{media: map[int]Media{}, lists: map[string][]ListEntry{}, private: map[string]bool{}, codes: map[string]string{}, tokens: map[string]string{}}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /oauth/authorize", h.authorize)
+	mux.HandleFunc("POST /oauth/token", h.token)
+	mux.HandleFunc("/", h.serve)
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	h.URL = srv.URL
 	return h
+}
+
+// OAuthURL is the base URL of the fake's OAuth endpoints.
+func (h *Host) OAuthURL() string { return h.URL + "/oauth" }
+
+// ApproveAs makes the AniList account that approves authorisation requests username.
+func (h *Host) ApproveAs(username string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.approver = username
+	h.deny = false
+}
+
+// DenyAuthorisation makes the User deny authorisation requests.
+func (h *Host) DenyAuthorisation() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.deny = true
+}
+
+// FailTokenExchange makes the token endpoint reject every code.
+func (h *Host) FailTokenExchange() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.failExchange = true
+}
+
+// RejectTokens makes every authorised request fail with 401, as after a revoked or rotated client.
+func (h *Host) RejectTokens() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rejectTokens = true
+}
+
+// IssuedTokens lists every access token the fake has handed out.
+func (h *Host) IssuedTokens() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.issued...)
+}
+
+func (h *Host) authorize(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	redirect, err := url.Parse(q.Get("redirect_uri"))
+	if q.Get("client_id") != ClientID || q.Get("response_type") != "code" || err != nil || redirect.Host == "" {
+		http.Error(w, "invalid_request", http.StatusBadRequest)
+		return
+	}
+	h.mu.Lock()
+	deny, approver := h.deny, h.approver
+	var code string
+	if !deny {
+		code = fmt.Sprintf("code-%d", len(h.codes)+1)
+		h.codes[code] = approver
+	}
+	h.mu.Unlock()
+	out := redirect.Query()
+	out.Set("state", q.Get("state"))
+	if deny {
+		out.Set("error", "access_denied")
+	} else {
+		out.Set("code", code)
+	}
+	redirect.RawQuery = out.Encode()
+	http.Redirect(w, r, redirect.String(), http.StatusFound)
+}
+
+func (h *Host) token(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		GrantType    string `json:"grant_type"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		RedirectURI  string `json:"redirect_uri"`
+		Code         string `json:"code"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	account, known := h.codes[body.Code]
+	delete(h.codes, body.Code)
+	if h.failExchange || !known || body.GrantType != "authorization_code" || body.ClientID != ClientID || body.ClientSecret != ClientSecret || body.RedirectURI == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+		return
+	}
+	token := fmt.Sprintf("anilist-access-token-%d", len(h.issued)+1)
+	h.tokens[token] = account
+	h.issued = append(h.issued, token)
+	_ = json.NewEncoder(w).Encode(map[string]any{"token_type": "Bearer", "expires_in": 31536000, "access_token": token})
+}
+
+func (h *Host) serveViewer(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	h.mu.Lock()
+	h.requests++
+	name, ok := h.tokens[token]
+	rejected := h.rejectTokens
+	h.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	if !ok || rejected {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"errors": []map[string]any{{"message": "Invalid token", "status": 401}}, "data": map[string]any{"Viewer": nil}})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"Viewer": map[string]any{"name": name}}})
 }
 
 func (h *Host) Set(m Media) {
@@ -121,6 +245,10 @@ func (h *Host) serve(w http.ResponseWriter, r *http.Request) {
 		} `json:"variables"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
+	if strings.Contains(body.Query, "Viewer") {
+		h.serveViewer(w, r)
+		return
+	}
 	h.mu.Lock()
 	h.requests++
 	if strings.Contains(strings.ToLower(body.Query), "mutation") {

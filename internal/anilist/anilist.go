@@ -218,13 +218,17 @@ type envelope struct {
 
 // GraphQL errors come back in the envelope, not as an error.
 func (c *Client) send(ctx context.Context, q string, vars map[string]any) (*envelope, error) {
+	return c.sendAs(ctx, "", q, vars)
+}
+
+func (c *Client) sendAs(ctx context.Context, token, q string, vars map[string]any) (*envelope, error) {
 	if err := c.reserve(); err != nil {
 		return nil, err
 	}
-	env, err := c.post(ctx, q, vars)
+	env, err := c.post(ctx, token, q, vars)
 	var limited *rateLimitedError
 	switch {
-	case err == nil:
+	case err == nil, errors.Is(err, ErrUnauthorised): // a rejected token means AniList answered, so it is not an outage
 		c.recordSuccess()
 	case errors.As(err, &limited):
 		c.pauseFor(limited.retryAfter)
@@ -234,7 +238,7 @@ func (c *Client) send(ctx context.Context, q string, vars map[string]any) (*enve
 	return env, err
 }
 
-func (c *Client) post(ctx context.Context, q string, vars map[string]any) (*envelope, error) {
+func (c *Client) post(ctx context.Context, token, q string, vars map[string]any) (*envelope, error) {
 	payload, err := json.Marshal(map[string]any{"query": q, "variables": vars})
 	if err != nil {
 		return nil, err
@@ -245,6 +249,9 @@ func (c *Client) post(ctx context.Context, q string, vars map[string]any) (*enve
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
@@ -252,6 +259,9 @@ func (c *Client) post(ctx context.Context, q string, vars map[string]any) (*enve
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return nil, &rateLimitedError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), c.now())}
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, ErrUnauthorised
 	}
 	var env envelope
 	decodeErr := json.NewDecoder(resp.Body).Decode(&env)
