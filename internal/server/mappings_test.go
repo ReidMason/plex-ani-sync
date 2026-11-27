@@ -11,7 +11,6 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
 	"github.com/ReidMason/plex-ani-sync/internal/mappings"
 	"github.com/ReidMason/plex-ani-sync/internal/plexservertest"
-	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
 
 type mappingJSON struct {
@@ -50,17 +49,13 @@ func (b *browser) mappedShows() map[string]mappedShow {
 	return out
 }
 
-func withFribb(entries ...datasettest.FribbEntry) func(*datasettest.Host) {
-	return func(h *datasettest.Host) { h.SetFribb(entries...) }
-}
-
 func tvdb(season int) *datasettest.Season { return &datasettest.Season{TVDB: season} }
 
-func animeSetup(t *testing.T, p plexApp) (*browser, *plexservertest.Server) {
+func animeSetup(t *testing.T, p *app) (*browser, *plexservertest.Server) {
 	t.Helper()
-	b := p.signedIn(t, "sub-alice", "Alice")
+	b := p.signedIn("sub-alice", "Alice")
 	b.link(p, "tok-a", "alice_plex")
-	srv := plexservertest.New(t)
+	srv := p.plexServer
 	srv.Allow("tok-a")
 	srv.AddLibrary("2", "show", "Anime")
 	return b, srv
@@ -92,7 +87,7 @@ func assertMappings(t *testing.T, got mappedShow, status string, want ...mapping
 }
 
 func TestShowWithTVDBIDIsMappedFromFribb(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 17617, AniListID: 154587, TVDBID: 424536, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 17617, AniListID: 154587, TVDBID: 424536, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Frieren", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Frieren", "tvdb://424536", "tmdb://209867", "imdb://tt22248376")
@@ -107,7 +102,7 @@ func TestShowWithTVDBIDIsMappedFromFribb(t *testing.T) {
 }
 
 func TestSplitCourSeasonResolvesToTwoMappingsWithOffsetRanges(t *testing.T) {
-	p := startPlexApp(t, withFribb(
+	p := startApp(t, withFribb(
 		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
 		datasettest.FribbEntry{AniDBID: 100, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 	))
@@ -127,7 +122,7 @@ func TestSplitCourSeasonResolvesToTwoMappingsWithOffsetRanges(t *testing.T) {
 }
 
 func TestShowsWithoutAUsableTVDBIDAreUnmapped(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "NoGuid", Season: 1, Number: 1, Title: "x"})
 	srv.AddEpisode("2", plexservertest.Episode{Show: "TMDBOnly", Season: 1, Number: 1, Title: "x"})
@@ -149,7 +144,7 @@ func TestOverlappingDatasetRowsResolveByLowestAniDBID(t *testing.T) {
 		{AniDBID: 10, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 		{AniDBID: 20, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 	}
-	p := startPlexApp(t, withFribb(rows...))
+	p := startApp(t, withFribb(rows...))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Overlap", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Overlap", "tvdb://77")
@@ -161,7 +156,7 @@ func TestOverlappingDatasetRowsResolveByLowestAniDBID(t *testing.T) {
 }
 
 func TestSpecialsAreNotMapped(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(0), Type: "OVA"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(0), Type: "OVA"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Specials", Season: 0, Number: 1, Title: "x"})
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Specials", Season: 1, Number: 1, Title: "x"})
@@ -172,11 +167,10 @@ func TestSpecialsAreNotMapped(t *testing.T) {
 }
 
 func TestDatasetIsLoadedOnlyWhenMappingsAreEmpty(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	changed := datasettest.New(t)
 	changed.SetFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 99, TVDBID: 77, Season: tvdb(1), Type: "TV"})
-	restarted, _ := startAppWith(t, p.dbURL, p.provider, p.tv, func(c *server.Config) { c.FribbURL, c.AnimeListsURL = changed.FribbURL, changed.AnimeListsURL })
-	p.app = restarted
+	p = startApp(t, restartOf(p), withDatasets(changed))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Stable", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Stable", "tvdb://77")
@@ -186,7 +180,7 @@ func TestDatasetIsLoadedOnlyWhenMappingsAreEmpty(t *testing.T) {
 }
 
 func TestUnavailableDatasetLeavesShowsUnmappedWithoutBreakingStartup(t *testing.T) {
-	p := startPlexApp(t, func(h *datasettest.Host) { h.Fail() })
+	p := startApp(t, withFailingDatasets())
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Down", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Down", "tvdb://77")
@@ -195,12 +189,8 @@ func TestUnavailableDatasetLeavesShowsUnmappedWithoutBreakingStartup(t *testing.
 	assertMappings(t, b.mappedShows()["Down"], "unmapped")
 }
 
-func withAnimeLists(xml string) func(*datasettest.Host) {
-	return func(h *datasettest.Host) { h.SetAnimeLists(xml) }
-}
-
 func TestTwoSeasonsFoldingIntoOneEntryResolveToTwoMappings(t *testing.T) {
-	p := startPlexApp(t,
+	p := startApp(t,
 		withFribb(datasettest.FribbEntry{AniDBID: 10, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"}),
 		withAnimeLists(`<?xml version="1.0" encoding="utf-8"?>
 <anime-list>
@@ -231,7 +221,7 @@ func TestTwoSeasonsFoldingIntoOneEntryResolveToTwoMappings(t *testing.T) {
 }
 
 func TestFribbOnlyShowsAreUnaffectedByAnimeLists(t *testing.T) {
-	p := startPlexApp(t,
+	p := startApp(t,
 		withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 5, Season: tvdb(1), Type: "TV"}),
 		withAnimeLists(`<anime-list><anime anidbid="1" tvdbid="5" defaulttvdbseason="1"><name>Plain</name></anime></anime-list>`))
 	b, srv := animeSetup(t, p)
@@ -243,7 +233,7 @@ func TestFribbOnlyShowsAreUnaffectedByAnimeLists(t *testing.T) {
 }
 
 func TestShowWithEpisodesOutsideEveryMappingNeedsReview(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Gappy", Season: 1, Number: 1, Title: "x"})
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Gappy", Season: 2, Number: 1, Title: "x"})
@@ -262,7 +252,7 @@ func TestShowWithEpisodesOutsideEveryMappingNeedsReview(t *testing.T) {
 }
 
 func TestGapBetweenMappedRangesNeedsReviewAndClearsWhenEpisodesChange(t *testing.T) {
-	p := startPlexApp(t, withFribb(
+	p := startApp(t, withFribb(
 		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
 	))
@@ -284,9 +274,9 @@ func TestGapBetweenMappedRangesNeedsReviewAndClearsWhenEpisodesChange(t *testing
 	}
 }
 
-func mismatchSetup(t *testing.T, episodes int) (plexApp, *browser) {
+func mismatchSetup(t *testing.T, episodes int) (*app, *browser) {
 	t.Helper()
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	for n := 1; n <= episodes; n++ {
 		srv.AddEpisode("2", plexservertest.Episode{Show: "Counted", Season: 1, Number: n, Title: "x"})
@@ -357,9 +347,9 @@ func TestAniListOutageDegradesToMissingSignal(t *testing.T) {
 	}
 }
 
-func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) (plexApp, *browser) {
+func titleSetup(t *testing.T, plexTitle string, anilistTitle anilisttest.Title) (*app, *browser) {
 	t.Helper()
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: plexTitle, Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", plexTitle, "tvdb://77")
@@ -406,7 +396,7 @@ func TestMissingAniListTitleNeverFlagsAShow(t *testing.T) {
 }
 
 func TestUnmappedShowsExplainWhy(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "NoGuid", Season: 1, Number: 1, Title: "x"})
 	srv.AddEpisode("2", plexservertest.Episode{Show: "TMDBOnly", Season: 1, Number: 1, Title: "x"})
@@ -432,7 +422,7 @@ func TestUnmappedShowsExplainWhy(t *testing.T) {
 }
 
 func TestTMDBOnlyShowResolvesThroughDatasetIDLinks(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, TMDBID: 5, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, TMDBID: 5, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Linked", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Linked", "tmdb://5")
@@ -446,25 +436,12 @@ func TestTMDBOnlyShowResolvesThroughDatasetIDLinks(t *testing.T) {
 	assertMappings(t, shows["Absent"], "unmapped")
 }
 
-func startPlexAppWithCustom(t *testing.T, custom []mappings.Mapping, entries ...datasettest.FribbEntry) plexApp {
-	t.Helper()
-	p := startPlexApp(t)
-	host := datasettest.New(t)
-	host.SetFribb(entries...)
-	app, _ := startAppWith(t, newDatabase(t), p.provider, p.tv, func(c *server.Config) {
-		c.FribbURL = host.FribbURL
-		c.CustomMappings = custom
-	})
-	p.app = app
-	return p
-}
-
 func TestCustomMappingAppearsAlongsideDatasetRowsAndDisplacesOverlappingOnes(t *testing.T) {
 	custom := []mappings.Mapping{{TVDBID: 77, Season: 1, Episodes: mappings.Range{First: 13, Last: ptr(24)}, AniListID: 3003, Entry: mappings.Range{First: 1, Last: ptr(12)}}}
-	p := startPlexAppWithCustom(t, custom,
+	p := startApp(t, withCustomMappings(custom), withFribb(
 		datasettest.FribbEntry{AniDBID: 100, AniListID: 1001, TVDBID: 77, Season: tvdb(1), Type: "TV"},
 		datasettest.FribbEntry{AniDBID: 200, AniListID: 2002, TVDBID: 77, Season: tvdb(1), Offset: tvdb(12), Type: "TV"},
-	)
+	))
 	b, srv := animeSetup(t, p)
 	for n := 1; n <= 24; n++ {
 		srv.AddEpisode("2", plexservertest.Episode{Show: "Split", Season: 1, Number: n, Title: "x"})
@@ -480,16 +457,9 @@ func TestCustomMappingAppearsAlongsideDatasetRowsAndDisplacesOverlappingOnes(t *
 	)
 }
 
-func startRefreshingApp(t *testing.T, custom []mappings.Mapping, host *datasettest.Host) plexApp {
+func startRefreshingApp(t *testing.T, custom []mappings.Mapping, host *datasettest.Host) *app {
 	t.Helper()
-	p := startPlexApp(t)
-	app, _ := startAppWith(t, newDatabase(t), p.provider, p.tv, func(c *server.Config) {
-		c.FribbURL, c.AnimeListsURL = host.FribbURL, host.AnimeListsURL
-		c.CustomMappings = custom
-		c.DatasetRefreshInterval = 20 * time.Millisecond
-	})
-	p.app = app
-	return p
+	return startApp(t, withDatasets(host), withCustomMappings(custom), withDatasetRefreshInterval(20*time.Millisecond))
 }
 
 func waitForRefreshes(t *testing.T, host *datasettest.Host, n int) {
@@ -579,7 +549,7 @@ func TestFailedRefreshLeavesPreviousRowsInPlace(t *testing.T) {
 
 func TestCustomMappingAddedBetweenRunsDisplacesStoredOverlappingDatasetRows(t *testing.T) {
 	row := datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}
-	p := startPlexApp(t, withFribb(row))
+	p := startApp(t, withFribb(row))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "Pinned", Season: 1, Number: 1, Title: "x"})
 	srv.SetShowGUIDs("2", "Pinned", "tvdb://77")
@@ -588,15 +558,13 @@ func TestCustomMappingAddedBetweenRunsDisplacesStoredOverlappingDatasetRows(t *t
 	host.SetFribb(row)
 	custom := []mappings.Mapping{{TVDBID: 77, Season: 1, Episodes: mappings.Range{First: 1}, AniListID: 5005, Entry: mappings.Range{First: 1}}}
 
-	p.app, _ = startAppWith(t, p.dbURL, p.provider, p.tv, func(c *server.Config) {
-		c.FribbURL, c.AnimeListsURL, c.CustomMappings = host.FribbURL, host.AnimeListsURL, custom
-	})
+	restarted := startApp(t, restartOf(p), withDatasets(host), withCustomMappings(custom))
 
-	assertMappings(t, p.signedIn(t, "sub-alice", "Alice").mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
+	assertMappings(t, restarted.signedIn("sub-alice", "Alice").mappedShows()["Pinned"], "mapped", mappingJSON{Season: 1, FirstEpisode: 1, AniListID: 5005, EntryFirst: 1})
 }
 
 func TestSpecialsEpisodesDoNotCountAsUncoveredByMappings(t *testing.T) {
-	p := startPlexApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
+	p := startApp(t, withFribb(datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 77, Season: tvdb(1), Type: "TV"}))
 	b, srv := animeSetup(t, p)
 	srv.AddEpisode("2", plexservertest.Episode{Show: "WithSpecials", Season: 0, Number: 1, Title: "x"})
 	srv.AddEpisode("2", plexservertest.Episode{Show: "WithSpecials", Season: 1, Number: 1, Title: "x"})
@@ -690,7 +658,7 @@ func TestColdCacheWithManyEntriesIsFetchedAtTheConfiguredRate(t *testing.T) {
 	for i := 0; i < entries; i++ {
 		fribb = append(fribb, datasettest.FribbEntry{AniDBID: i + 1, AniListID: 1000 + i, TVDBID: 77, Season: tvdb(1), Offset: tvdb(i * 12), Type: "TV"})
 	}
-	p := startPlexAppTuned(t, func(c *server.Config) { c.Env.AniListRequestsPerMinute = 2 }, withFribb(fribb...))
+	p := startApp(t, withAniListRequestsPerMinute(2), withFribb(fribb...))
 	for i := 0; i < entries; i++ {
 		p.anilist.Set(anilisttest.Media{ID: 1000 + i, Episodes: ptr(12)})
 	}
@@ -719,7 +687,7 @@ func TestColdCacheWithManyEntriesIsFetchedAtTheConfiguredRate(t *testing.T) {
 }
 
 // quiesce waits for the AniList worker to stop sending and storing.
-func (p plexApp) quiesce(t *testing.T) {
+func (p *app) quiesce(t *testing.T) {
 	t.Helper()
 	last, stableSince := -1, time.Now()
 	eventually(t, "AniList requests to settle", func() bool {
@@ -730,7 +698,7 @@ func (p plexApp) quiesce(t *testing.T) {
 	})
 }
 
-func (p plexApp) settledRequests(t *testing.T, b *browser) int {
+func (p *app) settledRequests(t *testing.T, b *browser) int {
 	t.Helper()
 	b.mappedShows()
 	p.quiesce(t)
@@ -738,7 +706,7 @@ func (p plexApp) settledRequests(t *testing.T, b *browser) int {
 }
 
 // settledShows loads the shows, lets the AniList worker finish, then loads them again.
-func (p plexApp) settledShows(t *testing.T, b *browser) map[string]mappedShow {
+func (p *app) settledShows(t *testing.T, b *browser) map[string]mappedShow {
 	t.Helper()
 	p.settledRequests(t, b)
 	return b.mappedShows()

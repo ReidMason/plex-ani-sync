@@ -1,28 +1,18 @@
 package server_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"sync/atomic"
 	"testing"
-	"testing/fstest"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-
-	"github.com/ReidMason/plex-ani-sync/internal/anilisttest"
-	"github.com/ReidMason/plex-ani-sync/internal/config"
-	"github.com/ReidMason/plex-ani-sync/internal/datasettest"
-	"github.com/ReidMason/plex-ani-sync/internal/oidctest"
-	"github.com/ReidMason/plex-ani-sync/internal/plextest"
-	"github.com/ReidMason/plex-ani-sync/internal/server"
 )
 
 var (
@@ -72,62 +62,6 @@ func newDatabase(t *testing.T) string {
 	return u.String()
 }
 
-var testEncryptionKey = bytes.Repeat([]byte{9}, 32)
-
-func testConfig(dbURL, issuer string) config.Config {
-	return config.Config{
-		DatabaseURL:      dbURL,
-		PublicBaseURL:    "https://plex-ani-sync.example.com",
-		OIDCIssuerURL:    issuer,
-		OIDCClientID:     "plex-ani-sync",
-		OIDCClientSecret: "super-secret-value",
-		EncryptionKey:    testEncryptionKey,
-	}
-}
-
-func startApp(t *testing.T) (*httptest.Server, string, *oidctest.Provider) {
-	t.Helper()
-	dbURL := newDatabase(t)
-	ts, issuer := startAppOn(t, dbURL, nil)
-	return ts, dbURL, issuer
-}
-
-func startAppOn(t *testing.T, dbURL string, issuer *oidctest.Provider) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	return startAppWith(t, dbURL, issuer, plextest.New(t))
-}
-
-func startAppWith(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	return startAppWithKey(t, dbURL, issuer, tv, testEncryptionKey, opts...)
-}
-
-func startAppWithKey(t *testing.T, dbURL string, issuer *oidctest.Provider, tv *plextest.TV, key []byte, opts ...func(*server.Config)) (*httptest.Server, *oidctest.Provider) {
-	t.Helper()
-	if issuer == nil {
-		issuer = oidctest.New(t)
-	}
-	assets := fstest.MapFS{
-		"index.html":          {Data: []byte("<!doctype html><title>plex-ani-sync</title>")},
-		"assets/index-abc.js": {Data: []byte("console.log(1)")},
-	}
-	env := testConfig(dbURL, issuer.URL)
-	env.EncryptionKey = key
-	ds := datasettest.New(t)
-	cfg := server.Config{Env: env, Assets: assets, PlexTVURL: tv.URL, FribbURL: ds.FribbURL, AnimeListsURL: ds.AnimeListsURL, AniListURL: anilisttest.New(t).URL}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	h, closeFn, err := server.New(context.Background(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(closeFn)
-	ts := httptest.NewServer(h)
-	t.Cleanup(ts.Close)
-	return ts, issuer
-}
-
 func get(t *testing.T, url string) (*http.Response, string) {
 	t.Helper()
 	resp, err := http.Get(url)
@@ -143,10 +77,10 @@ func get(t *testing.T, url string) (*http.Response, string) {
 }
 
 func TestServesSPAShell(t *testing.T) {
-	ts, _, _ := startApp(t)
+	a := startApp(t)
 
 	for _, path := range []string{"/", "/some/client/route"} {
-		resp, body := get(t, ts.URL+path)
+		resp, body := get(t, a.URL+path)
 		if resp.StatusCode != 200 {
 			t.Fatalf("%s: status %d", path, resp.StatusCode)
 		}
@@ -160,9 +94,9 @@ func TestServesSPAShell(t *testing.T) {
 }
 
 func TestHashedAssetsCacheLong(t *testing.T) {
-	ts, _, _ := startApp(t)
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/assets/index-abc.js")
+	resp, _ := get(t, a.URL+"/assets/index-abc.js")
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
@@ -172,27 +106,27 @@ func TestHashedAssetsCacheLong(t *testing.T) {
 }
 
 func TestUnknownAPIPathIsNotTheSPA(t *testing.T) {
-	ts, _, _ := startApp(t)
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/api/nope")
+	resp, _ := get(t, a.URL+"/api/nope")
 	if resp.StatusCode != 404 {
 		t.Fatalf("status %d, want 404", resp.StatusCode)
 	}
 }
 
 func TestHealthCheckReportsDatabaseReachable(t *testing.T) {
-	ts, _, _ := startApp(t)
+	a := startApp(t)
 
-	resp, _ := get(t, ts.URL+"/api/health")
+	resp, _ := get(t, a.URL+"/api/health")
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
 	}
 }
 
 func TestMigrationsRunOnStartup(t *testing.T) {
-	_, dbURL, _ := startApp(t)
+	a := startApp(t)
 
-	conn, err := pgx.Connect(context.Background(), dbURL)
+	conn, err := pgx.Connect(context.Background(), a.dbURL)
 	if err != nil {
 		t.Fatal(err)
 	}

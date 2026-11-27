@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -16,12 +15,8 @@ const sessionCookie = "plex_ani_sync_session"
 
 type browser struct {
 	t       *testing.T
-	app     *httptest.Server
+	app     *app
 	cookies map[string]*http.Cookie
-}
-
-func newBrowser(t *testing.T, app *httptest.Server) *browser {
-	return &browser{t: t, app: app, cookies: map[string]*http.Cookie{}}
 }
 
 func (b *browser) do(method, rawURL string) *http.Response {
@@ -99,15 +94,15 @@ func queryInt(t *testing.T, dbURL, sql string, args ...any) int {
 }
 
 func TestLoginRedirectsToProviderWithPKCE(t *testing.T) {
-	app, _, provider := startApp(t)
+	app := startApp(t)
 
-	resp := newBrowser(t, app).get(app.URL + "/auth/login")
+	resp := app.browser().get(app.URL + "/auth/login")
 
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("status = %d, want 302", resp.StatusCode)
 	}
 	loc := mustParse(t, resp.Header.Get("Location"))
-	if !strings.HasPrefix(loc.String(), provider.URL+"/authorize?") {
+	if !strings.HasPrefix(loc.String(), app.provider.URL+"/authorize?") {
 		t.Fatalf("Location = %q, want provider authorize endpoint", loc)
 	}
 	q := loc.Query()
@@ -120,9 +115,9 @@ func TestLoginRedirectsToProviderWithPKCE(t *testing.T) {
 }
 
 func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
-	app, dbURL, provider := startApp(t)
-	provider.SignInAs("sub-alice", "Alice")
-	b := newBrowser(t, app)
+	app := startApp(t)
+	app.provider.SignInAs("sub-alice", "Alice")
+	b := app.browser()
 
 	resp := b.signIn()
 
@@ -133,10 +128,10 @@ func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
 	if c == nil || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("session cookie = %+v, want HttpOnly Secure SameSite=Lax", c)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM users WHERE oidc_issuer = $1 AND oidc_subject = 'sub-alice'", provider.URL); got != 1 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users WHERE oidc_issuer = $1 AND oidc_subject = 'sub-alice'", app.provider.URL); got != 1 {
 		t.Errorf("users = %d, want 1", got)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions WHERE display_name = 'Alice'"); got != 1 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE display_name = 'Alice'"); got != 1 {
 		t.Errorf("sessions carrying name = %d, want 1", got)
 	}
 	if status, name := b.me(); status != 200 || name != "Alice" {
@@ -145,18 +140,18 @@ func TestFirstLoginCreatesUserAndSessionCarryingAuthentikName(t *testing.T) {
 }
 
 func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
-	app, dbURL, provider := startApp(t)
-	provider.SignInAs("sub-alice", "Alice")
-	newBrowser(t, app).signIn()
+	app := startApp(t)
+	app.provider.SignInAs("sub-alice", "Alice")
+	app.browser().signIn()
 
-	provider.SignInAs("sub-alice", "Alice Renamed")
-	b := newBrowser(t, app)
+	app.provider.SignInAs("sub-alice", "Alice Renamed")
+	b := app.browser()
 	b.signIn()
 
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM users"); got != 1 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users"); got != 1 {
 		t.Errorf("users = %d, want 1", got)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions"); got != 2 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 2 {
 		t.Errorf("sessions = %d, want 2", got)
 	}
 	if _, name := b.me(); name != "Alice Renamed" {
@@ -165,20 +160,20 @@ func TestRepeatLoginReusesUserAndShowsLatestName(t *testing.T) {
 }
 
 func TestDifferentSubjectsAreDifferentUsers(t *testing.T) {
-	app, dbURL, provider := startApp(t)
-	provider.SignInAs("sub-alice", "Alice")
-	newBrowser(t, app).signIn()
-	provider.SignInAs("sub-bob", "Bob")
-	newBrowser(t, app).signIn()
+	app := startApp(t)
+	app.provider.SignInAs("sub-alice", "Alice")
+	app.browser().signIn()
+	app.provider.SignInAs("sub-bob", "Bob")
+	app.browser().signIn()
 
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM users"); got != 2 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM users"); got != 2 {
 		t.Errorf("users = %d, want 2", got)
 	}
 }
 
 func TestMeWithoutValidSessionIs401(t *testing.T) {
-	app, _, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	if status, _ := b.me(); status != http.StatusUnauthorized {
 		t.Errorf("no cookie: status = %d, want 401", status)
 	}
@@ -189,22 +184,22 @@ func TestMeWithoutValidSessionIs401(t *testing.T) {
 }
 
 func TestSessionIDIsStoredOnlyAsHash(t *testing.T) {
-	app, dbURL, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	b.signIn()
 
 	id := b.cookies[sessionCookie].Value
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions WHERE id_hash = $1::bytea", []byte(id)); got != 0 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE id_hash = $1::bytea", []byte(id)); got != 0 {
 		t.Error("raw session id found in sessions table")
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions WHERE id_hash = sha256($1::bytea)", []byte(id)); got != 1 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE id_hash = sha256($1::bytea)", []byte(id)); got != 1 {
 		t.Errorf("sessions with sha256(id) hash = %d, want 1", got)
 	}
 }
 
 func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
-	app, dbURL, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	b.signIn()
 	old := *b.cookies[sessionCookie]
 
@@ -215,25 +210,24 @@ func TestLogoutRevokesSessionAndClearsCookie(t *testing.T) {
 	if c := b.cookies[sessionCookie]; c.Value != "" || c.MaxAge >= 0 {
 		t.Errorf("cookie = %+v, want cleared", c)
 	}
-	replay := newBrowser(t, app)
+	replay := app.browser()
 	replay.cookies[sessionCookie] = &old
 	if status, _ := replay.me(); status != http.StatusUnauthorized {
 		t.Errorf("replayed cookie: status = %d, want 401", status)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions WHERE revoked_at IS NOT NULL"); got != 1 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions WHERE revoked_at IS NOT NULL"); got != 1 {
 		t.Errorf("revoked sessions = %d, want 1", got)
 	}
 }
 
 func TestSessionSurvivesAppRestart(t *testing.T) {
-	dbURL := newDatabase(t)
-	app, issuer := startAppOn(t, dbURL, nil)
-	issuer.SignInAs("sub-alice", "Alice")
-	b := newBrowser(t, app)
+	app := startApp(t)
+	app.provider.SignInAs("sub-alice", "Alice")
+	b := app.browser()
 	b.signIn()
-	app.Close()
+	app.server.Close()
 
-	restarted, _ := startAppOn(t, dbURL, issuer)
+	restarted := startApp(t, restartOf(app))
 	b.app = restarted
 
 	if status, name := b.me(); status != 200 || name != "Alice" {
@@ -242,10 +236,10 @@ func TestSessionSurvivesAppRestart(t *testing.T) {
 }
 
 func TestExpiredSessionIs401(t *testing.T) {
-	app, dbURL, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	b.signIn()
-	execSQL(t, dbURL, "UPDATE sessions SET expires_at = now() - interval '1 second'")
+	execSQL(t, app.dbURL, "UPDATE sessions SET expires_at = now() - interval '1 second'")
 
 	if status, _ := b.me(); status != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", status)
@@ -253,8 +247,8 @@ func TestExpiredSessionIs401(t *testing.T) {
 }
 
 func TestCallbackRejectsBadState(t *testing.T) {
-	app, dbURL, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	b.get(app.URL + "/auth/login")
 
 	resp := b.get(app.URL + "/auth/callback?code=x&state=forged")
@@ -262,14 +256,14 @@ func TestCallbackRejectsBadState(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions"); got != 0 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
 		t.Errorf("sessions = %d, want 0", got)
 	}
 }
 
 func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
-	app, dbURL, provider := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	login := b.get(app.URL + "/auth/login")
 	state := mustParse(t, login.Header.Get("Location")).Query().Get("state")
 
@@ -278,17 +272,17 @@ func TestCallbackWithProviderErrorCreatesNoSession(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions"); got != 0 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
 		t.Errorf("sessions = %d, want 0", got)
 	}
-	if provider.TokenRequests() != 0 {
+	if app.provider.TokenRequests() != 0 {
 		t.Error("code exchange attempted despite provider error")
 	}
 }
 
 func TestCallbackRejectsNonceMismatch(t *testing.T) {
-	app, dbURL, _ := startApp(t)
-	b := newBrowser(t, app)
+	app := startApp(t)
+	b := app.browser()
 	login := b.get(app.URL + "/auth/login")
 	authorize := mustParse(t, login.Header.Get("Location"))
 	q := authorize.Query()
@@ -301,7 +295,7 @@ func TestCallbackRejectsNonceMismatch(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}
-	if got := queryInt(t, dbURL, "SELECT count(*) FROM sessions"); got != 0 {
+	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
 		t.Errorf("sessions = %d, want 0", got)
 	}
 }
