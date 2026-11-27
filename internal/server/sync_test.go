@@ -294,3 +294,34 @@ func TestKnownTotalMatchingProgressProposesCompletedAndUnknownTotalStaysWatching
 	}
 }
 
+func TestUnfinishedEntriesStalledFor14DaysArePausedAndFor30DaysDropped(t *testing.T) {
+	t.Parallel()
+	p, b, srv := syncSetup(t,
+		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 2, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 3, AniListID: 30, TVDBID: 3, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 4, AniListID: 40, TVDBID: 4, Season: tvdb(1), Type: "TV"},
+	)
+	for i, c := range []struct {
+		title string
+		days  int
+	}{{"Recent", 13}, {"Stalled", 15}, {"Abandoned", 31}, {"Finished", 60}} {
+		watchedDaysAgo(srv, c.title, 1, c.days, true, true)
+		srv.SetShowGUIDs("2", c.title, "tvdb://"+string(rune('1'+i)))
+	}
+	selectAnime(b, srv)
+	linkedToList(p, b,
+		anilisttest.ListEntry{MediaID: 10, Status: "CURRENT", Progress: 0, Episodes: ptr(12)},
+		anilisttest.ListEntry{MediaID: 20, Status: "CURRENT", Progress: 0, Episodes: ptr(12)},
+		anilisttest.ListEntry{MediaID: 30, Status: "CURRENT", Progress: 0, Episodes: ptr(12)},
+		anilisttest.ListEntry{MediaID: 40, Status: "CURRENT", Progress: 0, Episodes: ptr(2)},
+	)
+
+	_, plan := b.syncNow()
+
+	for id, want := range map[int]string{10: "CURRENT", 20: "PAUSED", 30: "DROPPED", 40: "COMPLETED"} {
+		if got := plan.change(id); got == nil || got.Proposed.Status != want {
+			t.Errorf("entry %d: %+v, want %s", id, got, want)
+		}
+	}
+}

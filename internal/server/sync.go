@@ -63,6 +63,7 @@ func (p *plexLink) syncNow(w http.ResponseWriter, r *http.Request, s dbgen.GetSe
 	}
 	for _, f := range entryFactsOf(shows) {
 		f.total = totals[f.anilistID]
+		f.now = p.now()
 		var cur *listState
 		if state, ok := current[f.anilistID]; ok {
 			cur = &state

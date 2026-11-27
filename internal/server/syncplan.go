@@ -9,6 +9,11 @@ const (
 	listStatusWatching  = "CURRENT"
 	listStatusCompleted = "COMPLETED"
 	listStatusRepeating = "REPEATING"
+	listStatusPaused    = "PAUSED"
+	listStatusDropped   = "DROPPED"
+
+	pausedAfter  = 14 * 24 * time.Hour
+	droppedAfter = 30 * 24 * time.Hour
 )
 
 type listState struct {
@@ -22,6 +27,7 @@ type entryFacts struct {
 	watched     int
 	lastWatched *time.Time
 	total       *int
+	now         time.Time
 }
 
 type planChange struct {
@@ -55,6 +61,15 @@ func planEntry(f entryFacts, current *listState) (planChange, bool) {
 func proposedStatus(f entryFacts, progress int) string {
 	if f.total != nil && progress == *f.total {
 		return listStatusCompleted
+	}
+	if f.lastWatched != nil {
+		idle := f.now.Sub(*f.lastWatched)
+		switch {
+		case idle > droppedAfter:
+			return listStatusDropped
+		case idle > pausedAfter:
+			return listStatusPaused
+		}
 	}
 	return listStatusWatching
 }

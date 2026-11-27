@@ -152,7 +152,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if showsTTL == 0 {
 		showsTTL = defaultShowsTTL
 	}
-	p := &plexLink{shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
+	p := &plexLink{now: clock.Now, shows: &showsCache{store: store, ttl: showsTTL, logger: logger}, usernames: newUsernameCache(clock.Now, ttl), client: plex.NewHTTPClient(cfg.ExternalURLs.PlexTV), server: serverClient, sources: map[mediaKind]media.Source{mediaKindPlex: serverClient.Source(clientID)}, clientID: clientID, box: box, queries: queries, pool: pool, logger: logger,
 		anilist: aniListWorker, anilistClient: aniListClient}
 	mux := http.NewServeMux()
 	a.register(mux)
