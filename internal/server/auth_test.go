@@ -7,11 +7,15 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-const sessionCookie = "plex_ani_sync_session"
+const (
+	sessionCookie   = "plex_ani_sync_session"
+	sessionLifetime = 30 * 24 * time.Hour
+)
 
 type browser struct {
 	t       *testing.T
@@ -239,10 +243,15 @@ func TestExpiredSessionIs401(t *testing.T) {
 	app := startApp(t)
 	b := app.browser()
 	b.signIn()
-	execSQL(t, app.dbURL, "UPDATE sessions SET expires_at = now() - interval '1 second'")
 
+	app.clock.Advance(sessionLifetime - time.Second)
+	if status, _ := b.me(); status != http.StatusOK {
+		t.Fatalf("status just before expiry = %d, want 200", status)
+	}
+
+	app.clock.Advance(time.Second)
 	if status, _ := b.me(); status != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", status)
+		t.Errorf("status at expiry = %d, want 401", status)
 	}
 }
 
@@ -297,18 +306,5 @@ func TestCallbackRejectsNonceMismatch(t *testing.T) {
 	}
 	if got := queryInt(t, app.dbURL, "SELECT count(*) FROM sessions"); got != 0 {
 		t.Errorf("sessions = %d, want 0", got)
-	}
-}
-
-func execSQL(t *testing.T, dbURL, sql string) {
-	t.Helper()
-	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close(ctx)
-	if _, err := conn.Exec(ctx, sql); err != nil {
-		t.Fatal(err)
 	}
 }

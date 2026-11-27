@@ -49,7 +49,7 @@ type Config struct {
 	Cache cache.Cache
 	// ShowsTTL is how long a library's shows are cached; it defaults to 5 minutes.
 	ShowsTTL time.Duration
-	// Clock drives caches and dataset refresh; it defaults to the real clock.
+	// Clock drives sessions, caches and dataset refresh; it defaults to the real clock.
 	Clock Clock
 	// UsernameTTL is how long a plex.tv username is cached; it defaults to 5 minutes.
 	UsernameTTL time.Duration
@@ -72,6 +72,10 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		pool.Close()
 		return nil, nil, fmt.Errorf("OIDC discovery failed for OIDC_ISSUER_URL %q: %w", cfg.Env.OIDCIssuerURL, err)
 	}
+	clock := cfg.Clock
+	if clock == nil {
+		clock = realClock{}
+	}
 	queries := dbgen.New(pool)
 	a := &auth{
 		oauth: &oauth2.Config{
@@ -84,6 +88,7 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 		issuer:   cfg.Env.OIDCIssuerURL,
 		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.Env.OIDCClientID}),
 		queries:  queries,
+		now:      clock.Now,
 		logger:   logger,
 	}
 	box, err := secretbox.New(cfg.Env.EncryptionKey)
@@ -119,10 +124,6 @@ func New(ctx context.Context, cfg Config) (http.Handler, func(), error) {
 	if err := datasets.loadAtStartup(ctx); err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("load mapping dataset: %w", err)
-	}
-	clock := cfg.Clock
-	if clock == nil {
-		clock = realClock{}
 	}
 	refreshEvery := cfg.DatasetRefreshInterval
 	if refreshEvery == 0 {
