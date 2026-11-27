@@ -470,7 +470,7 @@ func TestAdditionIsProposedAsCompletedWhenAniListMediaTotalMatchesProgress(t *te
 	}
 }
 
-func TestAdditionsAreNeverProposedAsPausedOrDroppedHoweverLongAgoTheyWereWatched(t *testing.T) {
+func TestAdditionsFollowTheIdleRulesPausedAfter14DaysAndDroppedAfter30(t *testing.T) {
 	t.Parallel()
 	p, b, srv := syncSetup(t,
 		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"},
@@ -488,9 +488,10 @@ func TestAdditionsAreNeverProposedAsPausedOrDroppedHoweverLongAgoTheyWereWatched
 
 	_, plan := b.syncNow()
 
-	for _, id := range []int{10, 20} {
-		if got := plan.change(id); got == nil || got.Proposed != (planState{"CURRENT", 2}) {
-			t.Errorf("entry %d: %+v", id, got)
-		}
+	if got := plan.change(10); got == nil || got.Proposed != (planState{"PAUSED", 2}) {
+		t.Errorf("stalled: %+v", got)
+	}
+	if got := plan.change(20); got == nil || got.Proposed != (planState{"DROPPED", 2}) {
+		t.Errorf("abandoned: %+v", got)
 	}
 }

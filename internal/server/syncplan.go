@@ -71,16 +71,13 @@ func proposedStatus(f entryFacts, progress int, current *listState) string {
 	if f.total != nil && progress == *f.total {
 		return listStatusCompleted
 	}
-	if current == nil {
-		return listStatusWatching
-	}
 	if f.lastWatched != nil {
 		idle := f.now.Sub(*f.lastWatched)
 		switch {
 		case idle > droppedAfter:
 			return listStatusDropped
 		case idle > pausedAfter:
-			if current.Status == listStatusDropped {
+			if current != nil && current.Status == listStatusDropped {
 				return listStatusDropped
 			}
 			return listStatusPaused
