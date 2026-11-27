@@ -6,7 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { Anime } from "@/pages/Anime";
 import { MediaSources } from "@/pages/MediaSources";
 import { Overview } from "@/pages/Overview";
-import { SetupPlex, SetupServers } from "@/pages/Setup";
+import { Settings } from "@/pages/Settings";
+import { SetupAniList, SetupPlex, SetupServers } from "@/pages/Setup";
 
 function Splash({ children }: { children: string }) {
   return (
@@ -22,9 +23,11 @@ const animeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/anime"
 const mediaSourcesRoute = createRoute({ getParentRoute: () => rootRoute, path: "/media-sources", component: () => <Page page="media-sources" /> });
 const setupPlexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/plex", component: () => <Page page="setup-plex" /> });
 const setupServersRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/servers", component: () => <Page page="setup-servers" /> });
+const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/settings", component: Settings });
+const setupAniListRoute = createRoute({ getParentRoute: () => rootRoute, path: "/setup/anilist", component: SetupAniList });
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([overviewRoute, animeRoute, mediaSourcesRoute, setupPlexRoute, setupServersRoute]),
+  routeTree: rootRoute.addChildren([overviewRoute, animeRoute, mediaSourcesRoute, settingsRoute, setupPlexRoute, setupServersRoute, setupAniListRoute]),
 });
 
 declare module "@tanstack/react-router" {
@@ -52,7 +55,8 @@ function Gate() {
   const linked = plexIsLinked(me.data);
   const setupStep = linked ? "/setup/servers" : "/setup/plex";
   const inSetup = pathname.startsWith("/setup");
-  if (sources.data.length === 0 ? pathname !== setupStep : inSetup && pathname !== setupStep) {
+  const onAniListStep = linked && pathname === "/setup/anilist";
+  if (sources.data.length === 0 ? pathname !== setupStep : inSetup && pathname !== setupStep && !onAniListStep) {
     return <Navigate to={setupStep} replace />;
   }
 

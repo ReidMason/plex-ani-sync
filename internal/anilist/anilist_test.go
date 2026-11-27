@@ -20,10 +20,7 @@ func serve(t *testing.T, status int, fixture string) *anilist.Client {
 		t.Fatal(err)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if status != http.StatusOK {
-			http.Error(w, "no", status)
-			return
-		}
+		w.WriteHeader(status)
 		_, _ = w.Write(body)
 	}))
 	t.Cleanup(srv.Close)
@@ -167,5 +164,46 @@ func TestCancelledRequestDoesNotBackOff(t *testing.T) {
 
 	if err != nil {
 		t.Errorf("fetch after a cancelled one: %v", err)
+	}
+}
+
+func TestUserListParsesStatusProgressAndTotals(t *testing.T) {
+	t.Parallel()
+	got, err := serve(t, http.StatusOK, "user_list.json").UserList(context.Background(), "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(got) != 4 {
+		t.Fatalf("entries = %+v", got)
+	}
+	if e := got[2]; e.MediaID != 80 || e.Status != "CURRENT" || e.Progress != 8 || e.Episodes == nil || *e.Episodes != 43 {
+		t.Errorf("current = %+v", e)
+	}
+	if e := got[3]; e.MediaID != 102675 || e.Status != "PLANNING" || e.Episodes != nil {
+		t.Errorf("unknown total = %+v", e)
+	}
+}
+
+func TestUserListDistinguishesUnknownUserFromPrivateList(t *testing.T) {
+	t.Parallel()
+	_, notFound := serve(t, http.StatusNotFound, "user_not_found.json").UserList(context.Background(), "nobody")
+	_, private := serve(t, http.StatusForbidden, "user_private.json").UserList(context.Background(), "hidden")
+
+	if !errors.Is(notFound, anilist.ErrUserNotFound) || !errors.Is(private, anilist.ErrPrivateList) {
+		t.Errorf("notFound = %v, private = %v", notFound, private)
+	}
+}
+
+func TestUserListSharesTheThrottleGate(t *testing.T) {
+	t.Parallel()
+	c, _ := newPaced(t, 0, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
+	_, _ = c.UserList(context.Background(), "demo")
+
+	_, err := c.UserList(context.Background(), "demo")
+
+	var throttled *anilist.ThrottledError
+	if !errors.As(err, &throttled) {
+		t.Errorf("err = %v", err)
 	}
 }

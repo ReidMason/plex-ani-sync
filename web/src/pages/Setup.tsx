@@ -2,8 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { type MediaSource } from "@/api";
+import { type MediaSource, useAniListUsername } from "@/api";
 import { AddServer } from "@/components/AddServer";
+import { AniListLink } from "@/components/AniListLink";
 import { Brand } from "@/components/Brand";
 import { PlexSignIn } from "@/components/PlexSignIn";
 import { ServerRow } from "@/components/ServerRow";
@@ -11,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { refreshAll } from "@/refresh";
 
-const steps = ["Sign in to Plex", "Add a server"];
+const steps = ["Sign in to Plex", "Add a server", "Link AniList"];
 
-function StepRail({ current }: { current: 1 | 2 }) {
+function StepRail({ current }: { current: 1 | 2 | 3 }) {
   return (
     <ol className="mb-8 flex items-center" aria-label="Setup progress">
       {steps.map((label, i) => {
@@ -38,7 +39,7 @@ function StepRail({ current }: { current: 1 | 2 }) {
   );
 }
 
-function SetupFrame({ step, title, description, children }: { step: 1 | 2; title: string; description: string; children: ReactNode }) {
+function SetupFrame({ step, title, description, children }: { step: 1 | 2 | 3; title: string; description: string; children: ReactNode }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
       <Brand />
@@ -74,9 +75,27 @@ export function SetupServers({ sources }: { sources: MediaSource[] }) {
         </ul>
       )}
       <AddServer onAdded={() => refreshAll(queryClient)} />
-      <Button className="mt-6 self-end" disabled={sources.length === 0} onClick={() => void navigate({ to: "/" })}>
-        Done
+      <Button className="mt-6 self-end" disabled={sources.length === 0} onClick={() => void navigate({ to: "/setup/anilist" })}>
+        Continue
       </Button>
+    </SetupFrame>
+  );
+}
+
+export function SetupAniList() {
+  const navigate = useNavigate();
+  const linked = useAniListUsername().data;
+  return (
+    <SetupFrame step={3} title="Link your AniList account" description="Enter your public AniList username. Your anime list must be public so it can be read.">
+      <AniListLink />
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" onClick={() => void navigate({ to: "/" })}>
+          Skip for now
+        </Button>
+        <Button disabled={!linked} onClick={() => void navigate({ to: "/" })}>
+          Done
+        </Button>
+      </div>
     </SetupFrame>
   );
 }

@@ -18,6 +18,7 @@ const (
 	defaultRetryAfter = time.Minute
 	initialBackoff    = 30 * time.Second
 	maxBackoff        = 15 * time.Minute
+	userListQuery     = `query ($name: String) { MediaListCollection(userName: $name, type: ANIME) { lists { entries { status progress media { id episodes } } } } }`
 	query             = `query ($ids: [Int], $perPage: Int) { Page(perPage: $perPage) { media(id_in: $ids, type: ANIME) { id episodes title { romaji english } } } }`
 )
 
@@ -27,6 +28,20 @@ type Media struct {
 	Episodes     *int
 	TitleRomaji  string
 	TitleEnglish string
+}
+
+var (
+	ErrUserNotFound = errors.New("anilist: user not found")
+	ErrPrivateList  = errors.New("anilist: list is private")
+)
+
+// ListEntry is one item on a User's AniList list.
+type ListEntry struct {
+	MediaID  int
+	Status   string
+	Progress int
+	// Episodes is nil while AniList doesn't know the total.
+	Episodes *int
 }
 
 // ThrottledError means no request was sent because AniList must not be called before Until.
@@ -117,10 +132,96 @@ func (c *Client) Fetch(ctx context.Context, ids []int) ([]Media, error) {
 	if len(ids) > MaxBatch {
 		return nil, fmt.Errorf("anilist: %d ids exceeds batch size %d", len(ids), MaxBatch)
 	}
+	env, err := c.send(ctx, query, map[string]any{"ids": ids, "perPage": MaxBatch})
+	if err != nil {
+		return nil, err
+	}
+	if len(env.Errors) > 0 {
+		return nil, fmt.Errorf("anilist: %s", env.Errors[0].Message)
+	}
+	var data struct {
+		Page struct {
+			Media []struct {
+				ID       int  `json:"id"`
+				Episodes *int `json:"episodes"`
+				Title    struct {
+					Romaji  string `json:"romaji"`
+					English string `json:"english"`
+				} `json:"title"`
+			} `json:"media"`
+		} `json:"Page"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		return nil, fmt.Errorf("anilist: %w", err)
+	}
+	out := make([]Media, 0, len(data.Page.Media))
+	for _, m := range data.Page.Media {
+		out = append(out, Media{ID: m.ID, Episodes: m.Episodes, TitleRomaji: m.Title.Romaji, TitleEnglish: m.Title.English})
+	}
+	return out, nil
+}
+
+// UserList reads a public user's anime list; it returns ErrUserNotFound or ErrPrivateList when it can't.
+func (c *Client) UserList(ctx context.Context, username string) ([]ListEntry, error) {
+	env, err := c.send(ctx, userListQuery, map[string]any{"name": username})
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range env.Errors {
+		switch e.Status {
+		case http.StatusNotFound:
+			return nil, ErrUserNotFound
+		case http.StatusForbidden:
+			return nil, ErrPrivateList
+		}
+	}
+	if len(env.Errors) > 0 {
+		return nil, fmt.Errorf("anilist: %s", env.Errors[0].Message)
+	}
+	var data struct {
+		Collection struct {
+			Lists []struct {
+				Entries []struct {
+					Status   string `json:"status"`
+					Progress int    `json:"progress"`
+					Media    struct {
+						ID       int  `json:"id"`
+						Episodes *int `json:"episodes"`
+					} `json:"media"`
+				} `json:"entries"`
+			} `json:"lists"`
+		} `json:"MediaListCollection"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		return nil, fmt.Errorf("anilist: %w", err)
+	}
+	out := []ListEntry{}
+	for _, l := range data.Collection.Lists {
+		for _, e := range l.Entries {
+			out = append(out, ListEntry{MediaID: e.Media.ID, Status: e.Status, Progress: e.Progress, Episodes: e.Media.Episodes})
+		}
+	}
+	return out, nil
+}
+
+type rateLimitedError struct{ retryAfter time.Duration }
+
+func (e *rateLimitedError) Error() string { return "anilist: unexpected status 429" }
+
+type envelope struct {
+	Data   json.RawMessage `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+		Status  int    `json:"status"`
+	} `json:"errors"`
+}
+
+// send applies the shared throttle gate; GraphQL errors are returned in the envelope, not as an error.
+func (c *Client) send(ctx context.Context, q string, vars map[string]any) (*envelope, error) {
 	if err := c.reserve(); err != nil {
 		return nil, err
 	}
-	media, err := c.fetchPage(ctx, ids)
+	env, err := c.post(ctx, q, vars)
 	var limited *rateLimitedError
 	switch {
 	case err == nil:
@@ -130,15 +231,11 @@ func (c *Client) Fetch(ctx context.Context, ids []int) ([]Media, error) {
 	case ctx.Err() == nil:
 		c.recordFailure()
 	}
-	return media, err
+	return env, err
 }
 
-type rateLimitedError struct{ retryAfter time.Duration }
-
-func (e *rateLimitedError) Error() string { return "anilist: unexpected status 429" }
-
-func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
-	payload, err := json.Marshal(map[string]any{"query": query, "variables": map[string]any{"ids": ids, "perPage": MaxBatch}})
+func (c *Client) post(ctx context.Context, q string, vars map[string]any) (*envelope, error) {
+	payload, err := json.Marshal(map[string]any{"query": q, "variables": vars})
 	if err != nil {
 		return nil, err
 	}
@@ -156,35 +253,13 @@ func (c *Client) fetchPage(ctx context.Context, ids []int) ([]Media, error) {
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return nil, &rateLimitedError{retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), c.now())}
 	}
-	if resp.StatusCode != http.StatusOK {
+	var env envelope
+	decodeErr := json.NewDecoder(resp.Body).Decode(&env)
+	if resp.StatusCode != http.StatusOK && (decodeErr != nil || len(env.Errors) == 0) {
 		return nil, fmt.Errorf("anilist: unexpected status %d", resp.StatusCode)
 	}
-	var body struct {
-		Data struct {
-			Page struct {
-				Media []struct {
-					ID       int  `json:"id"`
-					Episodes *int `json:"episodes"`
-					Title    struct {
-						Romaji  string `json:"romaji"`
-						English string `json:"english"`
-					} `json:"title"`
-				} `json:"media"`
-			} `json:"Page"`
-		} `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
+	if decodeErr != nil {
+		return nil, fmt.Errorf("anilist: %w", decodeErr)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("anilist: %w", err)
-	}
-	if len(body.Errors) > 0 {
-		return nil, fmt.Errorf("anilist: %s", body.Errors[0].Message)
-	}
-	out := make([]Media, 0, len(body.Data.Page.Media))
-	for _, m := range body.Data.Page.Media {
-		out = append(out, Media{ID: m.ID, Episodes: m.Episodes, TitleRomaji: m.Title.Romaji, TitleEnglish: m.Title.English})
-	}
-	return out, nil
+	return &env, nil
 }
