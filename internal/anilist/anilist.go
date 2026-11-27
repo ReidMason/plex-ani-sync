@@ -216,7 +216,7 @@ type envelope struct {
 	} `json:"errors"`
 }
 
-// send applies the shared throttle gate; GraphQL errors are returned in the envelope, not as an error.
+// GraphQL errors come back in the envelope, not as an error.
 func (c *Client) send(ctx context.Context, q string, vars map[string]any) (*envelope, error) {
 	if err := c.reserve(); err != nil {
 		return nil, err

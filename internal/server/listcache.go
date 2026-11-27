@@ -18,7 +18,6 @@ type aniListListCache struct {
 	logger *slog.Logger
 }
 
-// get returns the cached list of an AniList user, or loads and caches it. Cache failures fall back to loading.
 func (c *aniListListCache) get(ctx context.Context, username string, load func() ([]anilist.ListEntry, error)) ([]anilist.ListEntry, error) {
 	key := "anilist-list:" + username
 	if raw, ok, err := c.store.Get(ctx, key); err != nil {

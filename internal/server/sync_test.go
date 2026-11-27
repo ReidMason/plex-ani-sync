@@ -442,3 +442,55 @@ func TestSecondSyncDoesNotRefetchPlexShows(t *testing.T) {
 		t.Errorf("plex requests %d -> %d, plan %+v", before, srv.Requests(), plan)
 	}
 }
+
+func TestAdditionIsProposedAsCompletedWhenAniListMediaTotalMatchesProgress(t *testing.T) {
+	t.Parallel()
+	p, b, srv := syncSetup(t,
+		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 2, Season: tvdb(1), Type: "TV"},
+	)
+	p.anilist.Set(anilisttest.Media{ID: 10, Episodes: ptr(3)})
+	p.anilist.Set(anilisttest.Media{ID: 20})
+	for i, title := range []string{"Finished", "Ongoing"} {
+		watch(srv, title, 1, true, true, true)
+		srv.SetShowGUIDs("2", title, "tvdb://"+string(rune('1'+i)))
+	}
+	selectAnime(b, srv)
+	p.settledShows(t, b)
+	p.clock.Advance(time.Minute)
+	linkedToList(p, b)
+
+	_, plan := b.syncNow()
+
+	if got := plan.change(10); got == nil || got.Proposed != (planState{"COMPLETED", 3}) {
+		t.Errorf("finished: %+v", got)
+	}
+	if got := plan.change(20); got == nil || got.Proposed != (planState{"CURRENT", 3}) {
+		t.Errorf("ongoing: %+v", got)
+	}
+}
+
+func TestAdditionsAreNeverProposedAsPausedOrDroppedHoweverLongAgoTheyWereWatched(t *testing.T) {
+	t.Parallel()
+	p, b, srv := syncSetup(t,
+		datasettest.FribbEntry{AniDBID: 1, AniListID: 10, TVDBID: 1, Season: tvdb(1), Type: "TV"},
+		datasettest.FribbEntry{AniDBID: 2, AniListID: 20, TVDBID: 2, Season: tvdb(1), Type: "TV"},
+	)
+	for i, c := range []struct {
+		title string
+		days  int
+	}{{"Stalled", 20}, {"Abandoned", 60}} {
+		watchedDaysAgo(srv, c.title, 1, c.days, true, true)
+		srv.SetShowGUIDs("2", c.title, "tvdb://"+string(rune('1'+i)))
+	}
+	selectAnime(b, srv)
+	linkedToList(p, b)
+
+	_, plan := b.syncNow()
+
+	for _, id := range []int{10, 20} {
+		if got := plan.change(id); got == nil || got.Proposed != (planState{"CURRENT", 2}) {
+			t.Errorf("entry %d: %+v", id, got)
+		}
+	}
+}

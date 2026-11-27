@@ -38,7 +38,6 @@ type planChange struct {
 	Reason    string     `json:"reason"`
 }
 
-// planEntry decides what a sync would change for one Entry; current is nil when the Entry is not on the list.
 func planEntry(f entryFacts, current *listState) (planChange, bool) {
 	if f.watched == 0 {
 		return planChange{}, false
@@ -68,10 +67,12 @@ func changeReason(f entryFacts, current *listState, proposed listState) string {
 	}
 }
 
-// proposedStatus is where status rules grow; for now an Entry keeps its status and additions are Watching.
 func proposedStatus(f entryFacts, progress int, current *listState) string {
 	if f.total != nil && progress == *f.total {
 		return listStatusCompleted
+	}
+	if current == nil {
+		return listStatusWatching
 	}
 	if f.lastWatched != nil {
 		idle := f.now.Sub(*f.lastWatched)
@@ -79,7 +80,7 @@ func proposedStatus(f entryFacts, progress int, current *listState) string {
 		case idle > droppedAfter:
 			return listStatusDropped
 		case idle > pausedAfter:
-			if current != nil && current.Status == listStatusDropped {
+			if current.Status == listStatusDropped {
 				return listStatusDropped
 			}
 			return listStatusPaused
