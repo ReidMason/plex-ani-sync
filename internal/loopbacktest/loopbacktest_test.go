@@ -11,10 +11,7 @@ import (
 	"github.com/ReidMason/plex-ani-sync/internal/loopbacktest"
 )
 
-func TestMain(m *testing.M) {
-	loopbacktest.Install()
-	os.Exit(m.Run())
-}
+func TestMain(m *testing.M) { os.Exit(loopbacktest.Run(m)) }
 
 func TestRejectsNonLoopbackHostByName(t *testing.T) {
 	t.Parallel()

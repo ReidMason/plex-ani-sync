@@ -27,8 +27,12 @@ var (
 	dbSeq    atomic.Int64
 )
 
-func TestMain(m *testing.M) {
-	loopbacktest.Install()
+func TestMain(m *testing.M) { os.Exit(loopbacktest.Run(postgresSuite{m})) }
+
+// postgresSuite runs the tests against a throwaway Postgres container.
+type postgresSuite struct{ m *testing.M }
+
+func (s postgresSuite) Run() int {
 	ctx := context.Background()
 	pg, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("postgres"),
@@ -40,20 +44,18 @@ func TestMain(m *testing.M) {
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "start postgres container:", err)
-		os.Exit(1)
+		return 1
 	}
+	defer func() { _ = testcontainers.TerminateContainer(pg) }()
 	adminURL, err = pg.ConnectionString(ctx, "sslmode=disable")
 	if err == nil {
 		err = createTemplate(ctx)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		_ = testcontainers.TerminateContainer(pg)
-		os.Exit(1)
+		return 1
 	}
-	code := m.Run()
-	_ = testcontainers.TerminateContainer(pg)
-	os.Exit(code)
+	return s.m.Run()
 }
 
 func createTemplate(ctx context.Context) error {
