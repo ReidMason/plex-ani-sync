@@ -5,6 +5,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+function seasonLabel(seasons: number[]) {
+  const name = (n: number) => (n === 0 ? "Specials" : `Season ${n}`);
+  return seasons.map(name).join(", ");
+}
+
 function Plan({ plan }: { plan: SyncPlan }) {
   return (
     <div className="flex flex-col gap-6">
@@ -17,7 +22,10 @@ function Plan({ plan }: { plan: SyncPlan }) {
             <ul className="divide-y divide-border">
               {plan.changes.map((c) => (
                 <li key={c.anilistId} className="flex flex-col gap-1 px-4 py-3">
-                  <p className="font-medium">{c.title}</p>
+                  <p className="font-medium">
+                    {c.title}
+                    <span className="font-normal text-muted-foreground"> · {seasonLabel(c.seasons)}</span>
+                  </p>
                   <p className="text-sm">
                     {c.current ? `${c.current.status} at ${c.current.progress}` : "Not on list"} to {c.proposed.status} at{" "}
                     {c.proposed.progress}

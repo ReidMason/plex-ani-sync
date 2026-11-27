@@ -190,6 +190,7 @@ interface PlanState {
 export interface SyncPlan {
   changes: {
     anilistId: number;
+    seasons: number[];
     title: string;
     current: PlanState | null;
     proposed: PlanState;

@@ -107,6 +107,9 @@ func entryFactsOf(shows []showJSON) []entryFacts {
 					index[id] = at
 					out = append(out, entryFacts{anilistID: id, title: show.Title})
 				}
+				if !slices.Contains(out[at].seasons, season.Number) {
+					out[at].seasons = append(out[at].seasons, season.Number)
+				}
 				if !e.Watched {
 					continue
 				}
